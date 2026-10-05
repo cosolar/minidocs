@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="MiniDocs">
+  <!--
+    MiniDocs · 极简知识库
+    几何构图：圆角方底 + 三张层叠的文档卡 + 两条正文线。
+    配色沿用项目主色（#3b6cf6 蓝 → #7c4bd6 紫），白卡在亮/暗两种主题下都压得住。
+    「层叠」而不是「单页」：知识库不是一个文件，是一批。
+
+    放在 front/public/ 是因为它有两处消费方：README 顶部（img src）与浏览器标签页
+    （index.html 里的 favicon）。同一份文件两处用，改配色时不会漏掉一处。
+  -->
+  <defs>
+    <linearGradient id="md-logo-bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#3b6cf6" />
+      <stop offset="1" stop-color="#7c4bd6" />
+    </linearGradient>
+  </defs>
+
+  <rect width="64" height="64" rx="15" fill="url(#md-logo-bg)" />
+
+  <!-- 后两张卡：只做层次，不参与识别，低透明度即可 -->
+  <rect x="18" y="14" width="30" height="36" rx="6" fill="#fff" opacity=".34" />
+  <rect x="15" y="18" width="30" height="36" rx="6" fill="#fff" opacity=".58" />
+
+  <!-- 前卡：唯一的高对比面，识别全靠它 -->
+  <rect x="12" y="22" width="30" height="32" rx="6" fill="#fff" opacity=".96" />
+
+  <!-- 正文线：长短递减，暗示「一段内容」；24px 下这两道仍是清晰的横 -->
+  <rect x="18" y="31" width="17" height="3.2" rx="1.6" fill="#3b6cf6" />
+  <rect x="18" y="38.5" width="11" height="3.2" rx="1.6" fill="#3b6cf6" opacity=".55" />
+</svg>
