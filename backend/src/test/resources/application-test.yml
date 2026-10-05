@@ -1,0 +1,26 @@
+# 测试环境：SQLite 单文件，落在 target/test-vault 下，由 MiniDocsTestBase 注入绝对路径
+# 数据源 URL 与 vault-home 在 @DynamicPropertySource 中覆盖，此处仅提供方言与开关
+spring:
+  datasource:
+    driver-class-name: org.sqlite.JDBC
+    hikari:
+      pool-name: minidocs-test-sqlite
+      maximum-pool-size: 4
+      minimum-idle: 1
+      connection-timeout: 10000
+  # 测试无前端产物，关闭静态资源与 SPA 回退相关噪音日志
+  main:
+    banner-mode: off
+
+minidocs:
+  db-dialect: sqlite
+  # 测试自行构造用户与管理员，不依赖内置管理员引导（AdminInitializer 是 ApplicationRunner，
+  # @SpringBootTest 不调用 main()，本就不会执行；置空只为让意图显式）
+  admin-user: ""
+  admin-pass: ""
+  register-enabled: true
+
+logging:
+  level:
+    root: warn
+    cn.minims.minidocs: info

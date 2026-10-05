@@ -1,0 +1,102 @@
+/* MiniDocs 设计变量（管理后台与阅读前台共用） */
+:root {
+  --md-primary: #3b6cf6;
+  --md-primary-hover: #2f5cd9;
+  --md-primary-soft: rgba(59, 108, 246, 0.12);
+  --md-success: #16a34a;
+  --md-warning: #d97706;
+  --md-danger: #dc2626;
+
+  --md-bg: #f6f7fb;
+  --md-surface: #ffffff;
+  --md-surface-2: #f1f3f9;
+  --md-sidebar: #fbfbfd;
+  --md-text: #1f2333;
+  --md-text-2: #5b617a;
+  --md-text-3: #8b90a6;
+  --md-border: #e5e7f0;
+  --md-border-strong: #d3d7e4;
+  --md-shadow: 0 1px 2px rgba(24, 29, 51, 0.05), 0 8px 24px rgba(24, 29, 51, 0.06);
+  --md-shadow-sm: 0 1px 2px rgba(24, 29, 51, 0.06);
+
+  --md-radius: 12px;
+  --md-radius-sm: 8px;
+  --md-content-width: 900px;
+  --md-aside-width: 260px;
+  --md-outline-width: 240px;
+  --md-topbar-height: 62px;
+
+  /* 正文字体：默认值与 reader.css 的 body 字体栈保持一致，分享页换字体时被 readerFont.ts 覆写 */
+  --md-read-font: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB',
+    'Microsoft YaHei', 'Helvetica Neue', Arial, sans-serif;
+
+  /* 可见性三档的配色（门户徽标、管理端小章、阅读页侧栏共用）。
+     深色下必须提亮：#15803d/#7c3aed 压在 #0f1117 底上对比度不到 3:1，几乎读不出。 */
+  --md-vis-public: #15803d;
+  --md-vis-public-bg: rgba(22, 163, 74, .14);
+  --md-vis-org: #7c3aed;
+  --md-vis-org-bg: rgba(139, 92, 246, .15);
+
+  --md-code-bg: #f6f8fa;
+  --md-code-text: #24292f;
+  --md-code-border: #e3e6ee;
+
+  --md-tk-keyword: #cf222e;
+  --md-tk-string: #0a3069;
+  --md-tk-comment: #6e7781;
+  --md-tk-number: #0550ae;
+  --md-tk-title: #8250df;
+  --md-tk-attr: #953800;
+  --md-tk-builtin: #0550ae;
+  --md-tk-type: #953800;
+  --md-tk-meta: #6e7781;
+
+  color-scheme: light;
+}
+
+[data-theme='dark'] {
+  --md-primary: #6c8cff;
+  --md-primary-hover: #8ba4ff;
+  --md-primary-soft: rgba(108, 140, 255, 0.18);
+
+  --md-bg: #0f1117;
+  --md-surface: #161922;
+  --md-surface-2: #1d2130;
+  --md-sidebar: #14171f;
+  --md-text: #e7e9f2;
+  --md-text-2: #a8adc0;
+  --md-text-3: #7c8199;
+  --md-border: #262b3a;
+  --md-border-strong: #333a4d;
+  --md-shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 12px 32px rgba(0, 0, 0, 0.35);
+  --md-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+
+  --md-code-bg: #1b1f2b;
+  --md-code-text: #e7e9f2;
+  --md-code-border: #2b3143;
+
+  --md-vis-public: #4ade80;
+  --md-vis-public-bg: rgba(34, 197, 94, .16);
+  --md-vis-org: #a78bfa;
+  --md-vis-org-bg: rgba(139, 92, 246, .22);
+
+  --md-tk-keyword: #ff7b72;
+  --md-tk-string: #a5d6ff;
+  --md-tk-comment: #8b949e;
+  --md-tk-number: #79c0ff;
+  --md-tk-title: #d2a8ff;
+  --md-tk-attr: #ffa657;
+  --md-tk-builtin: #79c0ff;
+  --md-tk-type: #ffa657;
+  --md-tk-meta: #8b949e;
+
+  color-scheme: dark;
+}
+
+/* 代码块主题（6 种，按 data-code-theme 切换） */
+[data-code-theme='github'] { --md-tk-keyword:#cf222e; --md-tk-string:#0a3069; --md-tk-comment:#6e7781; --md-tk-number:#0550ae; --md-tk-title:#8250df; --md-tk-attr:#953800; }
+[data-code-theme='github-dark'] { --md-tk-keyword:#ff7b72; --md-tk-string:#a5d6ff; --md-tk-comment:#8b949e; --md-tk-number:#79c0ff; --md-tk-title:#d2a8ff; --md-tk-attr:#ffa657; }
+[data-code-theme='atom-one-light'] { --md-tk-keyword:#a626a4; --md-tk-string:#50a14f; --md-tk-comment:#a0a1a7; --md-tk-number:#986801; --md-tk-title:#4078f2; --md-tk-attr:#986801; }
+[data-code-theme='atom-one-dark'] { --md-tk-keyword:#c678dd; --md-tk-string:#98c379; --md-tk-comment:#5c6370; --md-tk-number:#d19a66; --md-tk-title:#61afef; --md-tk-attr:#d19a66; }
+[data-code-theme='monokai'] { --md-tk-keyword:#f92672; --md-tk-string:#e6db74; --md-tk-comment:#75715e; --md-tk-number:#ae81ff; --md-tk-title:#a6e22e; --md-tk-attr:#fd971f; }
+[data-code-theme='nord'] { --md-tk-keyword:#81a1c1; --md-tk-string:#a3be8c; --md-tk-comment:#616e88; --md-tk-number:#b48ead; --md-tk-title:#88c0d0; --md-tk-attr:#d08770; }

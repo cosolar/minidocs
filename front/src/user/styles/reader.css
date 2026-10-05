@@ -1,0 +1,1355 @@
+@import '@/shared/styles/variables.css';
+@import '@/shared/styles/markdown.css';
+@import '@/user/styles/portal.css';
+
+* { box-sizing: border-box; }
+
+html, body { margin: 0; padding: 0; height: 100%; }
+
+/*
+ * 全站只允许一个滚动区（#app > .md-view），页面本身不滚。
+ *
+ * <p>高度单位用 {@code 100dvh} 而不是 {@code 100vh}：移动浏览器的地址栏收起时，
+ * {@code 100vh} 仍是「收起前」的那个高度，于是底部一截内容永远看不见也滚不到——
+ * 恰好是「不允许页面滚动」这个要求下最糟的失败方式。保留 {@code 100vh} 那行做回退，
+ * 不认识 {@code dvh} 的旧浏览器至少还能拿到一个满屏高度。</p>
+ */
+body.md-page {
+  height: 100%;
+  overflow: hidden;
+  background: var(--md-bg);
+  color: var(--md-text);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB',
+    'Microsoft YaHei', 'Helvetica Neue', Arial, sans-serif;
+  font-size: 14px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+#app {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  height: 100dvh;
+}
+
+/* 唯一的滚动区。顶栏在它外面，所以内部那些 sticky 元素的偏移基准是 0，不再是顶栏高度 */
+.md-view {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+}
+
+a { color: inherit; text-decoration: none; }
+img { max-width: 100%; }
+button { font-family: inherit; }
+
+/* ------------------------------------------------------------------ 顶栏 */
+.md-topbar {
+  flex-shrink: 0;
+  z-index: 40;
+  height: var(--md-topbar-height);
+  background: color-mix(in srgb, var(--md-surface) 88%, transparent);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--md-border);
+}
+/* 顶栏内容不再锁宽：门户正文已铺满视口，顶栏跟着 100% 才能左右对齐 */
+.md-topbar__inner {
+  width: 100%;
+  height: 100%;
+  padding: 0 20px;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+.md-brand { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+.md-brand__logo {
+  width: 34px; height: 34px; border-radius: 10px;
+  background: linear-gradient(135deg, #3b6cf6, #2f8cf6);
+  color: #fff; display: grid; place-items: center;
+  box-shadow: 0 2px 8px rgba(59, 108, 246, .3);
+  overflow: hidden;
+}
+/* 上传了自定义 Logo：换成中性底 + 发丝线，图片铺满，不再叠品牌渐变 */
+.md-brand__logo.is-image { background: var(--md-surface-2); box-shadow: none; border: 1px solid var(--md-border); }
+.md-brand__logo.is-image img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.md-brand__text { display: flex; flex-direction: column; line-height: 1.15; }
+.md-brand__text strong { font-size: 15px; }
+.md-brand__text small { font-size: 11px; color: var(--md-text-3); }
+
+.md-topbar__actions { display: flex; align-items: center; gap: 10px; margin-left: auto; }
+
+.md-icon-btn {
+  width: 34px; height: 34px; border-radius: 9px;
+  border: 1px solid transparent; background: transparent; color: var(--md-text-2);
+  display: grid; place-items: center; cursor: pointer; position: relative;
+}
+.md-icon-btn:hover { background: var(--md-surface-2); color: var(--md-text); }
+.md-bell-dot { position: absolute; top: 7px; right: 8px; width: 7px; height: 7px; border-radius: 50%; background: var(--md-danger); }
+
+.md-btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  height: 34px; padding: 0 14px; border-radius: 9px;
+  border: 1px solid var(--md-border-strong); background: var(--md-surface); color: var(--md-text);
+  font-size: 13px; font-weight: 500; line-height: 1; cursor: pointer; white-space: nowrap;
+  transition: background-color .15s ease, border-color .15s ease, color .15s ease, box-shadow .15s ease;
+}
+.md-btn .md-icon { flex-shrink: 0; }
+.md-btn:hover { border-color: var(--md-primary); color: var(--md-primary); }
+.md-btn:active { transform: translateY(1px); }
+.md-btn:focus-visible { outline: 2px solid var(--md-primary); outline-offset: 2px; }
+.md-btn:disabled, .md-btn[aria-disabled='true'] { opacity: .55; cursor: not-allowed; }
+.md-btn:disabled:hover, .md-btn[aria-disabled='true']:hover { border-color: var(--md-border-strong); color: var(--md-text); }
+.md-btn--primary { background: var(--md-primary); border-color: var(--md-primary); color: #fff; }
+.md-btn--primary:hover { background: var(--md-primary-hover); border-color: var(--md-primary-hover); color: #fff; }
+/* 小号：工具条、卡片动作栏里用，圆角跟设计系统的 8px 对齐，不再自成一档 9px */
+.md-btn--sm { height: 28px; padding: 0 12px; font-size: 12.5px; border-radius: 8px; }
+.md-btn--ghost { background: transparent; }
+.md-btn--dark { background: #1f2333; border-color: #1f2333; color: #fff; }
+.md-btn--dark:hover { background: #2c3247; border-color: #2c3247; color: #fff; }
+.md-btn--success { background: var(--md-success); border-color: var(--md-success); color: #fff; }
+.md-btn--success:hover { background: #15803d; border-color: #15803d; color: #fff; }
+/*
+ * 软色底动作按钮：底色是主色的半透明薄层、描边用主色，悬停才整颗实心。
+ *
+ * <p>阅读页工具条那颗「编辑」用它。默认的白底细框皮肤在通透的工具条里像贴上去的一张便签，
+ * 和左侧的面包屑、右侧的分隔线都不搭；换成软色底之后它才像工具条自己长出来的一颗动作，
+ * 也和底部状态栏那颗「回到顶部」用同一套语言（主色描边 + primary-soft 底）。</p>
+ */
+.md-btn--soft {
+  border-color: var(--md-primary);
+  background: var(--md-primary-soft);
+  color: var(--md-primary);
+  font-weight: 600;
+}
+.md-btn--soft:hover {
+  background: var(--md-primary); border-color: var(--md-primary); color: #fff;
+  box-shadow: 0 2px 10px color-mix(in srgb, var(--md-primary) 35%, transparent);
+}
+
+.md-user { position: relative; }
+.md-avatar {
+  width: 34px; height: 34px; border-radius: 50%;
+  border: 0; background: linear-gradient(135deg, #6c8cff, #a855f7);
+  color: #fff; font-weight: 600; cursor: pointer; text-transform: uppercase;
+  display: grid; place-items: center; overflow: hidden;
+}
+/* 有头像时铺满圆形；没头像时容器内的首字母自然居中 */
+.md-avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
+/* 身份入口是「头像 + 名字 + 箭头」的一整颗胶囊，光一个圆点没人知道能点 */
+.md-avatar-btn {
+  display: flex; align-items: center; gap: 8px; padding: 3px 9px 3px 3px;
+  border: 1px solid transparent; border-radius: 999px;
+  background: none; color: var(--md-text-2); font-family: inherit; cursor: pointer;
+}
+.md-avatar-btn:hover, .md-avatar-btn[aria-expanded='true'] {
+  background: var(--md-surface-2); border-color: var(--md-border);
+}
+.md-avatar-btn .md-avatar { width: 30px; height: 30px; font-size: 12.5px; }
+.md-avatar-btn__name { max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
+.md-menu {
+  position: absolute; right: 0; top: calc(100% + 8px); min-width: 190px;
+  background: var(--md-surface); border: 1px solid var(--md-border);
+  border-radius: var(--md-radius); box-shadow: var(--md-shadow); padding: 6px; z-index: 50;
+}
+/* 顶栏那颗胶囊的菜单改由 JS 定位（fixed），避开阅读页里的粘性层 */
+.md-menu--fixed { position: fixed; right: auto; }
+.md-menu__head { padding: 8px 10px 10px; border-bottom: 1px solid var(--md-border); margin-bottom: 6px; }
+.md-menu__head strong { display: block; font-size: 13px; }
+.md-menu__head small { color: var(--md-text-3); font-size: 11px; }
+.md-menu__item {
+  display: flex; align-items: center; gap: 8px; width: 100%; text-align: left; padding: 8px 10px;
+  border: 0; background: none; border-radius: 7px; font-family: inherit;
+  font-size: 13px; color: var(--md-text); cursor: pointer;
+}
+.md-menu__item:hover { background: var(--md-surface-2); }
+.md-menu__item--danger { color: var(--md-danger); }
+
+/* ------------------------------------------------------------------ 搜索面板 */
+.md-search-panel { position: fixed; inset: 0; z-index: 80; background: rgba(15, 17, 23, .45); padding-top: 12vh; }
+.md-search-panel__dialog {
+  width: min(680px, 92vw); margin: 0 auto; background: var(--md-surface);
+  border-radius: var(--md-radius); box-shadow: var(--md-shadow); overflow: hidden;
+  border: 1px solid var(--md-border);
+}
+.md-search-panel__input { display: flex; align-items: center; gap: 8px; padding: 12px 16px; border-bottom: 1px solid var(--md-border); }
+.md-search-panel__input input { flex: 1; border: 0; outline: 0; background: transparent; color: var(--md-text); font-size: 15px; }
+.md-search-panel__input kbd { font-size: 11px; color: var(--md-text-3); border: 1px solid var(--md-border-strong); border-radius: 5px; padding: 1px 6px; }
+.md-search-panel__body { max-height: 52vh; overflow-y: auto; padding: 8px; }
+.md-search-panel__empty { color: var(--md-text-3); text-align: center; padding: 26px 0; font-size: 13px; }
+.md-search-group { margin-bottom: 6px; }
+.md-search-group__title { font-size: 11px; color: var(--md-text-3); padding: 6px 10px; text-transform: uppercase; letter-spacing: .04em; }
+.md-search-group__title small { margin-left: 6px; text-transform: none; letter-spacing: 0; }
+.md-search-item {
+  display: flex; flex-direction: column; gap: 2px; padding: 8px 10px; border-radius: 8px; cursor: pointer;
+}
+.md-search-item.is-active, .md-search-item:hover { background: var(--md-surface-2); }
+.md-search-item strong { font-size: 13.5px; font-weight: 600; }
+.md-search-item small { color: var(--md-text-3); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* 正文命中片段占一行以上，所以从 flex 里跳出来独占整行；两行截断，避免长段落把面板撑满 */
+.md-search-item__snippet {
+  width: 100%; margin: 2px 0 0; color: var(--md-text-2); font-size: 12.5px; line-height: 1.5;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.md-search-item mark { background: var(--md-primary-soft); color: var(--md-primary); border-radius: 3px; }
+
+/* ------------------------------------------------------------------ 门户（样式见 user/styles/portal.css） */
+
+/* ------------------------------------------------------------------ 阅读页 */
+/* 侧栏拖宽手柄只在桌面布局（≥1181px）出现，其余断点隐藏（见文件末尾的媒体查询） */
+.md-reading__resize { display: none; }
+
+.md-reading {
+  display: grid;
+  /*
+   * 五列：左栏 · 左把手 · 正文 · 右把手 · 右栏。两侧宽度走「拖过的值 → 默认值」两级变量，
+   * 没拖过时仍归样式表的默认宽度管，各档响应式断点照常生效。
+   * 整页铺满视口、不设版心上限：正文该多宽由读者拖两侧栏决定，见 .md-doc 那条。
+   */
+  grid-template-columns:
+    var(--md-aside-w, var(--md-aside-width)) 6px minmax(0, 1fr) 6px
+    var(--md-outline-w, var(--md-outline-width));
+  gap: 0;
+  align-items: start;
+}
+.md-reading__aside,
+.md-reading__outline {
+  position: sticky;
+  top: 0;
+  /* 滚动区的高度就是「视口减顶栏」，这里必须照抄同一个算式：写成 100% 会等于整篇正文的高度 */
+  height: calc(100vh - var(--md-topbar-height));
+  height: calc(100dvh - var(--md-topbar-height));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 18px 14px 40px;
+  border-right: 1px solid var(--md-border);
+  background: var(--md-sidebar);
+}
+.md-reading__outline { border-right: 0; border-left: 1px solid var(--md-border); }
+.md-reading__main { min-width: 0; padding: 0 28px 80px; }
+
+/* ------------------------------------------------------------------ 门户阅读页骨架 */
+/*
+ * 阅读页不要页面级滚动条：正文一长，底部状态栏就被推到几屏之外，想看一眼字数、行数
+ * 或回到顶部都得先滚到底。这里改成分享页宽屏那套「一栏独滚」——#md-view 交出滚动权，
+ * 正文栏自己滚，状态栏作为 flex 兄弟常驻在视口底部。
+ *
+ * <p>正文栏成了滚动容器，栅格行就必须收窄成 minmax(0, 1fr)：默认的 auto 行高会等于整篇
+ * 正文的高度，栏内滚动也就无从发生（元素永远和内容一样高）。</p>
+ */
+.md-page--read .md-view { overflow: hidden; }
+
+.md-read { display: flex; flex-direction: column; height: 100%; }
+
+.md-reading[data-mode='portal'] {
+  flex: 1;
+  min-height: 0;
+  align-items: stretch;
+  grid-template-rows: minmax(0, 1fr);
+}
+/* 侧栏不再照抄「视口减顶栏」：页面不滚了，高度跟着栅格行走，栏内滚动交给各自的 overflow-y */
+.md-reading[data-mode='portal'] .md-reading__aside,
+.md-reading[data-mode='portal'] .md-reading__outline { height: auto; }
+.md-reading[data-mode='portal'] .md-reading__main {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+}
+.md-reading[data-mode='portal'] .md-reading__main::-webkit-scrollbar { width: 10px; }
+.md-reading[data-mode='portal'] .md-reading__main::-webkit-scrollbar-thumb {
+  background: var(--md-border-strong);
+  border-radius: 10px;
+  border: 3px solid transparent;
+  background-clip: padding-box;
+}
+/* 左栏自己滚，滚动条也收细一档，免得在 260px 宽的栏里占掉一条明显的槽 */
+.md-reading[data-mode='portal'] .md-reading__aside {
+  padding: 18px 12px 40px;
+  scrollbar-width: thin;
+}
+.md-reading[data-mode='portal'] .md-reading__aside::-webkit-scrollbar { width: 8px; }
+.md-reading[data-mode='portal'] .md-reading__aside::-webkit-scrollbar-thumb {
+  background: var(--md-border-strong);
+  border-radius: 10px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+/* 底部常驻状态栏：与分享页那条同形，只换内容与配色来源 */
+.md-read-status {
+  flex-shrink: 0;
+  display: flex; align-items: center; gap: 12px;
+  height: 44px; padding: 0 16px;
+  background: color-mix(in srgb, var(--md-surface) 92%, transparent);
+  backdrop-filter: blur(10px);
+  border-top: 1px solid var(--md-border);
+}
+.md-read-status__main {
+  display: flex; align-items: center; gap: 18px; min-width: 0;
+  color: var(--md-text-3); font-size: 12.5px;
+}
+.md-read-status__stat { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+.md-read-status__totop {
+  margin-left: auto; flex-shrink: 0;
+  display: inline-grid; place-items: center;
+  width: 30px; height: 30px; border-radius: 8px;
+  border: 1px solid var(--md-primary); background: var(--md-primary-soft);
+  color: var(--md-primary); cursor: pointer;
+}
+.md-read-status__totop:hover { background: var(--md-primary); color: #fff; }
+
+/* 返回入口做成一颗「幽灵胶囊」：平时不带底色，悬停才浮出来，不跟下面的库名抢视线 */
+.md-aside__back {
+  display: inline-flex; align-items: center; gap: 3px;
+  height: 28px; padding: 0 10px 0 7px; margin: 0 0 14px -7px;
+  border-radius: 8px; color: var(--md-text-3); font-size: 12.5px;
+  transition: background 0.15s, color 0.15s;
+}
+.md-aside__back:hover { background: var(--md-surface-2); color: var(--md-primary); }
+.md-aside__back .md-icon { transition: transform 0.15s; }
+.md-aside__back:hover .md-icon { transform: translateX(-2px); }
+
+.md-aside__kb h2 {
+  margin: 0 0 8px; color: var(--md-text);
+  font-size: 16px; font-weight: 650; line-height: 1.35; letter-spacing: -0.01em;
+  overflow-wrap: anywhere;
+}
+.md-aside__desc {
+  margin: 0 0 10px; color: var(--md-text-2); font-size: 12.5px; line-height: 1.6;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+/* 篇数 / 标签数 / 可见性：一排小胶囊，可见性三档各按 --md-vis-* 上色，与门户卡片徽标同源 */
+.md-aside__meta { display: flex; flex-wrap: wrap; gap: 6px; }
+.md-aside__pill {
+  display: inline-flex; align-items: center; gap: 4px;
+  height: 22px; padding: 0 8px; border-radius: 999px;
+  background: var(--md-surface-2); color: var(--md-text-3);
+  font-size: 11.5px; white-space: nowrap;
+}
+.md-aside__pill.is-public { background: var(--md-vis-public-bg); color: var(--md-vis-public); }
+.md-aside__pill.is-org { background: var(--md-vis-org-bg); color: var(--md-vis-org); }
+.md-aside__pill.is-private {
+  background: color-mix(in srgb, var(--md-warning) 15%, transparent);
+  color: var(--md-warning);
+}
+
+/* 搜索：整块填充式输入框，放大镜嵌在左侧；聚焦时描主色边 + 一圈柔光 */
+.md-aside__search {
+  display: flex; align-items: center; gap: 8px;
+  height: 34px; margin: 16px 0 12px; padding: 0 11px;
+  border: 1px solid transparent; border-radius: 9px;
+  background: var(--md-surface-2);
+  transition: background 0.15s, border-color 0.15s, box-shadow 0.15s;
+}
+.md-aside__search:focus-within {
+  background: var(--md-surface);
+  border-color: var(--md-primary);
+  box-shadow: 0 0 0 3px var(--md-primary-soft);
+}
+.md-aside__search .md-icon { color: var(--md-text-3); transition: color 0.15s; }
+.md-aside__search:focus-within .md-icon { color: var(--md-primary); }
+.md-aside__search input {
+  flex: 1; min-width: 0; height: auto; padding: 0; border: 0; background: none;
+  color: var(--md-text); font-size: 12.5px; outline: none;
+}
+.md-aside__search input::placeholder { color: var(--md-text-3); }
+/* 去掉 Chrome 给 type=search 自带的清除叉，它会和上面那圈聚焦光环打架 */
+.md-aside__search input::-webkit-search-cancel-button { -webkit-appearance: none; }
+
+/*
+ * 侧栏内容的卡片壳。
+ *
+ * <p>门户阅读页的侧栏本身就是一整块（底色 + 右边线），再套一层卡片只是多余的盒子，所以这里
+ * {@code display: contents} 让它对布局彻底隐形；分享页才把它变成真正的一张卡（见文末分享页一节）。</p>
+ */
+.md-aside__card,
+.md-outline__card { display: contents; }
+
+.md-tree { list-style: none; margin: 0; padding: 0; }
+/* 嵌套层级 = 缩进 + 一条竖向引导线：比纯缩进更容易看清「谁挂在谁下面」 */
+.md-tree .md-tree {
+  margin-left: 14px; padding-left: 9px;
+  border-left: 1px solid var(--md-border);
+}
+.md-tree__item.is-collapsed > .md-tree { display: none; }
+.md-tree__item.is-hidden { display: none; }
+.md-tree__row { display: flex; align-items: center; }
+
+.md-tree__label,
+.md-tree__link {
+  display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0;
+  padding: 6px 8px; border-radius: 8px;
+  color: var(--md-text-2); font-size: 13px; text-align: left;
+  transition: background 0.15s, color 0.15s;
+}
+/* 目录名整行可点，因此它是个 button：把浏览器默认的边框 / 底色 / 字体全部抹平 */
+.md-tree__label { border: 0; background: none; font-family: inherit; cursor: pointer; }
+.md-tree__link { text-decoration: none; }
+.md-tree__label:hover,
+.md-tree__link:hover { background: var(--md-surface-2); color: var(--md-text); }
+
+.md-tree__name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.md-tree__chevron { color: var(--md-text-3); transition: transform 0.18s ease, color 0.15s; }
+.md-tree__item.is-collapsed > .md-tree__row .md-tree__chevron { transform: rotate(-90deg); }
+.md-tree__label:hover .md-tree__chevron { color: var(--md-text-2); }
+.md-tree__count {
+  margin-left: auto; flex-shrink: 0; font-style: normal;
+  min-width: 20px; padding: 1px 6px; border-radius: 999px;
+  background: var(--md-surface-2); color: var(--md-text-3);
+  font-size: 11px; line-height: 1.5; text-align: center;
+}
+
+/* 文档行首的小圆点：激活时点亮并套一圈光环，比原来的「▪」方点安静得多 */
+.md-tree__dot {
+  width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0;
+  background: var(--md-border-strong);
+  transition: background 0.15s, box-shadow 0.15s;
+}
+.md-tree__link.is-active { background: var(--md-primary-soft); color: var(--md-primary); font-weight: 600; }
+.md-tree__link.is-active .md-tree__dot {
+  background: var(--md-primary);
+  box-shadow: 0 0 0 3px var(--md-primary-soft);
+}
+
+.md-reading__bar {
+  position: sticky; top: 0; z-index: 10;
+  display: flex; align-items: center; gap: 10px;
+  height: 46px; margin: 0 -28px 18px; padding: 0 28px;
+  background: color-mix(in srgb, var(--md-bg) 90%, transparent);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--md-border);
+}
+.md-breadcrumb { display: flex; gap: 6px; color: var(--md-text-3); font-size: 12.5px; min-width: 0; }
+.md-breadcrumb span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.md-breadcrumb span:last-child { color: var(--md-text); font-weight: 600; }
+/*
+ * 动作区贴右侧，但与栏边留出工具条自身的内边距：早先用负外边距把按钮顶到栏边，
+ * 结果正好压在滚动条上，按钮像悬空贴在缝里。留出这段留白后，它的右缘与面包屑的左缘
+ * 关于正文列对称，看着才像工具条的一部分。
+ */
+.md-reading__bar-actions { margin-left: auto; display: flex; align-items: center; gap: 6px; }
+
+.md-doc { max-width: var(--md-content-width); margin: 0 auto; transition: opacity .16s ease; }
+/*
+ * 正文宽度：门户阅读页吃满中栏（宽度只由两侧栏的拖拽手柄决定），分享页额外听「阅读设置」
+ * 里的百分比（--md-doc-width，默认 100% 即自适应；收窄后仍居中）。
+ *
+ * <p>与阅读字体同一个道理：那个设置面板只存在于分享页，作用范围就该跟着它走，
+ * 不该顺手把门户阅读页也改了 —— 那边没有入口能让读者改回来。</p>
+ */
+.md-reading[data-mode='portal'] .md-doc { max-width: none; }
+.md-reading[data-mode='share'] .md-doc {
+  max-width: var(--md-doc-width, none);
+  margin-inline: auto;
+}
+
+/*
+ * 切换文档时的局部刷新态：三栏骨架不动，只把正文压暗并挡住点击，同时在工具条上给一颗
+ * 转圈小标。早先的做法是整屏换成「加载中…」，观感等同于整页刷新，这里只是换一篇文章，
+ * 没必要把目录、大纲、状态栏一并推倒重来。
+ */
+.md-reading__main.is-switching .md-doc { opacity: .4; pointer-events: none; }
+.md-reading__switching {
+  display: inline-flex; align-items: center; gap: 6px;
+  color: var(--md-text-3); font-size: 12px; white-space: nowrap;
+}
+.md-reading__spinner {
+  width: 12px; height: 12px; border-radius: 50%;
+  border: 2px solid var(--md-border); border-top-color: var(--md-primary);
+  animation: md-read-spin .7s linear infinite;
+}
+@keyframes md-read-spin { to { transform: rotate(360deg); } }
+.md-doc__nav {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 12px;
+  margin-top: 40px; padding-top: 20px; border-top: 1px solid var(--md-border);
+}
+.md-doc__nav-item {
+  display: flex; flex-direction: column; gap: 3px; padding: 12px 14px;
+  border: 1px solid var(--md-border); border-radius: var(--md-radius-sm); background: var(--md-surface);
+}
+.md-doc__nav-item:hover { border-color: var(--md-primary); }
+.md-doc__nav-item small { color: var(--md-text-3); font-size: 11.5px; }
+.md-doc__nav-item strong { font-size: 13.5px; font-weight: 600; }
+.md-doc__nav-item--next { text-align: right; }
+
+.md-outline__title { font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: var(--md-text-3); margin: 0 0 10px 4px; }
+.md-outline__list { list-style: none; margin: 0; padding: 0; }
+/* 层级缩进交给嵌套列表本身：每深一层缩 12px，比按 h 级别硬编码 padding 更贴合真实嵌套深度 */
+.md-outline__list .md-outline__list { padding-left: 12px; }
+
+.md-outline__row {
+  display: flex; align-items: center; gap: 2px;
+  padding-right: 3px;
+  border-left: 2px solid transparent;
+  border-radius: 0 6px 6px 0;
+  transition: background 0.15s;
+}
+.md-outline__row:hover { background: var(--md-surface-2); }
+.md-outline__row.is-active { border-left-color: var(--md-primary); background: var(--md-primary-soft); }
+.md-outline__link {
+  flex: 1; min-width: 0; display: block;
+  padding: 4px 2px 4px 8px;
+  font-size: 12.5px; color: var(--md-text-2);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  transition: color 0.15s;
+}
+.md-outline__row:hover .md-outline__link { color: var(--md-text); }
+.md-outline__row.is-active .md-outline__link { color: var(--md-primary); font-weight: 600; }
+
+/* 展开箭头放在行尾：所有标题的文字左边缘因此齐平，不会因为「有子标题就右移」而参差 */
+.md-outline__toggle {
+  flex-shrink: 0; display: grid; place-items: center;
+  width: 20px; height: 20px; padding: 0;
+  border: 0; background: none; border-radius: 5px;
+  color: var(--md-text-3); cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.md-outline__toggle:hover { background: var(--md-bg); color: var(--md-text); }
+.md-outline__chevron { transition: transform 0.18s ease; }
+.md-outline__toggle[aria-expanded='false'] .md-outline__chevron { transform: rotate(-90deg); }
+.md-outline__empty { color: var(--md-text-3); font-size: 12.5px; }
+
+.md-empty { text-align: center; padding: 90px 20px; }
+.md-empty h2 { margin: 0 0 8px; }
+.md-empty p { color: var(--md-text-2); margin: 0 0 18px; }
+
+/* ------------------------------------------------------------------ 错误 / 密码页 */
+/*
+ * 口令页 / 错误页的整屏容器。
+ *
+ * <p>这一层刻意<b>放在组件里</b>（.md-state），而不是挂在 body 的状态类上：body 那层即便写了
+ * flex 居中，被居中的也是 {@code #app} —— 它的高度由内容决定、撑不满视口，卡片于是仍按文档流
+ * 贴在 {@code #md-view} 顶上。离视口最近的那一层自己居中，才真的在正中间（这坑踩过一次：
+ * body class 换成 min-height:100dvh 后卡片照样贴着顶）。</p>
+ *
+ * <p>用 flex + 100dvh 而不是 grid + 100%：高度百分比要一路传到 body，任何一层没给满高度，
+ * 卡片就会飘到顶端。错误页是访客看到的第一眼，位置飘一点比样式简陋更显草率。</p>
+ *
+ * <p>背景沿用登录页那套语言（极光 + 网格），淡一档：错误页不该抢走注意力，安静地把人引回
+ * 文档才是它该做的事。</p>
+ */
+.md-state {
+  min-height: 100vh; min-height: 100dvh;
+  display: flex; align-items: center; justify-content: center;
+  padding: 32px 20px;
+  background:
+    radial-gradient(880px 560px at 12% -8%, color-mix(in srgb, var(--md-primary) 16%, transparent), transparent 62%),
+    radial-gradient(720px 480px at 92% 4%, rgba(168, 85, 247, .12), transparent 60%),
+    var(--md-bg);
+}
+/* body 上这层只负责「别让外层产生多余滚动」：居中与背景都交给组件内的 .md-state */
+.md-page--error { min-height: 100%; }
+/* 两张卡共用同一副骨架：固定宽度 + 圆角加大 + 顶上一层主色柔光 + 外层长投影 */
+.md-error, .md-lock {
+  position: relative; overflow: hidden; text-align: center;
+  width: min(440px, 100%);
+  padding: 48px 44px 40px;
+  background: var(--md-surface); border: 1px solid var(--md-border);
+  border-radius: 24px;
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--md-primary) 6%, transparent),
+    0 30px 70px -30px rgba(24, 29, 51, .4),
+    var(--md-shadow-sm);
+}
+.md-error::before, .md-lock::before {
+  content: ''; position: absolute; inset: 0; pointer-events: none;
+  background: radial-gradient(130% 120% at 50% 0%, color-mix(in srgb, var(--md-primary) 13%, transparent), transparent 62%);
+}
+/* 卡内一层极淡网格：给大块留白一点密度，中心密、四周淡出 */
+.md-error::after, .md-lock::after {
+  content: ''; position: absolute; inset: 0; pointer-events: none;
+  background-image:
+    linear-gradient(to right, color-mix(in srgb, var(--md-text) 5%, transparent) 1px, transparent 1px),
+    linear-gradient(to bottom, color-mix(in srgb, var(--md-text) 5%, transparent) 1px, transparent 1px);
+  background-size: 48px 48px;
+  -webkit-mask-image: radial-gradient(120% 100% at 50% 0%, #000 8%, transparent 68%);
+  mask-image: radial-gradient(120% 100% at 50% 0%, #000 8%, transparent 68%);
+}
+.md-error > *, .md-lock > * { position: relative; z-index: 1; }
+/* 状态码做成一块渐变徽章：52px 裸数字太大太素，收进圆角块里更像「设计过」 */
+.md-error__code {
+  display: inline-grid; place-items: center;
+  min-width: 96px; height: 72px; padding: 0 20px; margin-bottom: 18px;
+  border-radius: 20px; font-size: 42px; font-weight: 800; letter-spacing: -.04em; line-height: 1;
+  color: var(--md-primary);
+  background: linear-gradient(145deg, var(--md-primary-soft), transparent 92%);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--md-primary) 18%, transparent);
+}
+.md-error h1 { font-size: 20px; margin: 0 0 10px; }
+.md-error p { color: var(--md-text-2); margin: 0 0 22px; }
+/* 锁图标同样收进一枚主色渐变徽章，与门户徽标同款 */
+.md-lock__icon {
+  width: 72px; height: 72px; margin: 0 auto 20px; border-radius: 24px;
+  display: grid; place-items: center; color: #fff;
+  background: linear-gradient(140deg, var(--md-primary), #22d3ee);
+  box-shadow:
+    0 16px 32px -12px color-mix(in srgb, var(--md-primary) 45%, transparent),
+    inset 0 1px 0 rgba(255, 255, 255, .28);
+}
+.md-lock h1 { font-size: 22px; font-weight: 700; letter-spacing: -.01em; margin: 0 0 8px; }
+.md-lock p { color: var(--md-text-2); margin: 0 0 24px; font-size: 13.5px; }
+.md-lock__form { display: flex; flex-direction: column; gap: 12px; }
+.md-lock__form input {
+  height: 46px; border-radius: 12px; border: 1px solid var(--md-border-strong);
+  background: var(--md-surface-2); color: var(--md-text); padding: 0 14px; font-size: 14.5px; outline: none;
+  transition: border-color .15s ease, box-shadow .15s ease, background-color .15s ease;
+}
+.md-lock__form input:focus {
+  border-color: var(--md-primary); background: var(--md-surface);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--md-primary) 16%, transparent);
+}
+.md-lock__form .md-btn {
+  justify-content: center; height: 46px; border-radius: 12px;
+  font-size: 15px; font-weight: 600;
+}
+/* 主按钮给一层蓝紫渐变：这是这一屏唯一的动作，值得比别的按钮重一点 */
+.md-lock__form .md-btn--primary {
+  border-color: transparent;
+  background: linear-gradient(135deg, var(--md-primary), #6f4bf0);
+  box-shadow: 0 10px 22px -10px color-mix(in srgb, var(--md-primary) 70%, transparent);
+}
+/* 口令错误：淡红底 + 圆角，比一行红字更容易被扫到 */
+.md-lock__error {
+  margin-top: 14px; padding: 9px 12px; border-radius: 10px;
+  background: color-mix(in srgb, var(--md-danger) 10%, transparent);
+  color: var(--md-danger); font-size: 13px;
+}
+
+/* ------------------------------------------------------------------ 页脚 / 抽屉 / 响应式 */
+.md-footer {
+  display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+  max-width: 1280px; margin: 0 auto; padding: 26px 20px 40px;
+  color: var(--md-text-3); font-size: 12.5px; border-top: 1px solid var(--md-border);
+}
+.md-page--read .md-footer { margin-top: 0; }
+
+.md-drawer-mask { position: fixed; inset: 0; background: rgba(15, 17, 23, .5); z-index: 45; }
+.md-only-mobile { display: none; }
+/*
+ * 「大纲」按钮的可见区间比「目录」宽一档：901–1180 之间左栏目录还在栅格里（col1），
+ * 被收进抽屉的只有右侧大纲。它要是跟着 .md-only-mobile 一起在 901 就藏掉，
+ * 这一档宽度上大纲就既不在栏里、也没有入口，彻底打不开。
+ */
+.md-only-outline-mobile { display: none; }
+
+@media (max-width: 1180px) {
+  .md-only-outline-mobile { display: grid; }
+  .md-reading { grid-template-columns: var(--md-aside-width) minmax(0, 1fr); }
+  .md-reading__outline { display: none; }
+  .md-main-outline-open .md-reading__outline {
+    display: block; position: fixed; top: var(--md-topbar-height); right: 0; bottom: 0;
+    width: min(320px, 82vw); z-index: 50; background: var(--md-surface);
+  }
+}
+
+@media (max-width: 900px) {
+  .md-only-mobile { display: grid; }
+  .md-reading { grid-template-columns: minmax(0, 1fr); }
+  .md-reading__aside {
+    display: none; position: fixed; top: var(--md-topbar-height); left: 0; bottom: 0;
+    width: min(320px, 84vw); z-index: 50; background: var(--md-surface); border-right: 1px solid var(--md-border);
+  }
+  .md-main-tree-open .md-reading__aside { display: block; }
+  .md-reading__main { padding: 0 16px 60px; }
+  .md-reading__bar { margin: 0 -16px 16px; padding: 0 16px; }
+  .md-brand__text small { display: none; }
+  .md-avatar-btn__name { display: none; }
+  .md-avatar-btn { padding: 3px; }
+  .md-doc__nav { grid-template-columns: 1fr; }
+  /* 手机宽度一行放不下五项，让它折成两行，比藏掉几项好——回到顶部始终留在右下角 */
+  .md-read-status { height: auto; padding: 8px 12px; gap: 8px 12px; }
+  .md-read-status__main { flex-wrap: wrap; gap: 8px 14px; }
+}
+
+/* 手机宽度下顶栏只剩三件事：回首页、搜索、身份。
+   分享页顶栏的窄屏规则统一收在分享页基础样式之后（同特异度下后者才能盖过前者）。 */
+@media (max-width: 620px) {
+  .md-topbar__inner { gap: 10px; padding: 0 12px; }
+}
+
+/* 极窄屏（≤480）：品牌文字让位给徽标本身。分享页规则见后文末段。 */
+@media (max-width: 480px) {
+  .md-brand__text { display: none; }
+  .md-topbar__inner { gap: 8px; padding: 0 10px; }
+}
+
+/* ------------------------------------------------------------------ 分享页 */
+/*
+ * 分享页与门户阅读页共用正文模板，但骨架不同：顶栏与底部状态栏由页面自己拼（门户顶栏放的是
+ * 搜索与身份，分享访客两样都没有），三栏各自是一张卡片，卡片之间露出页面底色。
+ *
+ * <p>两条常驻栏都 sticky 在同一个滚动区（#md-view）里，于是侧栏的 sticky 偏移与高度都要
+ * 减去它们的高度，否则侧栏会从顶栏底下穿过去、底沿被状态栏压住。</p>
+ */
+.md-page--share {
+  --md-share-top: 56px;
+  --md-share-status: 44px;
+  --md-share-gap: 8px;
+}
+
+.md-share__top {
+  /*
+   * 顶栏一行四组，从左到右按「身份 → 位置 → 导航 → 动作」排：
+   * 品牌（谁家的站）· 知识库（我在哪个库）· 导航菜单（这个库从哪进）· 动作。
+   *
+   * <p>配色走浅色玻璃：底色是 surface 压到 92% 不透，再加 backdrop-filter。正文卡与底部状态栏
+   * 本身也是浅色，横带不做成深色，整页才是一个体系；层次靠「发丝分隔线 + 药丸的滑动高亮」体现，
+   * 而不是靠换一整套底色。</p>
+   *
+   * <p>下面几个局部变量只在这一条作用域内用：顶栏里的每个元素都从它们取色，
+   * 暗色主题因此不用另写一套覆盖 —— 换掉变量就换掉了整套观感。</p>
+   */
+  --share-fg: var(--md-text);
+  --share-fg-2: var(--md-text-3);
+  --share-line: var(--md-border);
+  --share-hover: var(--md-surface-2);
+  --share-slot: color-mix(in srgb, var(--md-surface-2) 90%, transparent);
+  --share-accent: var(--md-primary);
+  position: sticky; top: 0; z-index: 30;
+  display: flex; align-items: center; gap: 10px;
+  height: var(--md-share-top); padding: 0 16px;
+  color: var(--share-fg);
+  background: color-mix(in srgb, var(--md-surface) 92%, transparent);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--share-line);
+}
+/* 品牌：站名与副标题压到次要层级，「谁家的站」不该与库名争眼 */
+.md-share__top .md-brand__text strong { color: var(--md-text); }
+.md-share__top .md-brand__text small { color: var(--md-text-3); }
+/* 上传的自定义 Logo 换成中性底 + 发丝线，浅色横带上才不突兀 */
+.md-share__top .md-brand__logo.is-image { background: var(--md-surface-2); border-color: var(--md-border); }
+/* 知识库与导航菜单之间比别处多一档空档：两组性质不同（一个是身份、一个是导航） */
+.md-share__top .md-share__menu { margin-left: 4px; }
+.md-share__actions { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+.md-share__action {
+  width: 36px; height: 36px; border-radius: 10px;
+  border: 1px solid var(--md-border-strong); background: var(--md-surface-2);
+  color: var(--md-text-2); display: grid; place-items: center; cursor: pointer;
+  transition: border-color .15s ease, background-color .15s ease, color .15s ease;
+}
+.md-share__action:hover { border-color: var(--md-primary); color: var(--md-primary); }
+.md-share__action.is-on,
+.md-share__action.is-done { border-color: var(--md-primary); background: var(--md-primary-soft); color: var(--md-primary); }
+.md-share__views {
+  display: inline-flex; align-items: center; gap: 6px;
+  height: 36px; padding: 0 14px; border-radius: 10px;
+  border: 1px solid var(--md-border); background: var(--md-surface-2);
+  color: var(--md-text-2); font-size: 13px; font-variant-numeric: tabular-nums;
+}
+/* 分享有效期：顶栏右侧的常驻胶囊，琥珀色区别于中性的浏览量 */
+.md-share__expiry {
+  display: inline-flex; align-items: center; gap: 6px;
+  height: 36px; padding: 0 14px; border-radius: 10px;
+  border: 1px solid color-mix(in srgb, var(--md-warning) 38%, transparent);
+  background: color-mix(in srgb, var(--md-warning) 12%, transparent);
+  color: var(--md-warning); font-size: 13px; white-space: nowrap;
+}
+.md-share__expiry .md-icon { flex-shrink: 0; }
+
+/* 阅读设置：顶栏那颗动作按钮 + 面板（外观分段、正文字体下拉） */
+.md-share__action { transition: border-color .15s ease, color .15s ease, background-color .15s ease; }
+/* 面板开着时按钮点亮：否则读者点完就找不到自己刚才打开的东西了 */
+.md-share__action.is-on { border-color: var(--md-primary); background: var(--md-primary-soft); color: var(--md-primary); }
+
+.md-prefs { position: relative; }
+.md-prefs__panel { min-width: 264px; padding: 6px; }
+.md-prefs__row { padding: 7px 8px; }
+.md-prefs__label { display: block; margin-bottom: 7px; color: var(--md-text-3); font-size: 11.5px; letter-spacing: .02em; }
+
+/* 外观：三段开关，选中态用主色 + 底面浮起，与门户顶栏那颗蓝色药丸同一套口径 */
+.md-prefs__seg {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px;
+  padding: 3px; border-radius: 9px; border: 1px solid var(--md-border); background: var(--md-surface-2);
+}
+.md-prefs__seg-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 5px;
+  height: 30px; padding: 0 4px; border: 0; border-radius: 7px; background: none;
+  color: var(--md-text-2); font-family: inherit; font-size: 12.5px; cursor: pointer;
+  transition: background-color .15s ease, color .15s ease;
+}
+.md-prefs__seg-btn:hover { color: var(--md-text); }
+.md-prefs__seg-btn.is-on {
+  background: var(--md-surface); color: var(--md-primary);
+  box-shadow: var(--md-shadow-sm); font-weight: 600;
+}
+
+/*
+ * 字体：原生 select，但外观全部自己画。
+ * 原生控件在暗色下的配色不受页面变量控制，而下拉的弹层（option）走的是系统 UI，
+ * 那里连 --md-surface 都取不到 —— 于是只把弹层背景显式写死，面板本体仍走变量。
+ */
+.md-prefs__select { position: relative; }
+.md-prefs__select select {
+  width: 100%; height: 34px; padding: 0 30px 0 10px;
+  border: 1px solid var(--md-border-strong); border-radius: 8px;
+  background: var(--md-surface-2); color: var(--md-text);
+  font-family: inherit; font-size: 13px; cursor: pointer;
+  appearance: none; -webkit-appearance: none;
+}
+.md-prefs__select select:hover { border-color: var(--md-primary); }
+.md-prefs__select .md-icon {
+  position: absolute; right: 9px; top: 50%; transform: translateY(-50%);
+  color: var(--md-text-3); pointer-events: none;
+}
+.md-prefs__select option { background: #ffffff; color: #1f2333; }
+[data-theme='dark'] .md-prefs__select option { background: #1d2130; color: #e7e9f2; }
+
+/* 正文宽度：滑轨双色（已填充段用主色，由组件写入 --md-prefs-fill），滑钮是白底主色环 */
+.md-prefs__label { display: flex; align-items: center; justify-content: space-between; }
+.md-prefs__value { color: var(--md-primary); font-size: 12px; font-weight: 600; }
+.md-prefs__range { display: flex; align-items: center; gap: 10px; }
+.md-prefs__range input[type='range'] {
+  flex: 1; min-width: 0; height: 4px; margin: 0;
+  border-radius: 999px; cursor: pointer;
+  appearance: none; -webkit-appearance: none;
+  background: linear-gradient(90deg, var(--md-primary) var(--md-prefs-fill, 100%), var(--md-border-strong) var(--md-prefs-fill, 100%));
+}
+.md-prefs__range input[type='range']::-webkit-slider-thumb {
+  appearance: none; -webkit-appearance: none;
+  width: 15px; height: 15px; border-radius: 50%;
+  background: var(--md-surface); border: 2px solid var(--md-primary);
+  box-shadow: 0 1px 4px rgba(24, 29, 51, .2);
+  transition: transform .12s ease;
+}
+.md-prefs__range input[type='range']::-webkit-slider-thumb:hover { transform: scale(1.12); }
+.md-prefs__range input[type='range']::-moz-range-thumb {
+  width: 13px; height: 13px; border-radius: 50%;
+  background: var(--md-surface); border: 2px solid var(--md-primary);
+  box-shadow: 0 1px 4px rgba(24, 29, 51, .2);
+}
+.md-prefs__range input[type='range']::-moz-range-track { height: 4px; border-radius: 999px; background: var(--md-border-strong); }
+.md-prefs__reset {
+  flex-shrink: 0; height: 24px; padding: 0 8px;
+  border: 1px solid var(--md-border); border-radius: 7px; background: var(--md-surface);
+  color: var(--md-text-2); font-family: inherit; font-size: 11.5px; cursor: pointer;
+  transition: color .15s ease, border-color .15s ease;
+}
+.md-prefs__reset:hover:not(:disabled) { color: var(--md-primary); border-color: var(--md-primary); }
+/* 已经是自适应了：这个按钮无事可做，压灰比留着让人白点一下好 */
+.md-prefs__reset:disabled { color: var(--md-text-3); opacity: .55; cursor: default; }
+
+.md-prefs__hint {
+  margin: 2px 8px 6px; padding-top: 8px;
+  border-top: 1px solid var(--md-border);
+  color: var(--md-text-3); font-size: 11.5px; line-height: 1.6;
+}
+
+@media (max-width: 480px) {
+  .md-prefs__panel { min-width: 232px; }
+}
+/* 「有效期至 2026-12-31 10:20」这类长文案在窄屏要被截断，而不是把顶栏撑爆 */
+.md-share__expiry-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+
+/*
+ * 知识库入口：顶栏里紧挨品牌右侧，与导航菜单之间一条竖线。
+ *
+ * <p>它同时是「左栏看全库」的开关，所以外观要跟菜单项区分开：菜单项是导航（蓝色药丸），
+ * 这颗是范围切换（带封面的实体块 + 左侧色条），点它读者预期的是「下面那栏变了」。
+ * 没配菜单时左栏本来就是全库，此时退化成静态标识：去掉 hover 与手型，别骗人。</p>
+ */
+.md-share__kb {
+  /*
+   * 「我在哪个库」是身份信息，但它同时也是个开关（点它切左栏范围），所以给了 ⌄ 箭头：
+   * 纯文字看不出可点，带箭头的形态读者才知道这里能展开。深色横带上不用描边，
+   * 靠 hover 浅底 + 箭头表达可点，静止态与库名同级。
+   */
+  position: relative;
+  display: inline-flex; align-items: center; gap: 9px; flex-shrink: 0;
+  height: 38px; max-width: 250px; padding: 0 10px 0 6px; border-radius: 10px;
+  border: 1px solid var(--md-border); background: var(--md-surface-2);
+  color: var(--share-fg);
+  font-family: inherit; text-align: left; cursor: pointer;
+  transition: background-color .15s ease, border-color .15s ease;
+}
+.md-share__kb:hover:not(.is-static) { border-color: var(--md-primary); background: var(--md-primary-soft); }
+/* 品牌与知识库之间一条发丝竖线：不加元素，用伪元素画，省一个 DOM 也方便留白 */
+.md-share__kb::before {
+  content: '';
+  position: absolute; left: -6px; top: 50%; transform: translateY(-50%);
+  width: 1px; height: 18px; background: var(--share-line);
+}
+/* 箭头：默认淡，显式可点；切到全库时旋转让「当前是全库」也一眼可见 */
+.md-share__kb-caret { color: var(--share-fg-2); transition: transform .2s ease, color .15s ease; }
+.md-share__kb:hover:not(.is-static) .md-share__kb-caret { color: var(--md-primary); }
+.md-share__kb.is-active .md-share__kb-caret { transform: rotate(180deg); }
+/* 激活（= 左栏已是全库）：主色亮版文字 + 封面一圈描边，在深底上仍不抢导航药丸的戏 */
+.md-share__kb.is-active .md-share__kb-text strong { color: var(--share-accent); }
+.md-share__kb.is-active .md-share__kb-cover {
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--md-primary) 45%, transparent);
+}
+.md-share__kb.is-static { cursor: default; }
+/*
+ * 无封面时的替身：蓝青渐变方块 + 白色书本图标（KbGlyph）。
+ * 方块 26px、图标 17px：留 4.5px 左右的内边距，实心图标在小尺寸下才不会顶到边。
+ */
+.md-share__kb-cover {
+  width: 26px; height: 26px; border-radius: 8px; flex-shrink: 0; overflow: hidden;
+  display: grid; place-items: center;
+  background: linear-gradient(135deg, var(--md-primary), #22d3ee);
+  color: #fff;
+}
+.md-share__kb-cover img { width: 100%; height: 100%; object-fit: cover; }
+.md-share__kb-text { display: flex; flex-direction: column; line-height: 1.2; min-width: 0; }
+.md-share__kb-text strong {
+  font-size: 14px; font-weight: 650; color: var(--share-fg);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+/*
+ * 导航菜单：分享者从目录树里挑出的入口，紧挨知识库右侧、与顶栏同处一行。
+ *
+ * <p>做成一条紧贴内容的「悬浮胶囊坞」：宽度 max-content，项少时只有几个胶囊的体量，
+ * 不再用 flex:1 拖着一大片空轨道；项多到超过可用宽度时才在坞内横向滚动。</p>
+ *
+ * <p>坞身不画浅槽与描边：顶栏里已经有知识库入口那块可点元素，再套一个「容器」会出现两个
+ * 长得像按钮的东西。药丸自己在 hover 时出底就够了，视觉上仍是一条整体。</p>
+ *
+ * <p>选中态不靠按钮各自换底色，而是一颗青蓝渐变滑块在坞内滑动（几何位置由
+ * ShareMenu 实测摆放）：高亮是「移动」过去的，整条坞看起来才像一个整体。
+ * 一个项都不亮（读者切到全库目录）时滑块淡出。</p>
+ *
+ * <p>不折行也不另占高度：折行会把顶栏撑成不定高，下面三栏的 sticky 偏移就没法
+ * 用一个常量算；另起一行则会白占一档竖向空间。</p>
+ */
+.md-share__menu {
+  position: relative;
+  display: flex; align-items: center; gap: 2px;
+  flex: 0 1 auto; min-width: 0; max-width: 100%; width: max-content;
+  padding: 3px;
+  border-radius: 999px;
+  /* 药丸坞：浅槽 + 发丝边 + 顶部高光，做出浮在顶栏上的层次；滑块在槽内滑动 */
+  background: var(--share-slot);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .65), 0 1px 2px rgba(24, 29, 51, .05);
+  overflow-x: auto; overscroll-behavior-x: contain;
+  scrollbar-width: none;
+}
+.md-share__menu::-webkit-scrollbar { display: none; }
+/* 滑动高亮块：与库封面同一条青蓝渐变，配一圈同色柔光 */
+.md-share__menu-thumb {
+  position: absolute; top: 3px; left: 0; z-index: 0;
+  height: 32px; border-radius: 999px;
+  background: linear-gradient(135deg, var(--md-primary), #22d3ee);
+  box-shadow:
+    0 2px 8px color-mix(in srgb, var(--md-primary) 36%, transparent),
+    0 1px 2px color-mix(in srgb, var(--md-primary) 28%, transparent),
+    inset 0 1px 0 rgba(255, 255, 255, .22);
+  opacity: 0; pointer-events: none;
+  will-change: transform, width, opacity;
+  transition:
+    transform .3s cubic-bezier(.4, 0, .2, 1),
+    width .3s cubic-bezier(.4, 0, .2, 1),
+    opacity .2s ease;
+}
+.md-share__menu-thumb.is-ready { opacity: 1; }
+[data-theme='dark'] .md-share__menu-thumb {
+  box-shadow:
+    0 2px 14px rgba(108, 140, 255, .5),
+    0 1px 3px rgba(0, 0, 0, .4),
+    inset 0 1px 0 rgba(255, 255, 255, .18);
+}
+.md-share__menu-item {
+  position: relative; z-index: 1;
+  display: inline-flex; align-items: center; gap: 7px; flex-shrink: 0;
+  height: 32px; padding: 0 14px; border-radius: 999px;
+  border: 0; background: transparent;
+  color: var(--share-fg-2); font-family: inherit; font-size: 13px; font-weight: 500;
+  white-space: nowrap; cursor: pointer;
+  transition: color .18s ease, background-color .18s ease;
+}
+.md-share__menu-item .md-icon { color: var(--share-fg-2); transition: color .18s ease; }
+.md-share__menu-item:hover {
+  background: var(--share-hover);
+  color: var(--share-fg);
+}
+.md-share__menu-item:hover .md-icon { color: var(--share-accent); }
+.md-share__menu-item:focus-visible {
+  outline: 2px solid var(--md-primary); outline-offset: 1px;
+}
+/* 激活态：文字与图标反白压在渐变滑块上；底色交给滑块，自身保持透明 */
+.md-share__menu-item.is-active { color: #fff; font-weight: 600; }
+.md-share__menu-item.is-active:hover {
+  background: transparent; color: #fff;
+}
+.md-share__menu-item.is-active .md-icon { color: #fff; }
+@media (prefers-reduced-motion: reduce) {
+  .md-share__menu-thumb { transition: opacity .15s ease; }
+}
+/*
+ * 分享页窄屏适配（统一放在分享页基础样式之后：同特异度下源序靠后才能盖过前面的桌面规则，
+ * 早些时候这些规则散在文件前半段，被后面的基础样式顶掉，实际一条都没生效）。
+ *
+ * 坞在窄屏没有「紧贴内容」的余裕：改占中间全部空位（flex:1），内容超出时内部滚动，
+ * 激活项由 ShareMenu 自动滚回视野；actions 的 margin-left:auto 会先于 flex-grow
+ * 吃掉全部剩余空间，必须一并让出来。
+ */
+@media (max-width: 620px) {
+  .md-share__actions { margin-left: 0; }
+  .md-share__menu { flex: 1 1 auto; width: auto; }
+  /* 有效期胶囊让出空间、允许截断（完整值仍在 title 提示里） */
+  .md-share__expiry { max-width: 40vw; padding: 0 10px; font-size: 12px; }
+  /* 知识库入口只留封面 + 库名：篇数在左栏范围条上已有一份，再带纯属重复 */
+  .md-share__kb { height: 34px; max-width: 40vw; padding: 0 8px 0 5px; }
+  /* 品牌让位给导航：窄屏上「谁家的站」不必再念一遍 */
+  .md-share__top .md-brand__text { display: none; }
+  .md-share__kb::before { display: none; }
+}
+
+/*
+ * 极窄屏（≤480）：顶栏空间只够「品牌徽标 + 库封面 + 菜单坞 + 分享」，
+ * 浏览量胶囊整块隐去、有效期再收一档；动作按钮保持 36px 触控目标不动。
+ */
+@media (max-width: 480px) {
+  .md-share__top { gap: 8px; padding: 0 12px; }
+  .md-share__expiry { max-width: 36vw; padding: 0 9px; gap: 5px; }
+  .md-share__views { display: none; }
+  /* 只剩封面保住「我还在这个库里」的信息，库名让给菜单；完整库名在 title 里 */
+  .md-share__kb { max-width: 40px; padding: 0 6px; }
+  .md-share__kb-text { display: none; }
+  .md-share__menu-item { padding: 0 10px; }
+}
+
+.md-share__status {
+  position: sticky; bottom: 0; z-index: 30;
+  display: flex; align-items: center; gap: 12px;
+  height: var(--md-share-status); padding: 0 16px;
+  background: color-mix(in srgb, var(--md-surface) 92%, transparent);
+  backdrop-filter: blur(10px);
+  border-top: 1px solid var(--md-border);
+}
+.md-share__status-main {
+  display: flex; align-items: center; gap: 18px; min-width: 0;
+  color: var(--md-text-3); font-size: 12.5px;
+}
+.md-share__crumb { display: flex; align-items: center; gap: 4px; min-width: 0; color: var(--md-text-2); }
+.md-share__crumb > span:first-child { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.md-share__crumb strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+.md-share__slash { color: var(--md-text-3); }
+.md-share__stat { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+.md-share__totop {
+  margin-left: auto; flex-shrink: 0;
+  display: inline-flex; align-items: center; gap: 5px;
+  height: 30px; padding: 0 12px; border-radius: 8px;
+  border: 1px solid var(--md-primary); background: var(--md-primary-soft);
+  color: var(--md-primary); font-family: inherit; font-size: 12.5px; cursor: pointer;
+}
+.md-share__totop:hover { background: var(--md-primary); color: #fff; }
+
+/* 三栏各自成卡；与宽度无关的部分先落，栅格列数交给下面按屏宽分档 */
+.md-reading[data-mode='share'] {
+  /*
+   * 窄屏（≤1180）三栏折成多行：卡片之间靠 row-gap 撑开，列间只留 1px。
+   * 宽屏（≥1181）三栏并排，改成整块面板贴死、栏间仅一条发丝线——见下面的媒体查询。
+   */
+  column-gap: 1px;
+  row-gap: var(--md-share-gap);
+  max-width: none;
+  margin: 0;
+  padding: var(--md-share-gap);
+}
+.md-reading[data-mode='share'] .md-reading__aside,
+.md-reading[data-mode='share'] .md-reading__outline {
+  top: var(--md-share-top);
+  height: calc(100vh - var(--md-share-top) - var(--md-share-status) - 16px);
+  height: calc(100dvh - var(--md-share-top) - var(--md-share-status) - 16px);
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+.md-reading[data-mode='share'] .md-reading__main {
+  padding: 26px 30px 40px;
+  background: var(--md-surface);
+  border: 1px solid var(--md-border);
+  border-radius: var(--md-radius);
+  box-shadow: var(--md-shadow-sm);
+  /* 短文档也要把卡片撑满一屏，否则底沿悬在半空、和状态栏之间露一大块底色 */
+  min-height: calc(100vh - var(--md-share-top) - var(--md-share-status) - 16px);
+  min-height: calc(100dvh - var(--md-share-top) - var(--md-share-status) - 16px);
+}
+/* 元信息已经挪到底部状态栏，正文顶部那条面包屑工具条在分享页没有存在意义 */
+.md-reading[data-mode='share'] .md-reading__bar { display: none; }
+
+.md-reading[data-mode='share'] .md-aside__card,
+.md-reading[data-mode='share'] .md-outline__card {
+  display: flex; flex-direction: column;
+  height: 100%; min-height: 0;
+  background: var(--md-surface);
+  border: 1px solid var(--md-border);
+  border-radius: var(--md-radius);
+  box-shadow: var(--md-shadow-sm);
+  overflow: hidden;
+}
+
+/*
+ * 左栏顶部：范围条。
+ *
+ * <p>库名与封面已经挪到顶栏，这里只回答「这一栏有多少、怎么来的」。收窄到某个菜单项时
+ * 说清范围，读者才不会以为整个库就这么大；点它回全库，与顶栏那颗知识库按钮同源。</p>
+ *
+ * <p>内衬统一 12px，与下面的搜索框（margin 12px）对齐。分隔线用内缩 1px 的背景线画，
+ * 通栏 border 会把它读成一条横杠，把侧栏从中间截断。</p>
+ */
+.md-reading[data-mode='share'] .md-aside__scope {
+  display: flex; align-items: center; gap: 8px; width: 100%;
+  padding: 10px 12px; border: 0; background: none;
+  font-family: inherit; text-align: left; cursor: pointer;
+  color: var(--md-text-2);
+  background-image: linear-gradient(var(--md-border), var(--md-border));
+  background-size: calc(100% - 24px) 1px;
+  background-position: 12px 100%;
+  background-repeat: no-repeat;
+  transition: color .15s ease;
+}
+.md-aside__scope:hover { color: var(--md-primary); }
+.md-aside__scope .md-icon { flex-shrink: 0; color: var(--md-text-3); transition: color .15s ease; }
+.md-aside__scope:hover .md-icon { color: var(--md-primary); }
+.md-aside__scope.is-all { cursor: default; color: var(--md-text); }
+.md-aside__scope.is-all:hover { color: var(--md-text); }
+.md-aside__scope.is-all .md-icon { color: var(--md-primary); }
+.md-aside__scope.is-all:hover .md-icon { color: var(--md-primary); }
+.md-aside__scope-text {
+  flex: 1; min-width: 0;
+  font-size: 12.5px; font-weight: 600;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+/* 「展开全库」的提示图标：只在可点时出现，且默认压到最淡，不与范围文案抢视线 */
+.md-aside__scope-more { color: var(--md-text-3) !important; }
+.md-aside__scope:hover .md-aside__scope-more { color: var(--md-primary) !important; }
+
+.md-reading[data-mode='share'] .md-aside__search {
+  display: flex; align-items: center; gap: 8px;
+  height: 34px; margin: 12px 12px 8px; padding: 0 10px;
+  border: 1px solid var(--md-border); border-radius: 9px;
+  background: var(--md-surface-2);
+  transition: border-color .15s ease, background-color .15s ease, box-shadow .15s ease;
+}
+.md-reading[data-mode='share'] .md-aside__search:focus-within {
+  border-color: var(--md-primary); background: var(--md-surface);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--md-primary) 14%, transparent);
+}
+.md-reading[data-mode='share'] .md-aside__search .md-icon { color: var(--md-text-3); }
+.md-reading[data-mode='share'] .md-aside__search input {
+  flex: 1; min-width: 0; height: auto; padding: 0; border: 0; background: none;
+}
+.md-reading[data-mode='share'] .md-aside__tree {
+  flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain;
+  padding: 0 8px 12px;
+}
+
+/*
+ * 目录条目（分享页）：行高比门户那版宽一档，激活项用「浅蓝底 + 左侧色条 + 点亮圆点」三重提示。
+ * 悬停只换底色、不换字色 —— 侧栏里条目密集，字色一跳会让人以为内容变了。
+ */
+.md-reading[data-mode='share'] .md-tree__link,
+.md-reading[data-mode='share'] .md-tree__label {
+  padding: 7px 10px; border-radius: 9px;
+  transition: background-color .14s ease, box-shadow .14s ease;
+}
+.md-reading[data-mode='share'] .md-tree__link:hover,
+.md-reading[data-mode='share'] .md-tree__label:hover { background: var(--md-surface-2); }
+.md-reading[data-mode='share'] .md-tree__link.is-active {
+  background: var(--md-primary-soft);
+  box-shadow: inset 2px 0 0 var(--md-primary);
+}
+.md-reading[data-mode='share'] .md-tree__link.is-active .md-tree__dot { box-shadow: 0 0 0 3px var(--md-primary-soft); }
+/* 目录的篇数徽标：数字是这行的次要信息，压到最淡，hover 才稍微提上来 */
+.md-reading[data-mode='share'] .md-tree__count {
+  background: transparent; color: var(--md-text-3);
+  border: 1px solid var(--md-border);
+  transition: color .14s ease, border-color .14s ease;
+}
+.md-reading[data-mode='share'] .md-tree__label:hover .md-tree__count { color: var(--md-text-2); border-color: var(--md-border-strong); }
+
+/* 右栏：目录卡 */
+.md-outline__head {
+  display: flex; align-items: center; gap: 8px;
+  padding: 13px 14px; border-bottom: 1px solid var(--md-border);
+  font-size: 14px; font-weight: 600;
+}
+.md-outline__head .md-icon { color: var(--md-primary); }
+.md-reading[data-mode='share'] .md-outline__body {
+  flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain;
+  padding: 10px 10px 14px;
+}
+.md-reading[data-mode='share'] .md-outline__empty { padding: 12px 14px; }
+.md-reading[data-mode='share'] .md-outline__link { padding: 6px 8px; }
+
+/*
+ * 宽屏：分享页是一个「三段式外壳」——顶栏和状态栏各占一头，中间三栏撑满剩余高度，
+ * 滚动只发生在正文那一栏。于是 #md-view 的内容恰好等于它自己，页面级滚动条不再出现。
+ *
+ * <p>顺带把两条脆弱的算式拿掉了：侧栏不再 sticky，也就不必把「视口 - 顶栏 - 状态栏 - 间隙」
+ * 在样式表里抄第二遍——那一抄一旦和 --md-share-* 不同步，要么从顶栏底下穿过去，要么被状态栏压掉一截，
+ * 而 flex 的等高天然对齐。窄屏（≤1180）三栏落回文档流排成多行，没有「一栏独滚」的形状，照旧整页滚。</p>
+ */
+@media (min-width: 1181px) {
+  /* 拖宽手柄：贴在两栏边缘的一条窄热区，hover 时高亮 */
+  .md-reading__resize {
+    display: block;
+    position: relative;
+    cursor: col-resize;
+    touch-action: none;
+  }
+  /*
+   * 宽屏下三栏是真栅格，侧栏落回文档流、跟着行高拉满（把手也一并拉满）。
+   * 窄屏它们会变成抽屉，那套 fixed 定位不能被这条盖掉，所以只在这里写。
+   */
+  .md-reading[data-mode='portal'] .md-reading__aside,
+  .md-reading[data-mode='portal'] .md-reading__outline { position: static; }
+
+  .md-reading__resize::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 2px;
+    width: 2px;
+    border-radius: 2px;
+    background: transparent;
+    transition: background 0.15s;
+  }
+  .md-reading__resize:hover::after,
+  body.md-resizing .md-reading__resize::after {
+    background: var(--md-primary);
+  }
+  body.md-resizing { cursor: col-resize; user-select: none; }
+  .md-reading__resize--outline::after { left: auto; right: 2px; }
+
+  .md-share { display: flex; flex-direction: column; height: 100%; }
+  /* 出滚动区了，sticky 与它对应的 z-index 层都没了意义 */
+  .md-share__top,
+  .md-share__status { position: static; flex-shrink: 0; }
+
+  .md-reading[data-mode='share'] {
+    flex: 1;
+    min-height: 0;
+    align-items: stretch;
+    grid-template-rows: minmax(0, 1fr);
+    /*
+     * 左中右贴死：把手列收成 0 宽，外层留白与列间距一并归零，三栏之间只靠各自的
+     * 1px 发丝线分隔。拖拽能力不能丢，改由把手元素的透明热区接管指针（见下）。
+     */
+    grid-template-columns:
+      var(--md-aside-w, var(--md-aside-width))
+      0
+      minmax(0, 1fr)
+      0
+      var(--md-outline-w, var(--md-outline-width));
+    column-gap: 0;
+    padding: 0;
+  }
+  .md-reading[data-mode='share'] .md-reading__aside,
+  .md-reading[data-mode='share'] .md-reading__outline {
+    position: static;
+    height: auto;
+    overflow: hidden;
+  }
+  /*
+   * 贴死之后就不能再是「飘着的圆角卡片」：去圆角、去投影，两栏各出一条朝内的发丝线，
+   * 侧栏底色压一档（--md-sidebar）与正文面区分——和门户阅读页同一套无缝语言。
+   */
+  .md-reading[data-mode='share'] .md-aside__card,
+  .md-reading[data-mode='share'] .md-outline__card {
+    background: var(--md-sidebar);
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+  }
+  .md-reading[data-mode='share'] .md-aside__card { border-right: 1px solid var(--md-border); }
+  .md-reading[data-mode='share'] .md-outline__card { border-left: 1px solid var(--md-border); }
+  .md-reading[data-mode='share'] .md-reading__main {
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+  }
+  /* 把手列 0 宽 → 元素本身没有可点面积，这层透明热区把指针接管过来 */
+  .md-reading[data-mode='share'] .md-reading__resize::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: -4px;
+    width: 9px;
+  }
+  .md-reading[data-mode='share'] .md-reading__resize--outline::before { left: auto; right: -4px; }
+  /* 可见的强调线骑在接缝正中 */
+  .md-reading[data-mode='share'] .md-reading__resize::after { left: -1px; }
+  .md-reading[data-mode='share'] .md-reading__resize--outline::after { left: auto; right: -1px; }
+  .md-reading[data-mode='share'] .md-reading__main {
+    /* 卡片自己就是滚动区：min-height:0 是为了让上面那条撑屏高的 min-height 不再顶着栅格行 */
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+  }
+  .md-reading[data-mode='share'] .md-reading__main::-webkit-scrollbar { width: 10px; }
+  .md-reading[data-mode='share'] .md-reading__main::-webkit-scrollbar-thumb {
+    background: var(--md-border-strong);
+    border-radius: 10px;
+    border: 3px solid transparent;
+    background-clip: padding-box;
+  }
+}
+
+/*
+ * 窄屏没有工具条，抽屉也就没有入口（那条工具条在分享页是隐藏的）。与其补一个只有窄屏才出现的
+ * 汉堡按钮，不如让两栏直接落回文档流：目录排到正文之后，库信息排在最前，都还能滚到。
+ */
+@media (max-width: 1180px) {
+  .md-reading[data-mode='share'] .md-reading__outline {
+    display: block; position: static; grid-column: 1 / -1;
+    height: auto; max-height: 340px;
+  }
+  .md-reading[data-mode='share'] .md-outline__card { height: auto; }
+}
+
+@media (max-width: 900px) {
+  .md-reading[data-mode='share'] .md-reading__aside {
+    display: block; position: static; grid-column: 1 / -1;
+    /* 左栏在 ≤900 是「排在最前的一张卡」，必须跟着栅格铺满；
+       不带 width 会继承上面那条固定宽度（min(320px, 84vw)），窄屏上右侧缺一截 */
+    width: auto; height: auto; max-height: 360px;
+  }
+  .md-reading[data-mode='share'] .md-aside__card { height: auto; }
+  .md-reading[data-mode='share'] .md-aside__tree { max-height: 260px; }
+  .md-reading[data-mode='share'] .md-reading__main { padding: 20px 16px 32px; min-height: 0; }
+  .md-share__status { padding: 0 12px; }
+  .md-share__status-main { gap: 12px; }
+  /* 状态栏在手机宽度只留「哪一篇 + 多长」，作者与两个时间让位给篇名 */
+  .md-share__status-main > :nth-child(n + 4) { display: none; }
+}
+
+@media print {
+  /* 屏幕上是「视口高度 + 内部滚动」，打印必须整个退回文档流：
+     否则一篇长文只会印出滚动区当前那一屏，其余部分既不在页面上也印不出来 */
+  html, body.md-page { height: auto; overflow: visible; }
+  #app { display: block; height: auto; }
+  /* 门户阅读页那条 overflow:hidden 是给屏幕上的栏内滚动用的，纸上必须放开，否则只印出当前一屏 */
+  .md-page--read .md-view { overflow: visible; height: auto; }
+  .md-view { overflow: visible; height: auto; }
+  .md-read { display: block; height: auto; }
+  .md-reading__aside, .md-reading__outline { height: auto; overflow: visible; }
+  .md-reading[data-mode='portal'] .md-reading__main { overflow: visible; min-height: 0; }
+
+  .md-topbar, .md-reading__aside, .md-reading__outline, .md-reading__bar,
+  .md-share__top, .md-share__status,
+  .md-footer, .md-doc__nav, .md-search-panel, .md-drawer-mask { display: none !important; }
+  .md-share { display: block; height: auto; }
+  .md-reading { display: block; }
+  .md-reading__main { padding: 0; }
+  /* 状态栏在纸上去掉常驻栏的底色与「回到顶部」，只留那行文章信息收尾 */
+  .md-read-status {
+    height: auto; padding: 12px 0 0;
+    background: none; backdrop-filter: none; border-top: 1px solid var(--md-border);
+  }
+  .md-read-status__totop { display: none; }
+  /* 分享页那张正文卡在纸上不该留边框和阴影，也不该被撑成一屏高、自己滚 */
+  .md-reading[data-mode='share'] { padding: 0; }
+  .md-reading[data-mode='share'] .md-reading__main {
+    padding: 0; min-height: 0; overflow: visible; border: 0; box-shadow: none;
+  }
+  .md-doc { max-width: none; }
+  body.md-page { background: #fff; }
+}

@@ -1,0 +1,562 @@
+/*
+ * Markdown 正文渲染样式 —— 前台阅读页、分享页与后台编辑器预览共用这一份。
+ *
+ * 两处宿主的类名不同：前台正文是 .md-markdown，后台 bytemd 的预览区是 .markdown-body。
+ * 这里用 :is() 把两套作用域并进同一个选择器，样式只维护一份，不会再出现
+ * 「改了阅读页、预览区还是老样子」的漂移。
+ *
+ * :is() 的特异度取参数里的最高值（.md-ws__editor .markdown-body 为 0,2,0），
+ * 因此这些规则稳定压过 bytemd 自带的 .markdown-body 基础样式（0,1,1），
+ * 不依赖两份 CSS 谁先加载。
+ *
+ * 配色一律走变量与 color-mix，亮色 / 暗色两套主题自动适配。
+ */
+
+:is(.md-markdown, .md-ws__editor .markdown-body) {
+  color: var(--md-text);
+  font-size: 15.5px;
+  /* 行高与段距不按字体分档 —— 试过给楷体/宋体放宽到 2.0，结果连带盖掉了引用块里 p 的紧凑边距，
+     换一个字体整篇的块高就变了，读起来比字形差异更扎眼。
+     字体也不在这里设：阅读字体是分享页顶栏那个面板的偏好，只作用于分享页（见下方规则）。 */
+  line-height: 1.8;
+  overflow-wrap: break-word;
+}
+
+/*
+ * 阅读字体只作用于分享页正文。
+ *
+ * <p>这个变量由 {@code readerFont.ts} 写在根元素上，而门户阅读页与分享页共用 {@code .md-markdown}：
+ * 早先在通用规则里写了 font-family，结果在分享页换一次字体，门户阅读页也跟着变，而那边并没有
+ * 任何入口能让读者改回来。设置面板在哪，作用范围就该在哪。</p>
+ */
+.md-reading[data-mode='share'] .md-markdown { font-family: var(--md-read-font); }
+
+/* 首尾元素不吃外边距，正文顶端/底端不留一段莫名其妙的空白 */
+:is(.md-markdown, .md-ws__editor .markdown-body) > *:first-child { margin-top: 0; }
+:is(.md-markdown, .md-ws__editor .markdown-body) > *:last-child { margin-bottom: 0; }
+
+/* ------------------------------------------------------------------ 标题 */
+:is(.md-markdown, .md-ws__editor .markdown-body) :is(h1, h2, h3, h4, h5, h6) {
+  margin: 1.9em 0 0.75em;
+  font-weight: 650;
+  line-height: 1.35;
+  letter-spacing: -0.011em;
+  /* 标题尽量不出现「末行只剩一两个字」的断法；浏览器不支持时自动忽略 */
+  text-wrap: balance;
+}
+
+/* 一级标题通常就是文章标题，给它一点份量：字重更足、下压一条渐隐的主色分隔线 */
+:is(.md-markdown, .md-ws__editor .markdown-body) h1 {
+  position: relative;
+  font-size: 1.85em;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  padding-bottom: 0.38em;
+}
+:is(.md-markdown, .md-ws__editor .markdown-body) h1::after {
+  content: '';
+  position: absolute;
+  inset: auto 0 0 0;
+  height: 2px;
+  border-radius: 2px;
+  background: linear-gradient(
+    90deg,
+    var(--md-primary) 0%,
+    color-mix(in srgb, var(--md-primary) 30%, transparent) 42%,
+    transparent 100%
+  );
+}
+
+/* 二级标题是长文里的章节，保留一条底线帮助分节 */
+:is(.md-markdown, .md-ws__editor .markdown-body) h2 {
+  font-size: 1.42em;
+  padding-bottom: 0.32em;
+  border-bottom: 1px solid var(--md-border);
+}
+
+:is(.md-markdown, .md-ws__editor .markdown-body) h3 { font-size: 1.18em; }
+:is(.md-markdown, .md-ws__editor .markdown-body) h4 { font-size: 1.05em; }
+:is(.md-markdown, .md-ws__editor .markdown-body) :is(h5, h6) { font-size: 1em; color: var(--md-text-2); }
+
+/* 前台顶栏是常驻的，锚点跳转要留出顶栏高度；后台预览没有顶栏，保持原样即可 */
+.md-markdown :is(h1, h2, h3, h4, h5, h6) { scroll-margin-top: calc(var(--md-topbar-height) + 16px); }
+
+/* ------------------------------------------------------------------ 段落与行内 */
+:is(.md-markdown, .md-ws__editor .markdown-body) p { margin: 1em 0; }
+:is(.md-markdown, .md-ws__editor .markdown-body) strong { font-weight: 650; }
+:is(.md-markdown, .md-ws__editor .markdown-body) del { color: var(--md-text-3); }
+
+/*
+ * 链接带一条淡的下划线：正文里只靠颜色区分链接，中文段落里几乎看不出来。
+ * 下划线用主色的低透明度，平时不抢眼，悬停时收成实色。
+ */
+:is(.md-markdown, .md-ws__editor .markdown-body) a {
+  color: var(--md-primary);
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, var(--md-primary) 32%, transparent);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+  transition: color 0.15s ease, text-decoration-color 0.15s ease;
+}
+:is(.md-markdown, .md-ws__editor .markdown-body) a:hover {
+  color: var(--md-primary-hover);
+  text-decoration-color: currentColor;
+}
+
+/* 两端渐隐的分隔线，比一条通栏实线轻 */
+:is(.md-markdown, .md-ws__editor .markdown-body) hr {
+  height: 1px;
+  border: 0;
+  margin: 2.4em 0;
+  background: linear-gradient(90deg, transparent, var(--md-border-strong), transparent);
+}
+
+/* ------------------------------------------------------------------ 列表 */
+:is(.md-markdown, .md-ws__editor .markdown-body) :is(ul, ol) { padding-left: 1.55em; margin: 1em 0; }
+:is(.md-markdown, .md-ws__editor .markdown-body) li { margin: 0.35em 0; }
+:is(.md-markdown, .md-ws__editor .markdown-body) li > p { margin: 0.35em 0; }
+:is(.md-markdown, .md-ws__editor .markdown-body) :is(ul, ol) :is(ul, ol) { margin: 0.35em 0; }
+/* 项目符号压灰、序号提亮：问答式文档里三级序号很多，序号带色更好扫读 */
+:is(.md-markdown, .md-ws__editor .markdown-body) li::marker { color: var(--md-text-3); }
+:is(.md-markdown, .md-ws__editor .markdown-body) ol > li::marker { color: var(--md-primary); font-weight: 600; }
+
+:is(.md-markdown, .md-ws__editor .markdown-body) li.task-list-item { list-style: none; margin-left: -1.35em; }
+:is(.md-markdown, .md-ws__editor .markdown-body) li.task-list-item input {
+  margin-right: 0.5em;
+  vertical-align: middle;
+  accent-color: var(--md-primary);
+}
+
+/* ------------------------------------------------------------------ 引用 */
+:is(.md-markdown, .md-ws__editor .markdown-body) blockquote {
+  margin: 1.15em 0;
+  padding: 0.7em 1.1em;
+  color: var(--md-text-2);
+  border-left: 3px solid color-mix(in srgb, var(--md-primary) 55%, transparent);
+  border-radius: 0 var(--md-radius-sm) var(--md-radius-sm) 0;
+  background: color-mix(in srgb, var(--md-primary) 5%, var(--md-surface-2));
+}
+:is(.md-markdown, .md-ws__editor .markdown-body) blockquote p { margin: 0.35em 0; }
+:is(.md-markdown, .md-ws__editor .markdown-body) blockquote :is(ul, ol) { margin: 0.35em 0; }
+
+/* ------------------------------------------------------------------ 代码 */
+:is(.md-markdown, .md-ws__editor .markdown-body) code {
+  font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace;
+  font-size: 0.875em;
+}
+
+/* 行内代码：去掉描边、改用一层极淡的主色底，正文里更干净 */
+:is(.md-markdown, .md-ws__editor .markdown-body) :not(pre) > code {
+  padding: 0.15em 0.4em;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--md-primary) 7%, var(--md-surface-2));
+  color: var(--md-code-text);
+}
+
+:is(.md-markdown, .md-ws__editor .markdown-body) pre {
+  position: relative;
+  margin: 1.25em 0;
+  background: var(--md-code-bg);
+  border: 1px solid var(--md-code-border);
+  border-radius: var(--md-radius);
+  overflow: hidden;
+}
+:is(.md-markdown, .md-ws__editor .markdown-body) pre code {
+  display: block;
+  padding: 15px 18px;
+  overflow-x: auto;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  color: var(--md-code-text);
+  font-size: 13.5px;
+  line-height: 1.7;
+  tab-size: 4;
+}
+/* 代码横向溢出时给一条细滚动条，别用系统默认那条粗的 */
+:is(.md-markdown, .md-ws__editor .markdown-body) pre code::-webkit-scrollbar { height: 8px; }
+:is(.md-markdown, .md-ws__editor .markdown-body) pre code::-webkit-scrollbar-thumb {
+  background: var(--md-border-strong);
+  border-radius: 4px;
+}
+
+/* 前台给每个围栏块套的壳：头部工具条 + 代码本体（enhance.ts 生成，预览区没有） */
+.md-code-wrap {
+  margin: 1.25em 0;
+  border: 1px solid var(--md-code-border);
+  border-radius: var(--md-radius);
+  overflow: hidden;
+  background: var(--md-code-bg);
+  box-shadow: var(--md-shadow-sm);
+}
+/*
+ * 壳自己已经画了边框、圆角和上下外边距，里面的 pre 只负责承载代码，不能再画一层。
+ * 选择器必须带上 :is(...) 前缀：上面那条 pre 规则被 :is() 抬到了 (0,2,1)，
+ * 只写 `.md-code-wrap > pre`（0,1,1）压不过它——代码区会多出一圈内边框，
+ * 工具条与代码之间还会空出 19px。
+ */
+:is(.md-markdown, .md-ws__editor .markdown-body) .md-code-wrap > pre {
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+}
+
+.md-code-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: color-mix(in srgb, var(--md-code-bg) 55%, var(--md-surface-2));
+  border-bottom: 1px solid var(--md-code-border);
+  font-size: 12px;
+  color: var(--md-text-3);
+}
+.md-code-head .md-code-dots { display: flex; gap: 5px; }
+.md-code-head .md-code-dots i { width: 9px; height: 9px; border-radius: 50%; display: block; }
+.md-code-head .md-code-dots i:nth-child(1) { background: #ff5f57; }
+.md-code-head .md-code-dots i:nth-child(2) { background: #febc2e; }
+.md-code-head .md-code-dots i:nth-child(3) { background: #28c840; }
+.md-code-head .md-code-lang { flex: 1; text-transform: lowercase; }
+.md-code-head .md-code-copy {
+  border: 1px solid var(--md-border);
+  background: var(--md-surface);
+  color: var(--md-text-2);
+  border-radius: 6px;
+  padding: 2px 8px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: color 0.15s ease, border-color 0.15s ease;
+}
+.md-code-head .md-code-copy:hover { color: var(--md-primary); border-color: var(--md-primary); }
+
+/* 高亮令牌：颜色来自 data-code-theme 那几套变量 */
+:is(.md-markdown, .md-ws__editor .markdown-body) .hljs-keyword,
+:is(.md-markdown, .md-ws__editor .markdown-body) .hljs-selector-tag,
+:is(.md-markdown, .md-ws__editor .markdown-body) .hljs-literal { color: var(--md-tk-keyword); }
+:is(.md-markdown, .md-ws__editor .markdown-body) .hljs-string,
+:is(.md-markdown, .md-ws__editor .markdown-body) .hljs-regexp,
+:is(.md-markdown, .md-ws__editor .markdown-body) .hljs-addition { color: var(--md-tk-string); }
+:is(.md-markdown, .md-ws__editor .markdown-body) .hljs-comment,
+:is(.md-markdown, .md-ws__editor .markdown-body) .hljs-quote { color: var(--md-tk-comment); font-style: italic; }
+:is(.md-markdown, .md-ws__editor .markdown-body) .hljs-number,
+:is(.md-markdown, .md-ws__editor .markdown-body) .hljs-symbol,
+:is(.md-markdown, .md-ws__editor .markdown-body) .hljs-bullet { color: var(--md-tk-number); }
+:is(.md-markdown, .md-ws__editor .markdown-body) .hljs-title,
+:is(.md-markdown, .md-ws__editor .markdown-body) .hljs-section,
+:is(.md-markdown, .md-ws__editor .markdown-body) .hljs-name { color: var(--md-tk-title); }
+:is(.md-markdown, .md-ws__editor .markdown-body) .hljs-attr,
+:is(.md-markdown, .md-ws__editor .markdown-body) .hljs-attribute,
+:is(.md-markdown, .md-ws__editor .markdown-body) .hljs-variable { color: var(--md-tk-attr); }
+:is(.md-markdown, .md-ws__editor .markdown-body) .hljs-built_in,
+:is(.md-markdown, .md-ws__editor .markdown-body) .hljs-type { color: var(--md-tk-builtin); }
+:is(.md-markdown, .md-ws__editor .markdown-body) .hljs-meta,
+:is(.md-markdown, .md-ws__editor .markdown-body) .hljs-doctag { color: var(--md-tk-meta); }
+:is(.md-markdown, .md-ws__editor .markdown-body) .hljs-emphasis { font-style: italic; }
+:is(.md-markdown, .md-ws__editor .markdown-body) .hljs-strong { font-weight: 700; }
+
+/* ------------------------------------------------------------------ 表格 */
+/*
+ * 「卡片式表格」：外壳画边框、圆角、阴影与横向滚动，表格只负责排版。
+ * 这么分工是因为圆角必须由外层的 overflow 裁剪才收得住 —— 直接画在 table 上，表头底色和分隔线
+ * 会顺着表格的布局盒溢出到四角之外（table 的 border-collapse 盒并不裁剪后代背景）；
+ * 而给 table 自己加 overflow，窄屏时表格会被截断而不是横向滚动。
+ *
+ * 没拿到外壳的 table（增强失败、或别的宿主直接塞进来的 HTML）走降级样式：仍是 display:block
+ * 承担横向滚动，只是没有外框与圆角，不会塌成裸文本。
+ */
+.md-table-wrap {
+  margin: 1.45em 0;
+  border: 1px solid var(--md-border);
+  border-radius: var(--md-radius);
+  background: var(--md-surface);
+  box-shadow: var(--md-shadow-sm);
+  overflow: auto;
+  /* 表格窄于正文时才滚；顺手拦掉横向滚动链，避免拖到尽头带着整页一起跑 */
+  overscroll-behavior-x: contain;
+}
+/* 横向滚动条收细，与代码块那套一致 */
+.md-table-wrap::-webkit-scrollbar { height: 9px; }
+.md-table-wrap::-webkit-scrollbar-track { background: transparent; }
+.md-table-wrap::-webkit-scrollbar-thumb {
+  border: 3px solid transparent;
+  border-radius: 999px;
+  background: var(--md-border-strong);
+  background-clip: content-box;
+}
+.md-table-wrap::-webkit-scrollbar-thumb:hover { background: var(--md-text-3); background-clip: content-box; }
+
+/* 外壳里的表格：恢复 table 布局并满宽，外边距交给外壳（否则表头底色会漏到圆角外面） */
+:is(.md-markdown, .md-ws__editor .markdown-body) .md-table-wrap > table {
+  display: table;
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  overflow: visible;
+}
+
+/* 降级：无外壳的表格 */
+:is(.md-markdown, .md-ws__editor .markdown-body) table {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  margin: 1.45em 0;
+  border-collapse: collapse;
+  font-size: 14.5px;
+}
+
+/* 单元格：上下留白给足、行内元素垂直居中；分隔线只留横线，竖线在密集表格里太吵 */
+:is(.md-markdown, .md-ws__editor .markdown-body) table :is(th, td) {
+  padding: 10px 15px;
+  text-align: left;
+  vertical-align: middle;
+  border: 0;
+  border-bottom: 1px solid var(--md-border);
+  word-break: break-word;
+}
+
+/*
+ * 表头：淡主色底 + 略小的字号 + 一条稍重的底线。
+ * 底色是这张表和正文之间最重要的分界 —— 纯白表头在长表格里几乎找不到列的起点。
+ */
+:is(.md-markdown, .md-ws__editor .markdown-body) table thead th {
+  background: color-mix(in srgb, var(--md-primary) 7%, var(--md-surface-2));
+  color: var(--md-text);
+  font-size: 0.95em;
+  font-weight: 650;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  border-bottom: 1px solid var(--md-border-strong);
+}
+:is(.md-markdown, .md-ws__editor .markdown-body) table tbody tr:last-child :is(td, th) { border-bottom: 0; }
+:is(.md-markdown, .md-ws__editor .markdown-body) table tbody tr:hover :is(td, th) {
+  background: color-mix(in srgb, var(--md-primary) 5%, transparent);
+}
+/* 悬停时首列跟着提亮一点：技术表格里第一列几乎都是维度名，扫读时视线多半停在这一列 */
+:is(.md-markdown, .md-ws__editor .markdown-body) table tbody tr:hover td:first-child { color: var(--md-primary); }
+
+/* 表格里的行内代码（参数名、类名之类）：底色再压实一点，行高窄的格子里不至于糊成一片 */
+:is(.md-markdown, .md-ws__editor .markdown-body) table :is(th, td) code {
+  padding: 0.1em 0.42em;
+  font-size: 0.86em;
+  border-radius: 5px;
+  background: color-mix(in srgb, var(--md-primary) 9%, var(--md-surface-2));
+}
+/* 表格里的段落不留外边距：多段落单元格会被撑得很松 */
+:is(.md-markdown, .md-ws__editor .markdown-body) table :is(th, td) p { margin: 0.25em 0; }
+
+@media (max-width: 640px) {
+  :is(.md-markdown, .md-ws__editor .markdown-body) table { font-size: 13.5px; }
+  :is(.md-markdown, .md-ws__editor .markdown-body) table :is(th, td) { padding: 8px 11px; }
+  /* 窄屏放不下不换行的表头，硬 nowrap 会把列撑得极宽 */
+  :is(.md-markdown, .md-ws__editor .markdown-body) table thead th { white-space: normal; }
+}
+
+/* 纸面上圆角与阴影没有意义，去掉边框留内容即可；整张表尽量不跨页断开 */
+@media print {
+  .md-table-wrap { overflow: visible; border-radius: 0; box-shadow: none; break-inside: avoid; }
+}
+
+/* ------------------------------------------------------------------ 图片 */
+:is(.md-markdown, .md-ws__editor .markdown-body) img {
+  max-width: 100%;
+  border-radius: var(--md-radius-sm);
+  box-shadow: 0 1px 3px rgba(24, 29, 51, 0.1);
+}
+/* 前台图片可点开灯箱，后台预览没有灯箱，不要给出误导性的放大光标 */
+.md-markdown img { cursor: zoom-in; }
+
+/* ------------------------------------------------------------------ 提示块 */
+.md-admonition {
+  margin: 1.15em 0;
+  padding: 12px 16px;
+  border-radius: var(--md-radius-sm);
+  border-left: 4px solid var(--md-primary);
+  background: color-mix(in srgb, var(--md-primary) 7%, transparent);
+}
+.md-admonition__title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 4px;
+  font-weight: 650;
+  font-size: 14px;
+  color: var(--md-primary);
+}
+/* 同 .md-code-wrap 的道理：提示块里的段落要盖过通用 p 规则（被 :is() 抬到 0,2,1），
+   否则段落间距从 0.35em 变回 1em，块内被撑得很松 */
+:is(.md-markdown, .md-ws__editor .markdown-body) .md-admonition p { margin: 0.35em 0; }
+.md-admonition--tip { border-left-color: #10b981; background: rgba(16, 185, 129, 0.09); }
+.md-admonition--tip .md-admonition__title { color: #059669; }
+.md-admonition--warning { border-left-color: #f59e0b; background: rgba(245, 158, 11, 0.09); }
+.md-admonition--warning .md-admonition__title { color: #b45309; }
+.md-admonition--caution { border-left-color: #ef4444; background: rgba(239, 68, 68, 0.09); }
+.md-admonition--caution .md-admonition__title { color: #dc2626; }
+.md-admonition--important { border-left-color: #8b5cf6; background: rgba(139, 92, 246, 0.09); }
+.md-admonition--important .md-admonition__title { color: #7c3aed; }
+
+/* 暗色下把标题色提亮，否则 #059669 / #b45309 压深底读不清 */
+[data-theme='dark'] .md-admonition--tip .md-admonition__title { color: #34d399; }
+[data-theme='dark'] .md-admonition--warning .md-admonition__title { color: #fbbf24; }
+[data-theme='dark'] .md-admonition--caution .md-admonition__title { color: #f87171; }
+[data-theme='dark'] .md-admonition--important .md-admonition__title { color: #a78bfa; }
+
+/* ------------------------------------------------------------------ 公式与图表 */
+:is(.md-markdown, .md-ws__editor .markdown-body) .katex-display { overflow-x: auto; overflow-y: hidden; padding: 6px 0; }
+/* 图表给一层浅底，避免线条直接浮在白底/深底上显得单薄 */
+:is(.md-markdown, .md-ws__editor .markdown-body) .mermaid-block {
+  display: flex;
+  justify-content: center;
+  margin: 1.3em 0;
+  padding: 12px;
+  border-radius: var(--md-radius-sm);
+  background: color-mix(in srgb, var(--md-surface-2) 70%, transparent);
+  overflow-x: auto;
+}
+
+/* ------------------------------------------------------------------ 脚注与选中态 */
+:is(.md-markdown, .md-ws__editor .markdown-body) .footnotes {
+  margin-top: 2.4em;
+  padding-top: 1em;
+  border-top: 1px solid var(--md-border);
+  color: var(--md-text-2);
+  font-size: 13.5px;
+}
+:is(.md-markdown, .md-ws__editor .markdown-body) .footnotes ol { padding-left: 1.2em; }
+:is(.md-markdown, .md-ws__editor .markdown-body) ::selection {
+  background: color-mix(in srgb, var(--md-primary) 22%, transparent);
+}
+
+.md-markdown .md-link-disabled {
+  color: var(--md-text-3);
+  border-bottom: 1px dashed var(--md-border-strong);
+  cursor: not-allowed;
+}
+
+/* ------------------------------------------------------------------ 图片灯箱 */
+/* 正文里的可点图：图片与内联 SVG（Mermaid 图）共用 */
+.md-zoomable { cursor: zoom-in; }
+
+/* 灯箱打开时锁住页面滚动，避免滚轮穿透到正文 */
+body.md-lightbox-open { overflow: hidden; }
+
+.md-lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  background: rgba(9, 11, 18, 0.9);
+  backdrop-filter: blur(3px);
+  /* 触摸设备上禁掉浏览器自己的滚动/缩放手势，交给指针事件处理 */
+  touch-action: none;
+  user-select: none;
+  animation: md-lightbox-in 0.16s ease-out;
+}
+@keyframes md-lightbox-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* 舞台铺满全屏，图片在其中居中；transform-origin 为 center，便于以舞台中心做锚点换算 */
+.md-lightbox__stage {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+.md-lightbox__media {
+  max-width: 92vw;
+  max-height: 88vh;
+  transform-origin: center;
+  transition: transform 0.12s ease-out;
+  will-change: transform;
+  border-radius: 4px;
+  box-shadow: 0 18px 60px rgba(0, 0, 0, 0.5);
+}
+/* 拖拽/捏合期间关掉过渡，否则图会「追」着指针走，手感发飘 */
+.md-lightbox.is-grabbing .md-lightbox__media { transition: none; cursor: grabbing; }
+/*
+ * SVG（Mermaid 图等）垫一层白底：图里的文字与连线是照浅色底设计的，压在暗色幕布上会糊成一片。
+ * 位图自带底色，不加这个类，不受影响。描边是给白纸与暗幕之间留一道界，否则边缘会糊在一起。
+ */
+.md-lightbox__media--svg {
+  background: #fff;
+  box-shadow: 0 18px 60px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.16);
+}
+
+.md-lightbox__bar {
+  position: absolute;
+  left: 50%;
+  bottom: 22px;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 6px;
+  border-radius: 999px;
+  background: rgba(24, 27, 38, 0.82);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(8px);
+}
+.md-lightbox__btn {
+  min-width: 34px;
+  height: 30px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 999px;
+  background: none;
+  color: #e8ecf6;
+  font-family: inherit;
+  font-size: 14px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+.md-lightbox__btn:hover { background: rgba(255, 255, 255, 0.14); color: #fff; }
+.md-lightbox__scale {
+  min-width: 46px;
+  text-align: center;
+  color: #cfd6e6;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.md-lightbox__sep {
+  width: 1px;
+  height: 16px;
+  margin: 0 4px;
+  background: rgba(255, 255, 255, 0.16);
+}
+
+.md-lightbox__close {
+  position: absolute;
+  top: 16px;
+  right: 20px;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(24, 27, 38, 0.7);
+  color: #fff;
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  transition: background-color 0.15s ease, transform 0.15s ease;
+}
+.md-lightbox__close:hover { background: rgba(255, 255, 255, 0.18); transform: rotate(90deg); }
+
+.md-lightbox__hint {
+  position: absolute;
+  top: 24px;
+  left: 20px;
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 12px;
+}
+@media (max-width: 720px) {
+  .md-lightbox__hint { display: none; }
+}

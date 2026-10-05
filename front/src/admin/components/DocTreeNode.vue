@@ -1,0 +1,291 @@
+<script setup lang="ts">
+import { computed, ref, watch } from 'vue'
+import MdIcon from '@/admin/components/MdIcon.vue'
+import { draggingPath } from '@/admin/components/docDrag'
+import { can } from '@/shared/api/caps'
+import type { DocNode, KbActionName } from '@/shared/api/types'
+
+const props = defineProps<{
+  node: DocNode
+  activePath: string
+  depth: number
+  /** 由工作区统一广播的折叠信号：切换时把本级目录一并展开/收起 */
+  collapseAll?: boolean
+  /**
+   * 我在这个库上的动作向量（后端下发，规范 §2.6）。
+   *
+   * <p>逐项判定而不是一个「可写」布尔：删文档、改名、分享各有各的动作，合成一个布尔就等于
+   * 让前端自己猜它们同不同轴。省略或给空数组按「本次没算」处理，菜单照常给，真判定在后端。</p>
+   */
+  perms?: KbActionName[]
+}>()
+
+const emit = defineEmits<{
+  (e: 'select', node: DocNode): void
+  (e: 'action', payload: { action: string; node: DocNode }): void
+  (e: 'move', payload: { path: string; targetDir: string }): void
+  (e: 'reorder', payload: { path: string; targetPath: string; position: 'before' | 'after' }): void
+}>()
+
+const collapsed = ref(false)
+
+/** 拖动中的这一行本身：给它降透明度，让人看得出「拿起的是哪一个」 */
+const isDragging = computed(() => draggingPath.value === props.node.path)
+
+/**
+ * 落点类型。
+ *
+ * <p>分两段判定：行的上/下缘＝排序（插到本行前/后），目录行的中段＝移入本目录。
+ * 这样一条拖拽既能在同目录里挪位置，也能把节点放进某个目录，而不用两个手势。</p>
+ */
+const dropZone = ref<'' | 'before' | 'after' | 'inside'>('')
+const dropActive = computed(() => dropZone.value === 'inside')
+
+const parentPath = computed(() => {
+  const index = props.node.path.lastIndexOf('/')
+  return index < 0 ? '' : props.node.path.slice(0, index)
+})
+
+const draggingParent = computed(() => {
+  const index = draggingPath.value.lastIndexOf('/')
+  return index < 0 ? '' : draggingPath.value.slice(0, index)
+})
+
+const allowed = (action: KbActionName) => can(props.perms, action)
+/**
+ * 这一行的「⋯」要不要出现。
+ *
+ * <p>文档总有一条「下载 Markdown」可给，所以文档恒有菜单；目录只剩治理类动作，一个都没有时
+ * 点开一个全灰的菜单比没有菜单更让人找不着北。</p>
+ */
+const showMenu = computed(
+  () =>
+    props.node.type === 'doc' ||
+    allowed('DOC_WRITE') ||
+    allowed('DOC_RENAME') ||
+    allowed('DOC_MOVE') ||
+    allowed('DOC_DELETE')
+)
+
+const isActive = computed(() => props.node.type === 'doc' && props.activePath === props.node.path)
+/** 当前文档位于本目录之内：高亮 + 自动展开，避免定位不到正在编辑的文件 */
+const isAncestor = computed(
+  () => props.node.type === 'dir' && !!props.activePath && props.activePath.startsWith(`${props.node.path}/`)
+)
+
+watch(
+  () => props.collapseAll,
+  (value) => {
+    collapsed.value = Boolean(value)
+  }
+)
+
+watch(
+  () => props.activePath,
+  () => {
+    if (isAncestor.value) collapsed.value = false
+  },
+  { immediate: true }
+)
+
+function toggle() {
+  collapsed.value = !collapsed.value
+}
+
+function onSelect() {
+  emit('select', props.node)
+}
+
+function onAction(action: string) {
+  emit('action', { action, node: props.node })
+}
+
+/* ------------------------------------------------------------------ 拖拽移动 */
+/** 没有移动权限的人连拿都拿不起来：能拖却拖不动比不能拖更让人困惑 */
+const canDrag = computed(() => allowed('DOC_MOVE'))
+
+/**
+ * 这个目录能不能接住当前拖动的节点。
+ *
+ * <p>拖到自己、或拖到自己内部的子目录都是无效落点——后者会让目录凭空消失。
+ * 后端也会拦（§「不能将目录移动到其自身或子目录内」），但先在这里挡掉能省一次白跑的请求。</p>
+ */
+const canDrop = computed(() => {
+  const from = draggingPath.value
+  if (!from || props.node.type !== 'dir' || !allowed('DOC_MOVE')) return false
+  return props.node.path !== from && !props.node.path.startsWith(`${from}/`)
+})
+
+/**
+ * 能不能把拖动项排到本行前/后。
+ *
+ * <p>只允许同目录内排序：跨目录的意图是「移动」，落点应该是目录行而不是某一行。</p>
+ */
+const canReorder = computed(() => {
+  const from = draggingPath.value
+  if (!from || from === props.node.path || !allowed('DOC_MOVE')) return false
+  return draggingParent.value === parentPath.value
+})
+
+/**
+ * 根据指针在行内的纵向位置判定落点。
+ *
+ * <p>目录行中段（30%~70%）留给「移入」；其余位置——文件行的整行、目录行的上下缘——都是排序。
+ * 目录行的上下缘仍保留「移入」兜底，免得跨目录拖来时只剩一条缝能放。</p>
+ */
+function zoneOf(event: DragEvent): '' | 'before' | 'after' | 'inside' {
+  const rect = (event.currentTarget as HTMLElement).getBoundingClientRect()
+  const ratio = rect.height === 0 ? 0.5 : (event.clientY - rect.top) / rect.height
+  if (props.node.type === 'dir' && ratio > 0.3 && ratio < 0.7) {
+    return canDrop.value ? 'inside' : ''
+  }
+  if (canReorder.value) {
+    return ratio < 0.5 ? 'before' : 'after'
+  }
+  return canDrop.value ? 'inside' : ''
+}
+
+function onDragStart(event: DragEvent) {
+  if (!canDrag.value) return
+  draggingPath.value = props.node.path
+  dropZone.value = ''
+  if (event.dataTransfer) {
+    event.dataTransfer.effectAllowed = 'move'
+    // Firefox 不设 data 就不启动拖拽，内容本身用不上，占个位即可
+    event.dataTransfer.setData('text/plain', props.node.path)
+  }
+}
+
+function onDragEnd() {
+  draggingPath.value = ''
+  dropZone.value = ''
+}
+
+function onDragOver(event: DragEvent) {
+  if (!draggingPath.value) return
+  /*
+   * 树容器（空白处）也挂着「移到根目录」的落点。只要指针还在某一行上，就不该让容器跟着亮，
+   * 否则拖到文件行（它自己不是合法落点）会被容器接管、把文档莫名其妙地移到根目录去。
+   */
+  event.stopPropagation()
+  const zone = zoneOf(event)
+  if (!zone) return
+  // 只有 preventDefault 才表示「这里可以放」，否则浏览器给的是禁止光标
+  event.preventDefault()
+  if (event.dataTransfer) event.dataTransfer.dropEffect = 'move'
+  dropZone.value = zone
+}
+
+function onDragLeave(event: DragEvent) {
+  // 行内有图标和文字，指针掠过子元素也会触发 dragleave，不排掉就会一直闪
+  const next = event.relatedTarget as Node | null
+  if (next && (event.currentTarget as HTMLElement).contains(next)) return
+  dropZone.value = ''
+}
+
+function onDrop(event: DragEvent) {
+  const zone = dropZone.value
+  if (!zone) return
+  event.preventDefault()
+  // 别让事件继续冒泡到树容器（那是「移到根目录」的落点），否则一次拖拽会落两次
+  event.stopPropagation()
+  const from = draggingPath.value
+  dropZone.value = ''
+  draggingPath.value = ''
+  if (zone === 'inside') {
+    emit('move', { path: from, targetDir: props.node.path })
+  } else {
+    emit('reorder', { path: from, targetPath: props.node.path, position: zone })
+  }
+}
+</script>
+
+<template>
+  <li class="md-ad-tree__item" :class="{ 'is-collapsed': collapsed && node.type === 'dir' }">
+    <div
+      class="md-ad-tree__row"
+      :class="{
+        'is-active': isActive,
+        'is-ancestor': isAncestor,
+        'is-dir': node.type === 'dir',
+        'is-dragging': isDragging,
+        'is-drop-target': dropActive,
+        'is-drop-before': dropZone === 'before',
+        'is-drop-after': dropZone === 'after'
+      }"
+      :draggable="canDrag"
+      @dragstart="onDragStart"
+      @dragend="onDragEnd"
+      @dragover="onDragOver"
+      @dragleave="onDragLeave"
+      @drop="onDrop"
+    >
+      <span v-if="dropZone === 'before'" class="md-ad-tree__drop-line is-before" aria-hidden="true" />
+      <span v-if="dropZone === 'after'" class="md-ad-tree__drop-line is-after" aria-hidden="true" />
+      <button
+        v-if="node.type === 'dir'"
+        type="button"
+        class="md-ad-tree__toggle"
+        :aria-expanded="!collapsed"
+        @click.stop="toggle"
+      >
+        <MdIcon :name="collapsed ? 'chevron-right' : 'chevron-down'" :size="12" />
+      </button>
+      <span v-else class="md-ad-tree__toggle md-ad-tree__toggle--spacer" />
+
+      <MdIcon class="md-ad-tree__type" :name="node.type === 'dir' ? 'folder' : 'file'" :size="15" />
+
+      <span class="md-ad-tree__name" :title="node.path" @click="onSelect">{{ node.name }}</span>
+
+      <el-dropdown v-if="showMenu" trigger="click" placement="bottom-end" @command="onAction">
+        <button type="button" class="md-ad-tree__more" title="更多操作" @click.stop>
+          <MdIcon name="more" :size="15" />
+        </button>
+        <template #dropdown>
+          <el-dropdown-menu>
+            <template v-if="node.type === 'dir'">
+              <el-dropdown-item v-if="allowed('DOC_WRITE')" command="new-doc">
+                <MdIcon name="plus" :size="14" />在此新建文档
+              </el-dropdown-item>
+              <el-dropdown-item v-if="allowed('DOC_WRITE')" command="new-dir">
+                <MdIcon name="folder" :size="14" />新建子目录
+              </el-dropdown-item>
+            </template>
+            <el-dropdown-item v-else command="download">
+              <MdIcon name="download" :size="14" />下载 Markdown
+            </el-dropdown-item>
+            <!-- 分享权等同写权（规范 §2.4），但它是一个单独的动作：只读成员能复制链接，不能建对外链接 -->
+            <el-dropdown-item v-if="node.type === 'doc' && allowed('SHARE_CREATE')" command="share">
+              <MdIcon name="share" :size="14" />分享本文档
+            </el-dropdown-item>
+            <el-dropdown-item v-if="allowed('DOC_RENAME')" command="rename" divided>
+              <MdIcon name="edit" :size="14" />重命名
+            </el-dropdown-item>
+            <el-dropdown-item v-if="allowed('DOC_MOVE')" command="move">
+              <MdIcon name="move" :size="14" />移动到…
+            </el-dropdown-item>
+            <el-dropdown-item v-if="allowed('DOC_DELETE')" command="delete" divided>
+              <MdIcon name="trash" :size="14" />删除
+            </el-dropdown-item>
+          </el-dropdown-menu>
+        </template>
+      </el-dropdown>
+    </div>
+
+    <ul v-if="node.type === 'dir' && node.children && node.children.length" class="md-ad-tree">
+      <DocTreeNode
+        v-for="child in node.children"
+        :key="child.path"
+        :node="child"
+        :active-path="activePath"
+        :depth="depth + 1"
+        :collapse-all="collapseAll"
+        :perms="perms"
+        @select="emit('select', $event)"
+        @action="emit('action', $event)"
+        @move="emit('move', $event)"
+        @reorder="emit('reorder', $event)"
+      />
+    </ul>
+  </li>
+</template>

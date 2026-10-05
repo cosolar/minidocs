@@ -1,0 +1,1571 @@
+@import '@/shared/styles/variables.css';
+@import '@/shared/styles/markdown.css';
+
+/*
+ * 单 SPA 后这里不再有 html/body 级的重置：页面皮肤（字体、底色、去外边距）由
+ * reader.css 的 body.md-page 统一给，两侧共用一套。管理端自己的 .md-ad-* 前缀
+ * 类名也为此让路——两套样式表现在会同时存在于一个文档里，重名就会互相覆盖。
+ */
+
+/* Element Plus 主题对齐 */
+:root {
+  --el-color-primary: var(--md-primary);
+  --el-border-radius-base: 8px;
+  /* 控件统一高度：与阅读端 .md-btn（34px）对齐；small 的 24px 太矮，点到全靠运气 */
+  --el-component-size: 34px;
+  --el-component-size-small: 28px;
+}
+
+/* ------------------------------------------------------------------ 按钮统一皮肤 */
+/*
+ * Element Plus 的默认按钮是 4px 圆角、悬停只换底色，和站内其它控件的观感对不上。
+ * 这里只调「公共皮肤」——字重、过渡、按压反馈、焦点环、图标间距；彩色按钮的配色仍走
+ * --el-button-* 变量，具体页面要特殊处理时覆盖变量即可，不必再写一堆 !important。
+ */
+.el-button {
+  --el-button-font-weight: 500;
+  font-weight: 500;
+  transition: background-color .15s ease, border-color .15s ease, color .15s ease, box-shadow .15s ease;
+}
+.el-button:not(.is-disabled):not(.is-text):not(.is-link):active { transform: translateY(1px); }
+.el-button:focus-visible { outline: 2px solid var(--md-primary); outline-offset: 2px; }
+/* 按钮内的自绘图标：本项目一律放在文字左侧，统一留一口气（尾随图标由各自类归零） */
+.el-button .md-icon { margin-right: 6px; }
+/* 下拉菜单项同理：图标贴着菜单项的左内边距，与文字之间留一口气 */
+.el-dropdown-menu__item .md-icon { margin-right: 7px; vertical-align: -2px; }
+
+/*
+ * 未指定 type 的描边按钮：悬停时边框与文字一起转主色。只变底色在浅色主题下几乎看不出来，
+ * 尤其表格里一排按钮挨着的时候，用户分不清鼠标到底停在哪个上。
+ */
+.el-button:not([class*='el-button--primary']):not([class*='el-button--success']):not([class*='el-button--warning']):not([class*='el-button--danger']):not([class*='el-button--info']):not(.is-plain):not(.is-text):not(.is-link):not(.is-disabled):hover {
+  --el-button-hover-border-color: var(--md-primary);
+  --el-button-hover-text-color: var(--md-primary);
+  --el-button-hover-bg-color: var(--md-primary-soft);
+}
+
+[data-theme='dark'] {
+  --el-bg-color: var(--md-surface);
+  --el-bg-color-page: var(--md-bg);
+  --el-bg-color-overlay: var(--md-surface);
+  --el-text-color-primary: var(--md-text);
+  --el-text-color-regular: var(--md-text-2);
+  --el-text-color-secondary: var(--md-text-3);
+  --el-border-color: var(--md-border);
+  --el-border-color-light: var(--md-border);
+  --el-border-color-lighter: var(--md-border);
+  --el-fill-color-blank: var(--md-surface);
+  --el-fill-color-light: var(--md-surface-2);
+  --el-mask-color: rgba(15, 17, 23, .7);
+}
+
+/* ------------------------------------------------------------------ 登录 / 注册页 */
+/*
+ * 桌面端是「左品牌 / 右表单」两块拼在一张圆角卡里（.md-login__shell），窄屏收成单列。
+ *
+ * <p>背景从下往上四层：底色 → 三团错位的极光（品牌蓝 / 紫 / 青，用 color-mix 跟着主题走）
+ * → 56px 细网格（径向 mask 让四周淡出）→ 一层极淡噪点。纯渐变在大片留白上会显得「塑料」：
+ * 网格给密度、噪点打散色带。两者都必须淡到「说不出在哪、但少了就空」。</p>
+ */
+.md-login {
+  /* 滚动区（.md-view）已经把视口高度占满，这里只要 100%，写 100vh 会多出一屏可滚 */
+  position: relative;
+  isolation: isolate;
+  min-height: 100%;
+  display: grid;
+  place-items: center;
+  background:
+    radial-gradient(920px 620px at 6% -10%, color-mix(in srgb, var(--md-primary) 26%, transparent), transparent 62%),
+    radial-gradient(760px 520px at 98% 2%, rgba(168, 85, 247, .20), transparent 60%),
+    radial-gradient(700px 700px at 82% 108%, rgba(34, 211, 238, .16), transparent 62%),
+    var(--md-bg);
+  padding: 28px 24px;
+}
+/* 网格：中心密、四周淡（靠 mask 收边） */
+.md-login::before {
+  content: '';
+  position: absolute; inset: 0; z-index: -1;
+  pointer-events: none;
+  background-image:
+    linear-gradient(to right, color-mix(in srgb, var(--md-text) 7%, transparent) 1px, transparent 1px),
+    linear-gradient(to bottom, color-mix(in srgb, var(--md-text) 7%, transparent) 1px, transparent 1px);
+  background-size: 56px 56px;
+  -webkit-mask-image: radial-gradient(120% 95% at 50% 0%, #000 18%, transparent 76%);
+  mask-image: radial-gradient(120% 95% at 50% 0%, #000 18%, transparent 76%);
+}
+/* 噪点：180px 湍流贴图平铺，专治大面积渐变的色带 */
+.md-login::after {
+  content: '';
+  position: absolute; inset: 0; z-index: -1;
+  pointer-events: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23n)' opacity='.5'/%3E%3C/svg%3E");
+  opacity: .5;
+}
+[data-theme='dark'] .md-login::after { opacity: .8; }
+
+.md-login__shell {
+  position: relative;
+  width: min(1040px, 100%);
+  display: grid;
+  grid-template-columns: 1.05fr .95fr;
+  border: 1px solid var(--md-border);
+  border-radius: 22px;
+  background: var(--md-surface);
+  /* 两层影：紧贴卡片的一圈主色柔光把卡片从背景里「抬」起来，外面那层是长投影 */
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--md-primary) 8%, transparent),
+    0 34px 80px -30px rgba(24, 29, 51, .42),
+    var(--md-shadow-sm);
+  overflow: hidden;
+}
+/* 卡片顶沿一道高光：白卡放在深色背景上时，边缘最容易显得生硬 */
+.md-login__shell::before {
+  content: '';
+  position: absolute; inset: 0 0 auto; z-index: 2;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--md-text) 12%, transparent), transparent);
+}
+
+/* ------------------------------------------------------------------ 左：品牌栏 */
+/*
+ * 深色渐变 + 白色文字。暗色主题下这一栏仍是深色（对比白字），右栏转为深灰，
+ * 两栏的明暗差把「说明 / 操作」分开，不靠描边。
+ */
+.md-login__intro {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 26px;
+  padding: 40px 40px 32px;
+  color: #fff;
+  background: linear-gradient(155deg, #2f57d8 0%, #4b3ad6 46%, #6d3ecf 74%, #7c4bd6 100%);
+  overflow: hidden;
+}
+/* 右上角与左下角各一团柔光，渐变直落会显得平 */
+.md-login__intro::before,
+.md-login__intro::after {
+  content: '';
+  position: absolute;
+  border-radius: 50%;
+  pointer-events: none;
+}
+.md-login__intro::before {
+  width: 320px; height: 320px; right: -110px; top: -130px;
+  background: radial-gradient(circle, rgba(255, 255, 255, .22), transparent 68%);
+}
+.md-login__intro::after {
+  width: 260px; height: 260px; left: -120px; bottom: -120px;
+  background: radial-gradient(circle, rgba(120, 220, 255, .18), transparent 70%);
+}
+
+.md-login__intro-top { position: relative; display: flex; align-items: center; gap: 12px; }
+.md-login__logo {
+  width: 44px; height: 44px; border-radius: 13px; flex-shrink: 0;
+  background: rgba(255, 255, 255, .16);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .28);
+  color: #fff; font-weight: 700; font-size: 21px; display: grid; place-items: center;
+  overflow: hidden;
+}
+/* 上传了自定义 Logo：图片铺满，不再叠半透明底 */
+.md-login__logo.is-image { background: rgba(255, 255, 255, .12); }
+.md-login__logo.is-image img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.md-login__intro-name { display: grid; gap: 1px; min-width: 0; }
+.md-login__intro-name strong { font-size: 17px; letter-spacing: -.01em; }
+.md-login__intro-name small { color: rgba(255, 255, 255, .68); font-size: 12px; }
+
+.md-login__intro-body { position: relative; margin-top: auto; }
+.md-login__intro-body h1 {
+  margin: 0 0 10px;
+  font-size: 29px; line-height: 1.28; font-weight: 700; letter-spacing: -.02em;
+}
+.md-login__intro-body > p { margin: 0 0 22px; color: rgba(255, 255, 255, .76); font-size: 13.5px; line-height: 1.7; }
+
+.md-login__points { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
+.md-login__points li { display: flex; align-items: flex-start; gap: 11px; }
+.md-login__point-icon {
+  width: 30px; height: 30px; border-radius: 9px; flex-shrink: 0;
+  display: grid; place-items: center;
+  background: rgba(255, 255, 255, .14);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .2);
+}
+.md-login__points strong { display: block; font-size: 13.5px; font-weight: 600; }
+.md-login__points small { display: block; margin-top: 1px; color: rgba(255, 255, 255, .66); font-size: 12px; line-height: 1.55; }
+.md-login__intro-foot {
+  position: relative; margin: 0;
+  color: rgba(255, 255, 255, .5); font-size: 11.5px;
+}
+
+/* ------------------------------------------------------------------ 右：表单栏 */
+.md-login__panel { display: flex; flex-direction: column; padding: 40px 40px 30px; }
+.md-login__head h2 { margin: 0; font-size: 21px; font-weight: 700; letter-spacing: -.01em; }
+.md-login__head p { margin: 5px 0 0; color: var(--md-text-3); font-size: 13px; }
+.md-login__form { margin-top: 24px; }
+
+/* 表单标签压小一号：默认的标签字号在两栏布局里比输入框还抢眼 */
+.md-login__form .el-form-item__label { padding-bottom: 5px; color: var(--md-text-2); font-size: 12.5px; font-weight: 600; }
+/*
+ * 输入框：圆角与高度统一，聚焦时用主色描边 + 柔光（EP 默认那条偏亮的描边在蓝调页面里很跳）。
+ * 这里刻意不写 :deep() —— 本文件是全局样式表，不是 scoped，:deep() 只在 <style scoped> 里才被
+ * 编译成合法选择器；写在全局表里浏览器会当成未知伪类，把整条规则连同它后面的声明一起丢掉。
+ */
+.md-login__form .el-input__wrapper {
+  border-radius: 10px;
+  padding: 2px 13px;
+  background: var(--md-surface-2);
+  box-shadow: inset 0 0 0 1px var(--md-border);
+  transition: box-shadow .16s ease, background-color .16s ease;
+}
+.md-login__form .el-input__wrapper:hover { box-shadow: inset 0 0 0 1px var(--md-border-strong); }
+.md-login__form .el-input__wrapper.is-focus {
+  background: var(--md-surface);
+  box-shadow: inset 0 0 0 1.5px var(--md-primary), 0 0 0 3px color-mix(in srgb, var(--md-primary) 16%, transparent);
+}
+.md-login__form .el-input__prefix { color: var(--md-text-3); }
+/* 聚焦时前缀跟着变主色，输入框内外是一条连贯的反馈 */
+.md-login__form .el-input__wrapper.is-focus .el-input__prefix { color: var(--md-primary); }
+.md-login__form .el-input__inner { font-size: 14px; }
+
+.md-login__submit {
+  width: 100%; margin-top: 6px; height: 44px;
+  display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+  border: 0; border-radius: 10px;
+  font-size: 14.5px; font-weight: 600;
+  background: linear-gradient(135deg, var(--md-primary), #6f4bf0);
+  box-shadow: 0 10px 22px -10px color-mix(in srgb, var(--md-primary) 75%, transparent);
+  transition: transform .14s ease, box-shadow .14s ease, filter .14s ease;
+}
+.md-login__submit:hover { transform: translateY(-1px); filter: brightness(1.05); }
+.md-login__submit:active { transform: translateY(0); }
+.md-login__submit.is-disabled,
+.md-login__submit.is-loading { transform: none; filter: none; }
+
+.md-login__links {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  margin-top: 20px; padding-top: 16px;
+  border-top: 1px solid var(--md-border);
+  color: var(--md-text-3); font-size: 12.5px;
+}
+.md-login__links a { color: var(--md-primary); text-decoration: none; }
+.md-login__links a:hover { text-decoration: underline; }
+/* 「默认管理员由 ADMIN_USER / ADMIN_PASS 初始化…」曾以脚注形式放在这里，已删：
+   登录页是给所有人看的，对还没注册的人那是纯噪音，这类信息属于部署文档。 */
+
+/* ------------------------------------------------------------------ 窄屏 */
+/*
+ * ≤900px：两栏没法并排，左栏收成一条品牌头（Logo + 站名），要点列表与脚注收起 ——
+ * 手机上首屏要留给表单，那三行说明会把「登录」推到折叠线以下。
+ */
+@media (max-width: 900px) {
+  .md-login { padding: 18px 14px; }
+  .md-login__shell { grid-template-columns: 1fr; border-radius: 18px; }
+  .md-login__intro { flex-direction: row; align-items: center; gap: 12px; padding: 18px 20px; }
+  .md-login__intro::before { width: 200px; height: 200px; right: -80px; top: -100px; }
+  .md-login__intro::after { display: none; }
+  .md-login__intro-body, .md-login__intro-foot { display: none; }
+  .md-login__panel { padding: 26px 22px 22px; }
+  .md-login__links { flex-direction: column; align-items: flex-start; gap: 6px; }
+}
+
+@media (max-width: 420px) {
+  .md-login { padding: 0; }
+  .md-login__shell { border-radius: 0; border: 0; min-height: 100%; align-content: start; }
+  .md-login__panel { padding: 22px 18px 26px; }
+}
+
+/* ------------------------------------------------------------------ 布局 */
+/* 管理端自己就是「一屏 + 内部滚动」的结构，所以高度取滚动区的 100% 而不是视口 */
+.md-admin { display: flex; height: 100%; overflow: hidden; }
+
+.md-sidebar {
+  width: 226px;
+  flex-shrink: 0;
+  background: var(--md-sidebar);
+  border-right: 1px solid var(--md-border);
+  display: flex;
+  flex-direction: column;
+  transition: width .18s ease;
+}
+.md-sidebar.is-collapsed { width: 64px; }
+.md-sidebar.is-collapsed .md-navitem { justify-content: center; padding: 9px 0; }
+.md-sidebar.is-collapsed .md-sidebar__brand { justify-content: center; padding: 0; }
+.md-sidebar__brand {
+  height: 60px; display: flex; align-items: center; gap: 10px;
+  padding: 0 16px; border-bottom: 1px solid var(--md-border); overflow: hidden;
+  color: var(--md-text); text-decoration: none; flex-shrink: 0;
+}
+.md-sidebar__logo {
+  width: 32px; height: 32px; border-radius: 9px; flex-shrink: 0;
+  background: linear-gradient(135deg, var(--md-primary), #7c5cff);
+  color: #fff; font-weight: 700; display: grid; place-items: center;
+  overflow: hidden;
+}
+/* 上传了自定义 Logo：图片铺满，不再叠品牌渐变 */
+.md-sidebar__logo.is-image { background: var(--md-surface-2); border: 1px solid var(--md-border); }
+.md-sidebar__logo.is-image img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.md-sidebar__title { display: flex; flex-direction: column; line-height: 1.15; font-weight: 650; white-space: nowrap; }
+.md-sidebar__title small { font-size: 11px; font-weight: 400; color: var(--md-text-3); }
+.md-sidebar__nav { flex: 1; padding: 10px 8px; display: flex; flex-direction: column; gap: 14px; overflow-y: auto; }
+/* 分组标题只在展开时出现；收起时靠图标与 title 提示，不给一列空行 */
+.md-navgroup { display: flex; flex-direction: column; gap: 2px; }
+.md-navgroup__title {
+  margin: 0 0 4px; padding: 0 12px; font-size: 11px; letter-spacing: .05em;
+  color: var(--md-text-3); text-transform: uppercase;
+}
+.md-navitem {
+  display: flex; align-items: center; gap: 10px;
+  padding: 9px 12px; border-radius: 9px; color: var(--md-text-2); cursor: pointer;
+  white-space: nowrap; font-size: 13.5px; border: 0; background: none; width: 100%; text-align: left;
+  text-decoration: none;
+}
+.md-navitem:hover { background: var(--md-surface-2); color: var(--md-text); }
+.md-navitem.is-active { background: var(--md-primary-soft); color: var(--md-primary); font-weight: 600; }
+/* MdIcon 自己按 size 写内联宽高，这里只保证它在行里不被压缩、与文字对齐 */
+.md-navitem__icon { flex-shrink: 0; }
+.md-sidebar__foot { padding: 10px 12px; border-top: 1px solid var(--md-border); font-size: 12px; color: var(--md-text-3); }
+
+.md-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.md-header {
+  height: 60px; flex-shrink: 0; display: flex; align-items: center; gap: 14px;
+  padding: 0 18px; background: var(--md-surface); border-bottom: 1px solid var(--md-border);
+}
+.md-header__title { font-size: 15.5px; font-weight: 650; }
+/* 顶栏的图标按钮（收栏、主题）统一成一颗方胶囊，比 el-button text 的默认内边距更贴合 60px 高度 */
+.md-header__icon-btn {
+  width: 32px; height: 32px; border-radius: 9px; flex-shrink: 0;
+  display: grid; place-items: center; border: 1px solid transparent;
+  background: none; color: var(--md-text-2); cursor: pointer;
+}
+.md-header__icon-btn:hover { background: var(--md-surface-2); color: var(--md-text); }
+.md-header__org {
+  padding: 2px 9px; border-radius: 999px; font-size: 12px;
+  background: var(--md-surface-2); border: 1px solid var(--md-border); color: var(--md-text-2);
+  max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  display: inline-flex; align-items: center; gap: 5px; cursor: pointer;
+}
+.md-header__org-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.md-header__org-caret { color: var(--md-text-3); font-size: 10px; }
+/* 组织切换器条目：名字占宽，角色徽标贴右 */
+.md-ad-switch__name { display: inline-block; min-width: 96px; margin-right: 10px; }
+.md-header__spacer { flex: 1; }
+.md-header__user { display: flex; align-items: center; gap: 8px; cursor: pointer; color: var(--md-text-3); }
+.md-avatar-sm {
+  width: 30px; height: 30px; border-radius: 50%;
+  background: linear-gradient(135deg, #6c8cff, #a855f7);
+  color: #fff; font-size: 12.5px; font-weight: 600; display: grid; place-items: center; text-transform: uppercase;
+  overflow: hidden;
+}
+.md-avatar-sm img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.md-content { flex: 1; overflow: auto; padding: 20px; }
+
+/*
+ * 窄屏：顶栏是 flex 且不换行，外层 .md-admin 又是 overflow:hidden。
+ * 不主动砍掉次要项，右边那个用户菜单会被挤出可视区且再也点不到 ——
+ * 「少了个标题」和「退不出去」差得很远，所以宁可一项一项藏。
+ */
+@media (max-width: 1080px) {
+  .md-header__title { display: none; }
+  .md-header__org { max-width: 120px; }
+}
+@media (max-width: 900px) {
+  .md-header { gap: 9px; padding: 0 10px; }
+  .md-header__user-name { max-width: 56px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+}
+
+/* ------------------------------------------------------------------ 移动端抽屉 */
+/*
+ * ≤1024px 时侧栏脱离文档流变成浮层抽屉。
+ *
+ * <p>固定宽度的侧栏在平板上就吃掉四分之一屏，手机上更是只给正文留一条缝；
+ * 断点必须与 AdminLayout 里的 matchMedia 严格一致，否则会出现「JS 认为该开抽屉、
+ * CSS 还按窄栏排」的错位。</p>
+ *
+ * <p>抽屉与遮罩都提到 60/55 的层级：Element Plus 的弹窗从 2000 起，仍在其上。</p>
+ */
+@media (max-width: 1024px) {
+  .md-sidebar {
+    position: fixed; top: 0; bottom: 0; left: 0; z-index: 60;
+    width: min(280px, 84vw);
+    transform: translateX(-100%);
+    transition: transform .22s ease;
+    box-shadow: var(--md-shadow);
+  }
+  .md-sidebar.is-mobile-open { transform: translateX(0); }
+  .md-sidebar__close {
+    position: absolute; top: 14px; right: 12px;
+    width: 30px; height: 30px; border-radius: 8px;
+    display: grid; place-items: center;
+    border: 0; background: none; color: var(--md-text-3); cursor: pointer;
+  }
+  .md-sidebar__close:hover { background: var(--md-surface-2); color: var(--md-text); }
+  .md-admin__mask {
+    position: fixed; inset: 0; z-index: 55;
+    background: rgba(15, 17, 23, .5);
+    animation: md-mask-in .18s ease;
+  }
+  .md-content { padding: 14px 12px; }
+}
+@keyframes md-mask-in { from { opacity: 0; } to { opacity: 1; } }
+
+.md-card-panel {
+  background: var(--md-surface); border: 1px solid var(--md-border);
+  border-radius: var(--md-radius); box-shadow: var(--md-shadow-sm);
+}
+.md-panel-head {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  padding: 14px 16px; border-bottom: 1px solid var(--md-border);
+}
+.md-panel-head h2 { margin: 0; font-size: 15px; }
+.md-panel-head .md-spacer { flex: 1; }
+.md-panel-body { padding: 16px; }
+
+/* 面板头里「输入 + 按钮」这类成对控件：桌面并排，窄屏（见下方媒体查询）竖排撑满 */
+.md-head-row { display: flex; align-items: center; gap: 8px; }
+
+/* 账号设置的头像区块：左侧圆形预览 + 右侧动作与提示 */
+.md-avatar-field { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; }
+.md-avatar-field__preview {
+  width: 72px; height: 72px; flex-shrink: 0; border-radius: 50%; overflow: hidden;
+  display: grid; place-items: center;
+  background: linear-gradient(135deg, #6c8cff, #a855f7);
+  color: #fff; font-size: 26px; font-weight: 600; text-transform: uppercase;
+  border: 1px solid var(--md-border);
+}
+.md-avatar-field__preview img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.md-avatar-field__side { display: grid; gap: 8px; }
+.md-avatar-field__actions { display: flex; align-items: center; gap: 8px; }
+
+/* ------------------------------------------------------------------ 概览 */
+.md-ad-stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px; }
+.md-stat-card {
+  background: var(--md-surface); border: 1px solid var(--md-border); border-radius: var(--md-radius);
+  padding: 16px 18px; box-shadow: var(--md-shadow-sm);
+}
+.md-stat-card__label { color: var(--md-text-3); font-size: 12.5px; }
+.md-stat-card__value { font-size: 26px; font-weight: 680; margin-top: 4px; letter-spacing: -.02em; }
+.md-stat-card__hint { color: var(--md-text-3); font-size: 12px; margin-top: 4px; }
+
+/* 最窄列宽要容得下「进入/分享/编辑/权限/更多」五个动作一行排完，否则动作区会折行 */
+.md-kb-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 18px; }
+.md-kb-card {
+  position: relative;
+  background: var(--md-surface); border: 1px solid var(--md-border); border-radius: 14px;
+  overflow: hidden; display: flex; flex-direction: column;
+  transition: transform .16s ease, box-shadow .16s ease, border-color .16s ease;
+}
+.md-kb-card:hover { border-color: var(--md-border-strong); box-shadow: var(--md-shadow); transform: translateY(-3px); }
+/* 封面只当氛围带：占满 16:9 会把卡片压成「一张图 + 一段附言」，正文反而读不到 */
+.md-kb-card__cover {
+  position: relative; height: 104px; flex-shrink: 0; overflow: hidden;
+  background: linear-gradient(120deg, #6c8cff, #a855f7 58%, #ec4899);
+}
+/* 有实拍封面时压一层很浅的暗角，让图片与下方卡体的接缝不那么生硬；压重了浅色截图会发灰 */
+.md-kb-card__cover:has(img)::after {
+  content: ''; position: absolute; inset: auto 0 0; height: 40%;
+  background: linear-gradient(to top, rgba(15, 17, 23, .2), transparent);
+  pointer-events: none;
+}
+.md-kb-card__cover img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.md-kb-card__body { padding: 14px 16px 12px; flex: 1; display: flex; flex-direction: column; }
+.md-kb-card__title { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; }
+.md-kb-card__name {
+  min-width: 0; color: var(--md-text); font-size: 15px; font-weight: 650; letter-spacing: -.01em;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.md-kb-card__fav { flex-shrink: 0; color: #f59e0b; fill: currentColor; }
+.md-kb-card__chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+.md-kb-card__chips:empty { display: none; }
+.md-kb-card__desc {
+  color: var(--md-text-2); font-size: 12.8px; line-height: 1.62;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+/* margin-top:auto 把元信息压到卡底：同一行的卡片高度一致，这行也会对齐 */
+.md-kb-card__meta {
+  display: flex; flex-wrap: wrap; align-items: center;
+  margin-top: auto; padding-top: 12px;
+  color: var(--md-text-3); font-size: 11.8px;
+}
+.md-kb-card__meta > span { display: inline-flex; align-items: center; white-space: nowrap; }
+/* 圆点当分隔符：比空格可靠，折行时也不会把两段信息粘在一起 */
+.md-kb-card__meta > span + span::before {
+  content: ''; width: 3px; height: 3px; border-radius: 50%;
+  background: var(--md-border-strong); margin: 0 8px;
+}
+.md-kb-card__actions {
+  display: flex; align-items: center; flex-wrap: wrap;
+  padding: 8px 12px 10px;
+  border-top: 1px solid var(--md-border);
+}
+/* 主行动与其它动作分开站：左边是可写动作，右端留给「更多」这类低频入口 */
+.md-kb-card__actions .el-dropdown { margin-left: auto; }
+
+/* 列表视图的名称单元格：缩略封面 + 名称 + 目录路径，两行足够区分同名库 */
+.md-kb-cell__name { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.md-kb-cell__thumb {
+  width: 52px; height: 30px; border-radius: 6px; flex-shrink: 0; overflow: hidden;
+  background: linear-gradient(135deg, #6c8cff, #a855f7 55%, #ec4899);
+}
+.md-kb-cell__thumb.has-cover { background: none; }
+.md-kb-cell__thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.md-kb-cell__text { display: flex; flex-direction: column; min-width: 0; }
+.md-kb-cell__text strong { font-size: 13.5px; font-weight: 620; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.md-kb-cell__text small { color: var(--md-text-3); font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.md-kb-cell__star { color: #f59e0b; fill: currentColor; vertical-align: -1px; }
+
+.md-ad-chip {
+  display: inline-block; font-size: 11.5px; padding: 1px 8px; border-radius: 999px;
+  background: var(--md-primary-soft); color: var(--md-primary); white-space: nowrap;
+}
+/* 可见性三档各一色：org 与 private 共用灰色会被读成「这两档是一回事」 */
+.md-ad-chip--public { background: var(--md-vis-public-bg); color: var(--md-vis-public); }
+.md-ad-chip--org { background: var(--md-vis-org-bg); color: var(--md-vis-org); }
+.md-ad-chip--private { background: rgba(148, 163, 184, .18); color: var(--md-text-2); }
+.md-ad-chip--owner { background: rgba(245, 158, 11, .16); color: #b45309; }
+.md-ad-chip--admin { background: var(--md-primary-soft); color: var(--md-primary); }
+.md-ad-chip--member { background: rgba(148, 163, 184, .18); color: var(--md-text-2); }
+/* 云端库标识：内容绑在线上 Git 仓库上，会随同步变化。font-weight 覆盖掉标题里的加粗 */
+.md-ad-chip--cloud { background: rgba(14, 165, 233, .16); color: #0369a1; font-weight: 400; }
+/* 标签与来源/可见性小章同排时压成中性灰：一屏彩色小章会互相抢戏，也分不清哪个是状态 */
+.md-ad-chip--tag { background: rgba(148, 163, 184, .16); color: var(--md-text-2); font-weight: 400; }
+
+/* 组织设置里反复出现的「一行一件事」行：左侧说明，右侧动作 */
+.md-ad-row {
+  display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+  padding: 10px 0; border-top: 1px solid var(--md-border);
+}
+.md-ad-row:first-child { border-top: 0; }
+.md-ad-row__main { flex: 1; min-width: 200px; }
+.md-ad-row__title { display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 620; }
+.md-ad-row__desc { color: var(--md-text-2); font-size: 13px; margin-top: 2px; }
+.md-ad-row__actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.md-ad-sub { color: var(--md-text-3); font-size: 12px; }
+/* 审计详情是自由键值对，逐条铺开成小片 */
+.md-ad-detail {
+  display: inline-block; margin: 1px 6px 1px 0; padding: 0 6px; border-radius: 4px;
+  background: rgba(148, 163, 184, .14); color: var(--md-text-2);
+  font-size: 11.5px; font-family: var(--md-mono, ui-monospace, monospace);
+}
+.md-ad-pager { display: flex; align-items: center; gap: 12px; justify-content: flex-end; padding-top: 12px; }
+
+/* 危险区：只有描边颜色不同，结构与其它面板一致 */
+.md-card-panel--danger { border-color: var(--md-danger, #dc2626); }
+.md-card-panel--danger .md-panel-head h2 { color: var(--md-danger, #dc2626); }
+
+/* ------------------------------------------------------------------ 知识库工作区（文章编辑页） */
+.md-ws {
+  position: relative;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: var(--md-bg);
+  overflow: hidden;
+}
+.md-ws .md-spacer { flex: 1; }
+
+/* 通用小图标按钮 */
+.md-ws__icon-btn {
+  display: inline-grid; place-items: center; width: 28px; height: 28px; flex-shrink: 0;
+  border: 0; border-radius: 8px; background: none; color: var(--md-text-3);
+  cursor: pointer; transition: background .16s ease, color .16s ease;
+}
+.md-ws__icon-btn:hover { background: var(--md-surface-2); color: var(--md-text); }
+.md-ws__icon-btn.is-on { background: var(--md-primary-soft); color: var(--md-primary); }
+
+/* ------------------------------------------------ 顶部操作栏 */
+.md-ws__top {
+  height: 58px; flex-shrink: 0; display: flex; align-items: center; gap: 14px;
+  padding: 0 16px; background: var(--md-surface); border-bottom: 1px solid var(--md-border);
+}
+.md-ws__back {
+  display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 11px;
+  border: 1px solid var(--md-border); border-radius: 8px; background: var(--md-surface);
+  color: var(--md-text-2); font-size: 12.5px; cursor: pointer;
+  transition: color .16s ease, border-color .16s ease, background .16s ease;
+}
+.md-ws__back:hover { color: var(--md-primary); border-color: var(--md-primary); background: var(--md-primary-soft); }
+.md-ws__identity { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.md-ws__logo {
+  width: 34px; height: 34px; border-radius: 10px; flex-shrink: 0;
+  background: linear-gradient(135deg, var(--md-primary), #7c5cff);
+  color: #fff; font-weight: 700; font-size: 15px; display: grid; place-items: center;
+  box-shadow: 0 4px 12px rgba(59, 108, 246, .28);
+}
+.md-ws__identity-text { min-width: 0; }
+.md-ws__name { display: flex; align-items: center; gap: 8px; font-size: 15px; font-weight: 650; }
+.md-ws__name-text { max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.md-ws__sub { margin-top: 2px; color: var(--md-text-3); font-size: 12px; }
+.md-ws__actions { display: flex; align-items: center; gap: 8px; }
+
+/*
+ * 顶栏动作按钮：与「返回知识库」同一套外观，主按钮用品牌渐变挑出来。
+ * 不用 el-button —— 组件库那套灰底边框在这条工具栏上偏「重」，也很难和左侧的返回键对齐。
+ */
+.md-ws__btn {
+  display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 12px;
+  border: 1px solid var(--md-border); border-radius: 8px; background: var(--md-surface);
+  color: var(--md-text-2); font-family: inherit; font-size: 12.5px; cursor: pointer;
+  white-space: nowrap;
+  transition: color .16s ease, border-color .16s ease, background .16s ease,
+    box-shadow .16s ease, transform .1s ease;
+}
+.md-ws__btn:hover:not(:disabled) {
+  color: var(--md-primary); border-color: var(--md-primary); background: var(--md-primary-soft);
+}
+/* 按下时往下沉一像素：不用改配色也能让人确认「这一下点到了」 */
+.md-ws__btn:active:not(:disabled) { transform: translateY(1px); }
+/* 键盘走到这儿要看得见：鼠标悬停那套高亮对 Tab 用户是不存在的 */
+.md-ws__btn:focus-visible { outline: 2px solid var(--md-primary); outline-offset: 2px; }
+.md-ws__btn:disabled { opacity: .5; cursor: not-allowed; }
+.md-ws__btn-caret { margin-left: -2px; opacity: .7; }
+.md-ws__btn--primary {
+  border-color: transparent; color: #fff;
+  background: linear-gradient(135deg, var(--md-primary), #7c5cff);
+  box-shadow: 0 4px 12px rgba(59, 108, 246, .28);
+}
+.md-ws__btn--primary:hover:not(:disabled) {
+  color: #fff; background: linear-gradient(135deg, var(--md-primary), #7c5cff);
+  box-shadow: 0 6px 16px rgba(59, 108, 246, .4);
+}
+
+/* 保存状态：跟着保存按钮走，自动保存与手动保存都在这一个位置交代 */
+.md-ws__save-state {
+  display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px; border-radius: 999px;
+  background: var(--md-surface-2); color: var(--md-text-3); font-size: 12px; white-space: nowrap;
+}
+.md-ws__save-state.is-busy { color: var(--md-text-2); }
+.md-ws__save-state.is-dirty { background: rgba(217, 119, 6, .12); color: var(--md-warning); }
+
+/* 云端库的工作副本状态：与「保存状态」同形但换一套配色，读起来是另一条流水线 */
+.md-ws__git-state {
+  display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px; border-radius: 999px;
+  background: rgba(14, 165, 233, .12); color: #0369a1; font-size: 12px; white-space: nowrap;
+}
+.md-ws__git-state.is-dirty { background: rgba(217, 119, 6, .12); color: var(--md-warning); }
+
+/* 转起来的是「保存中」的那枚圆形箭头，不额外引图标 */
+.md-ws__btn .md-icon.is-spin,
+.md-ws__save-state .md-icon.is-spin { animation: md-spin 1s linear infinite; }
+@keyframes md-spin { to { transform: rotate(360deg); } }
+
+/* ------------------------------------------------ 主体三栏 */
+.md-ws__body { flex: 1; min-height: 0; display: flex; }
+
+/* 左：文档目录 */
+.md-ws__side {
+  /* 把手要骑在右边界上，得有个定位参照；同时不能裁掉溢出的那 3px */
+  position: relative;
+  width: 286px; flex-shrink: 0; display: flex; flex-direction: column; min-height: 0;
+  background: var(--md-sidebar); border-right: 1px solid var(--md-border);
+}
+.md-ws__side-head { display: flex; align-items: center; gap: 8px; padding: 12px 10px 10px 14px; }
+.md-ws__side-title { font-size: 13px; font-weight: 650; letter-spacing: .02em; }
+.md-ws__count {
+  min-width: 18px; height: 18px; padding: 0 6px; border-radius: 9px;
+  background: var(--md-surface-2); color: var(--md-text-3);
+  font-size: 11px; display: inline-flex; align-items: center; justify-content: center;
+}
+.md-ws__side-search { padding: 0 12px 8px; }
+.md-ws__side-search .el-input__prefix { color: var(--md-text-3); }
+/*
+ * 用网格而不是 flex 来三等分。
+ *
+ * <p>flex 下这三件「文档 / 目录 / 导入」怎么都等不了宽：「导入」外面套着 el-dropdown 的根 div，
+ * 里面还有一层 el-tooltip 的触发按钮，尺寸要穿过两层盒子才落到按钮上，最后总是它窄一截
+ * （实测 88 / 87 / 74）。网格的 minmax(0, 1fr) 直接把三列钉成等宽，内容多宽都不影响列宽。</p>
+ */
+.md-ws__side-tools {
+  display: grid; grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px; padding: 0 12px 10px;
+}
+/* 下拉容器是网格项，摊平成一格；里面的按钮再撑满这一格 */
+.md-ws__side-tools > .el-dropdown { min-width: 0; display: flex; }
+.md-ws__tool {
+  width: 100%; min-width: 0; height: 30px;
+  display: inline-flex; align-items: center; justify-content: center; gap: 5px;
+  border: 1px solid transparent; border-radius: 8px; background: var(--md-surface-2);
+  color: var(--md-text-2); font-size: 12px; font-weight: 500; cursor: pointer; white-space: nowrap;
+  transition: color .16s ease, border-color .16s ease, background .16s ease, box-shadow .16s ease;
+}
+.md-ws__tool:hover { color: var(--md-primary); border-color: var(--md-primary); background: var(--md-primary-soft); }
+/*
+ * 新建文档是这一栏的主行动，常驻软色底 + 主色描边，悬停才整颗实心。
+ *
+ * <p>三个按钮原先都是「白底 + 浅灰描边」，而侧栏底色本身就是近白（--md-sidebar），框等于没画，
+ * 一排放下来只剩三个灰字，既没有层次也不像一组动作。让「文档」带上主色、另两个退成浅灰软底，
+ * 这排才有主次，也和阅读页工具条那颗「编辑」用的是同一套软色语言。</p>
+ */
+.md-ws__tool--primary {
+  border-color: var(--md-primary); background: var(--md-primary-soft);
+  color: var(--md-primary); font-weight: 600;
+}
+.md-ws__tool--primary:hover {
+  background: var(--md-primary); border-color: var(--md-primary); color: #fff;
+  box-shadow: 0 2px 10px color-mix(in srgb, var(--md-primary) 35%, transparent);
+}
+/* 「导入」尾巴上的下拉箭头比主图标轻一档，免得和文字抢注意力 */
+.md-ws__tool-caret { opacity: .6; }
+.md-ws__tree {
+  flex: 1; min-height: 0; overflow: auto; padding: 2px 8px 12px;
+  scrollbar-width: thin;
+}
+.md-ws__tree::-webkit-scrollbar,
+.md-ws__toc-body::-webkit-scrollbar { width: 8px; }
+.md-ws__tree::-webkit-scrollbar-thumb,
+.md-ws__toc-body::-webkit-scrollbar-thumb {
+  background: var(--md-border-strong); border-radius: 8px;
+  border: 2px solid transparent; background-clip: padding-box;
+}
+.md-ws__tree-empty { padding: 26px 12px; color: var(--md-text-3); font-size: 12.5px; text-align: center; }
+/* 拖到树空白处＝移到根目录：整块底色提示，因为这里没有「一行」可以描边 */
+.md-ws__tree.is-root-drop { background: var(--md-primary-soft); }
+
+/* 左下：知识库信息 */
+.md-ws__kbinfo {
+  flex-shrink: 0; margin: 8px 12px 14px; padding: 12px 14px;
+  background: var(--md-surface); border: 1px solid var(--md-border); border-radius: var(--md-radius);
+}
+.md-ws__kbinfo-title { margin-bottom: 8px; color: var(--md-text-2); font-size: 12px; font-weight: 650; }
+.md-ws__kbinfo-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 4px 0; font-size: 12.5px;
+}
+.md-ws__kbinfo-row > span:first-child { color: var(--md-text-3); }
+.md-ws__kbinfo-row > span:last-child {
+  color: var(--md-text); font-weight: 600;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+/* 中：编辑器 */
+.md-ws__main { flex: 1; min-width: 0; display: flex; flex-direction: column; background: var(--md-surface); }
+.md-ws__bar {
+  height: 44px; flex-shrink: 0; display: flex; align-items: center; gap: 10px;
+  padding: 0 12px; background: var(--md-surface); border-bottom: 1px solid var(--md-border);
+}
+.md-ws__bar-sep { width: 1px; height: 18px; flex-shrink: 0; background: var(--md-border); }
+.md-ws__seg { display: flex; align-items: center; gap: 2px; padding: 2px; border-radius: 9px; background: var(--md-surface-2); }
+.md-ws__seg-item {
+  display: inline-flex; align-items: center; gap: 5px; height: 24px; padding: 0 10px;
+  border: 0; border-radius: 7px; background: none; color: var(--md-text-3);
+  font-size: 12px; cursor: pointer; transition: color .16s ease, background .16s ease;
+}
+.md-ws__seg-item:hover { color: var(--md-text); }
+.md-ws__seg-item.is-active {
+  background: var(--md-surface); color: var(--md-primary); font-weight: 600; box-shadow: var(--md-shadow-sm);
+}
+.md-ws__crumbs { display: flex; align-items: center; gap: 3px; min-width: 0; color: var(--md-text-3); font-size: 12.5px; }
+.md-ws__crumb { max-width: 170px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.md-ws__crumb.is-last { color: var(--md-text); font-weight: 600; }
+.md-ws__crumb-sep { color: var(--md-text-3); opacity: .65; }
+.md-ws__dirty {
+  display: inline-flex; align-items: center; gap: 5px; padding: 2px 9px; border-radius: 999px;
+  background: rgba(217, 119, 6, .12); color: var(--md-warning); font-size: 12px; white-space: nowrap;
+}
+.md-ws__dirty i { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.md-ws__saved { display: inline-flex; align-items: center; gap: 4px; color: var(--md-text-3); font-size: 12px; white-space: nowrap; }
+.md-ws__saved svg { color: var(--md-success); }
+
+/* 持有锁只是常态，工具栏给一枚安静的记号；失去锁才升级为横幅 */
+.md-ws__lock {
+  display: inline-flex; align-items: center; gap: 4px; padding: 2px 9px; border-radius: 999px;
+  background: rgba(22, 163, 74, .12); color: var(--md-success); font-size: 12px; white-space: nowrap;
+}
+.md-ws__lock svg { opacity: .8; }
+
+.md-ws__lockbar {
+  flex-shrink: 0; display: flex; align-items: center; gap: 8px;
+  padding: 7px 12px; background: rgba(217, 119, 6, .1); border-bottom: 1px solid var(--md-border);
+  color: var(--md-warning); font-size: 12.5px;
+}
+.md-ws__lockbar.is-denied { background: rgba(220, 38, 38, .08); color: var(--md-danger); }
+.md-ws__lockbar-text { color: var(--md-text-2); }
+.md-ws__lockbar-btn {
+  margin-left: auto; padding: 3px 10px; border: 1px solid var(--md-border); border-radius: 7px;
+  background: var(--md-surface); color: var(--md-text-2); font-size: 12px; cursor: pointer;
+  /* 窄屏上让文字先省略号，按钮不能被压扁 */
+  flex-shrink: 0; white-space: nowrap;
+}
+.md-ws__lockbar-btn:hover:not(:disabled) { border-color: var(--md-primary); color: var(--md-primary); }
+.md-ws__lockbar-btn:disabled { opacity: .55; cursor: not-allowed; }
+
+.md-ws__editor { position: relative; flex: 1; min-height: 0; display: flex; overflow: hidden; }
+/* host 与其内部由 @bytemd/vue-next 生成的容器 div 都是无样式节点，逐层撑满高度 */
+.md-ws__editor-host,
+.md-ws__editor-host > div { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
+.md-ws__blank { position: absolute; inset: 0; display: grid; place-items: center; pointer-events: none; }
+.md-ws__blank-card { pointer-events: auto; }
+.md-ws__blank-card { text-align: center; color: var(--md-text-3); }
+.md-ws__blank-icon {
+  display: inline-grid; place-items: center; width: 54px; height: 54px; margin-bottom: 14px;
+  border-radius: 16px; background: var(--md-surface-2); color: var(--md-text-3);
+}
+.md-ws__blank-card h3 { margin: 0 0 6px; font-size: 15px; color: var(--md-text); }
+.md-ws__blank-card p { margin: 0 0 16px; font-size: 12.5px; }
+
+.md-ws__status {
+  height: 34px; flex-shrink: 0; display: flex; align-items: center; gap: 14px;
+  padding: 0 12px; background: var(--md-surface); border-top: 1px solid var(--md-border);
+  color: var(--md-text-3); font-size: 12px;
+}
+.md-ws__status-title {
+  max-width: 46%; color: var(--md-text-2); font-weight: 600;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.md-ws__metric { white-space: nowrap; }
+
+/* 右：文章目录 */
+.md-ws__toc {
+  position: relative;
+  width: 300px; flex-shrink: 0; display: flex; flex-direction: column; min-height: 0;
+  background: var(--md-sidebar); border-left: 1px solid var(--md-border);
+}
+/*
+ * 拖拽把手骑在面板边界上：热点给到 7px（边界两侧各溢 3px），线本身仍只有 2px，
+ * 视觉上是一条细缝，手感上是能抓住的一条边。左栏文档目录、工作区右栏与 bytemd 自带大纲
+ * 共用这一套外观，区别只在贴哪条边：前者的把手在右沿，后两者在左沿。
+ */
+.md-ws__side-resizer,
+.md-ws__toc-resizer,
+.md-ws__bytemd-resizer {
+  position: absolute; top: 0; bottom: 0; width: 7px; cursor: col-resize;
+}
+.md-ws__side-resizer { right: -3px; z-index: 5; }
+.md-ws__toc-resizer { left: -3px; z-index: 5; }
+.md-ws__side-resizer::after,
+.md-ws__toc-resizer::after,
+.md-ws__bytemd-resizer::after {
+  content: ''; position: absolute; top: 0; bottom: 0; width: 2px;
+  background: transparent; transition: background .16s ease;
+}
+/* 指示线要贴着面板本体那一侧，否则把手的热区与看到的线对不上 */
+.md-ws__side-resizer::after { right: 3px; }
+.md-ws__toc-resizer::after,
+.md-ws__bytemd-resizer::after { left: 3px; }
+.md-ws__side-resizer:hover::after,
+.md-ws__toc-resizer:hover::after,
+.md-ws__bytemd-resizer:hover::after { background: var(--md-primary); }
+/* 拖拽期间：整页保持 col-resize 光标，并禁掉文字选中，免得拖出一片蓝色 */
+body.is-col-resizing { cursor: col-resize; user-select: none; }
+body.is-col-resizing .md-ws__side-resizer::after,
+body.is-col-resizing .md-ws__toc-resizer::after,
+body.is-col-resizing .md-ws__bytemd-resizer::after { background: var(--md-primary); }
+.md-ws__toc-head {
+  display: flex; align-items: center; gap: 8px; padding: 12px 10px 8px 14px;
+  font-size: 13px; font-weight: 650;
+}
+.md-ws__toc-body { flex: 1; min-height: 0; overflow: auto; padding: 0 8px 16px; scrollbar-width: thin; }
+.md-ws__toc-empty { padding: 24px 12px; color: var(--md-text-3); font-size: 12.5px; text-align: center; }
+
+/* ------------------------------------------------ 文档树 */
+.md-ad-tree { list-style: none; margin: 0; padding: 0; }
+.md-ad-tree .md-ad-tree { padding-left: 13px; margin-left: 8px; border-left: 1px dashed var(--md-border); }
+.md-ad-tree__row {
+  position: relative;
+  display: flex; align-items: center; gap: 5px; padding: 1px 2px; border-radius: 8px;
+  transition: background .14s ease;
+}
+.md-ad-tree__row:hover { background: var(--md-surface-2); }
+.md-ad-tree__row.is-active { background: var(--md-primary-soft); }
+/* 拖拽：拿起来的那行淡出，落点那行描一圈实线。只靠变色在密集的树里分不清「拿的」和「放的」 */
+.md-ad-tree__row.is-dragging { opacity: .45; }
+.md-ad-tree__row.is-drop-target {
+  background: var(--md-primary-soft);
+  box-shadow: inset 0 0 0 1.5px var(--md-primary);
+}
+/* 排序落点：行上/下缘拉一条主色细线，末端一个小圆点指明「插到这里」 */
+.md-ad-tree__drop-line {
+  position: absolute; left: 2px; right: 2px; height: 2px; border-radius: 2px;
+  background: var(--md-primary); pointer-events: none; z-index: 1;
+}
+.md-ad-tree__drop-line::before {
+  content: ''; position: absolute; top: 50%; left: -2px; width: 6px; height: 6px;
+  border-radius: 50%; background: var(--md-primary); transform: translateY(-50%);
+}
+.md-ad-tree__drop-line.is-before { top: -1px; }
+.md-ad-tree__drop-line.is-after { bottom: -1px; }
+.md-ad-tree__row.is-active .md-ad-tree__name { color: var(--md-primary); font-weight: 650; }
+.md-ad-tree__row.is-active .md-ad-tree__type,
+.md-ad-tree__row.is-ancestor .md-ad-tree__type { color: var(--md-primary); }
+.md-ad-tree__toggle {
+  width: 16px; height: 22px; flex-shrink: 0; display: inline-grid; place-items: center;
+  border: 0; border-radius: 5px; background: none; color: var(--md-text-3); cursor: pointer;
+}
+.md-ad-tree__toggle:hover { background: var(--md-surface); color: var(--md-text); }
+.md-ad-tree__toggle--spacer { cursor: default; }
+.md-ad-tree__toggle--spacer:hover { background: none; }
+.md-ad-tree__type { flex-shrink: 0; color: var(--md-text-3); }
+.md-ad-tree__row.is-dir .md-ad-tree__type { color: var(--md-text-2); }
+.md-ad-tree__name {
+  flex: 1; min-width: 0; padding: 5px 2px; font-size: 13px; cursor: pointer;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--md-text-2);
+}
+.md-ad-tree__more {
+  display: inline-grid; place-items: center; width: 22px; height: 22px; margin-right: 2px;
+  border: 0; border-radius: 6px; background: none; color: var(--md-text-3); cursor: pointer;
+  opacity: 0; transition: opacity .14s ease, color .14s ease;
+}
+.md-ad-tree__row:hover .md-ad-tree__more { opacity: 1; }
+.md-ad-tree__more:hover { background: var(--md-surface); color: var(--md-primary); }
+.md-ad-tree__item.is-collapsed > .md-ad-tree { display: none; }
+
+/* ------------------------------------------------ 文章目录（大纲） */
+.md-ad-outline__list { list-style: none; margin: 0; padding: 0; }
+.md-ad-outline__item { margin: 1px 0; }
+/* 行 = 标题 + 行尾箭头；箭头居右，所有标题的文字左边缘因此齐平 */
+.md-ad-outline__row {
+  display: flex; align-items: center; gap: 2px;
+  padding-right: 3px;
+  border-left: 2px solid transparent; border-radius: 0 6px 6px 0;
+  transition: background .14s ease;
+}
+.md-ad-outline__row:hover { background: var(--md-surface-2); }
+.md-ad-outline__row.is-active { background: var(--md-primary-soft); border-left-color: var(--md-primary); }
+.md-ad-outline__link {
+  flex: 1; min-width: 0;
+  padding: 5px 2px 5px 10px;
+  color: var(--md-text-2); font-size: 12.5px; cursor: pointer;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  transition: color .14s ease;
+}
+.md-ad-outline__row:hover .md-ad-outline__link { color: var(--md-primary); }
+.md-ad-outline__row.is-active .md-ad-outline__link { color: var(--md-primary); font-weight: 600; }
+.md-ad-outline__toggle {
+  flex-shrink: 0; display: grid; place-items: center;
+  width: 20px; height: 20px; padding: 0;
+  border: 0; background: none; border-radius: 5px;
+  color: var(--md-text-3); cursor: pointer;
+  transition: background .14s ease, color .14s ease;
+}
+.md-ad-outline__toggle:hover { background: var(--md-bg); color: var(--md-text); }
+.md-ad-outline__toggle .md-icon { transition: transform .18s ease; }
+.md-ad-outline__toggle[aria-expanded='false'] .md-icon { transform: rotate(-90deg); }
+
+/* 层级缩进：只推标题文字的左边距，箭头照旧贴行尾 */
+.md-ad-outline__item[data-level='2'] .md-ad-outline__link { padding-left: 20px; }
+.md-ad-outline__item[data-level='3'] .md-ad-outline__link { padding-left: 32px; }
+.md-ad-outline__item[data-level='4'] .md-ad-outline__link,
+.md-ad-outline__item[data-level='5'] .md-ad-outline__link,
+.md-ad-outline__item[data-level='6'] .md-ad-outline__link { padding-left: 44px; }
+
+.md-empty-state { color: var(--md-text-3); text-align: center; padding: 60px 20px; }
+
+/* ------------------------------------------------ 最终渲染效果弹窗 */
+.md-ws__preview-shell { max-height: 72vh; overflow: auto; padding: 4px 6px; }
+.md-ws__preview-doc { max-width: var(--md-content-width); margin: 0 auto; }
+
+/* ------------------------------------------------------------------ bytemd 编辑器外观适配 */
+.md-ws__editor .bytemd {
+  height: 100%; display: flex; flex-direction: column;
+  background: var(--md-surface); border: 0; border-radius: 0; color: var(--md-text);
+}
+.md-ws__editor .bytemd-toolbar {
+  /* 工具栏压在侧栏把手上：顶部那一截仍归它，免得把手挡住右侧那排图标 */
+  position: relative; z-index: 2;
+  flex-shrink: 0; padding: 6px 10px;
+  background: var(--md-surface); border-bottom: 1px solid var(--md-border);
+}
+.md-ws__editor .bytemd-toolbar-icon {
+  border-radius: 7px; color: var(--md-text-2);
+  transition: background .14s ease, color .14s ease;
+}
+.md-ws__editor .bytemd-toolbar-icon:hover { background: var(--md-surface-2); color: var(--md-primary); }
+.md-ws__editor .bytemd-toolbar-icon svg,
+.md-ws__editor .bytemd-toolbar-icon img { width: 22px; height: 22px; }
+
+/* 工作区自带字数/行数状态栏，隐藏编辑器内置状态栏，避免底部出现两条状态行 */
+.md-ws__editor .bytemd-status { display: none !important; }
+.md-ws__editor .bytemd-body {
+  flex: 1; height: auto; min-height: 0; display: flex; align-items: stretch; overflow: hidden;
+}
+.md-ws__editor .bytemd-editor {
+  flex: 1 1 100%; width: 100% !important; max-width: 100%; min-width: 0;
+  height: 100%; display: block; overflow: hidden;
+}
+.md-ws__editor .bytemd-preview {
+  flex: 1 1 100%; width: 100% !important; max-width: 100%; min-width: 0;
+  height: 100%; display: block; overflow: auto;
+  padding: 22px 26px 90px;
+  background: var(--md-surface);
+  scrollbar-width: thin;
+}
+/* 编辑态＝左编辑右预览的双栏。分隔线改用主题变量：bytemd 自带的 #e1e4e8 是写死的浅灰，
+   深色主题下会亮成一道突兀的白线 */
+.md-ws__editor.is-edit .bytemd-preview { border-left: 1px solid var(--md-border); }
+/* 预览态只剩阅读面板：编辑区与格式工具栏一起收起——工具栏是 .bytemd-body 的兄弟节点，
+   不在 .bytemd-editor 里面，必须单独藏。预览独享整宽，左侧那条分隔线也就没意义了 */
+.md-ws__editor.is-preview .bytemd-editor,
+.md-ws__editor.is-preview .bytemd-toolbar { display: none !important; }
+
+/*
+ * bytemd 自带的大纲侧栏（编辑态）。宽度由 CSS 变量下发，编辑器与预览去分剩下的宽度。
+ * 侧栏是常驻节点，收起时只挂 bytemd-hidden，所以判断「是否展开」得排掉那个类。
+ */
+.md-ws__editor .bytemd-sidebar {
+  flex: 0 0 auto;
+  width: var(--md-bytemd-toc-w, 280px);
+  border-left: 1px solid var(--md-border);
+  color: var(--md-text-2);
+}
+.md-ws__editor .bytemd-sidebar h2 { margin: 12px 0 8px; font-size: 13px; font-weight: 650; }
+.md-ws__editor .bytemd-sidebar ul { color: var(--md-text-2); }
+/* 预览态工具栏已经收起，侧栏留着就再也关不掉了，索性收干净，让位给右侧那栏大纲 */
+.md-ws__editor.is-preview .bytemd-sidebar { display: none !important; }
+
+/* 侧栏左沿的把手：盖在边界上，只在编辑态且侧栏真的展开时才出现 */
+.md-ws__bytemd-resizer {
+  right: calc(var(--md-bytemd-toc-w, 280px) - 3px);
+  z-index: 1; display: none;
+}
+.md-ws__editor.is-edit:has(.bytemd-sidebar:not(.bytemd-hidden)) .md-ws__bytemd-resizer { display: block; }
+.md-ws__editor.is-preview .bytemd-preview { border-left: 0; }
+
+/* CodeMirror 编辑区（bytemd 自带样式在分包里后加载，这里选择器层级略高一层确保生效） */
+.md-ws__editor .bytemd-editor .CodeMirror {
+  height: 100%; background: transparent; color: var(--md-text);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace;
+  font-size: 13.5px; line-height: 1.8;
+}
+.md-ws__editor .CodeMirror-lines { padding: 18px 22px 90px; }
+.md-ws__editor .CodeMirror-cursor { border-left: 2px solid var(--md-primary); }
+.md-ws__editor .CodeMirror-selected { background: var(--md-primary-soft) !important; }
+.md-ws__editor .CodeMirror-gutters { background: transparent; border-right: 0; }
+.md-ws__editor .CodeMirror-scrollbar-filler,
+.md-ws__editor .CodeMirror-gutter-filler { background-color: transparent; }
+.md-ws__editor .bytemd-editor .CodeMirror pre.CodeMirror-placeholder { color: var(--md-text-3); }
+
+/*
+ * 预览区容器复位：bytemd 给 .markdown-body 留了居中容器与内边距，这里改成通栏。
+ * 正文观感（标题、列表、引用、代码块、表格…）统一由 @/shared/styles/markdown.css 提供：
+ * 那边的选择器写成 :is(.md-markdown, .md-ws__editor .markdown-body)，同时覆盖前台正文
+ * 与这里的预览区，不再各维护一份镜像规则。
+ */
+.md-ws__editor .bytemd-preview .markdown-body {
+  max-width: none; margin: 0; padding: 0;
+  background: transparent;
+}
+
+@media (max-width: 1440px) {
+  .md-ws__name-text { max-width: 190px; }
+  .md-ws__side { width: 256px; }
+  .md-ws__toc { width: 264px; }
+}
+@media (max-width: 1180px) {
+  .md-ws__side { width: 232px; }
+  .md-ws__toc { width: 240px; }
+  .md-ws__crumb { max-width: 110px; }
+  .md-ws__name-text { max-width: 150px; }
+}
+/*
+ * 顶栏和锁条都是不换行的一行，外面又是 overflow:hidden：窄屏上「保存」会被推出可视区，
+ * 比少一个副标题严重得多，所以这里逐项让路。
+ */
+@media (max-width: 900px) {
+  .md-ws__top { gap: 8px; padding: 0 10px; }
+  .md-ws__sub, .md-ws__logo { display: none; }
+  .md-ws__name-text { max-width: 118px; }
+  .md-ws__back span { display: none; }
+  .md-ws__lockbar-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+}
+
+/* 分享管理 */
+.md-share-url {
+  font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 12.5px;
+  background: var(--md-surface-2); border: 1px solid var(--md-border);
+  border-radius: 6px; padding: 2px 8px; word-break: break-all;
+}
+
+.md-fill { width: 100%; }
+.md-mt-16 { margin-top: 16px; }
+.md-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.md-copy-hint { color: var(--md-text-3); font-size: 12px; }
+/* 带 tooltip 的表头：虚线下划线提示「可悬停看说明」 */
+.md-ad-hintable { border-bottom: 1px dashed var(--md-border-strong); cursor: help; }
+
+/* 表单里的一行说明：告诉用户这一档到底意味着什么，别让枚举值自己解释自己 */
+.md-form-hint { color: var(--md-text-3); font-size: 12px; line-height: 1.6; margin-top: 6px; }
+
+/* 弹窗宽度是按设计稿写死的定值，窄屏上要退回视口内，否则确认按钮在屏幕外 */
+.el-dialog { max-width: calc(100vw - 32px); }
+
+/* ------------------------------------------------------------ 知识库表单弹窗 */
+/*
+ * 长表单弹窗的关键：弹窗整体定高，正文区内部滚动。
+ *
+ * <p>不让页面出滚动条，靠的不是「把内容压矮」（内容该多高还是多高），而是把滚动
+ * 收进 {@code .el-dialog__body}：外层遮罩被 Element Plus 的 align-center 变成 flex
+ * 容器，弹窗再高也只在 88vh 以内，整页因此永远滚不起来。</p>
+ *
+ * <p>88vh 与下面那套紧凑间距是配套的：字段少的知识库（没有标签、封面，也没开访问
+ * 密码）整屏放得下，连弹窗内的滚动条都不会出现；字段多时正文区自己滚 —— 滚动始终
+ * 被关在弹窗里，不会溢到页面上变成整页滚动条。</p>
+ *
+ * <p>{@code --el-dialog-padding-primary} 归零是为了拿到「通栏」的头尾分隔线：
+ * 组件默认把 16px 内边距加在弹窗本身，分隔线会被这圈留白顶得缩进去。归零后
+ * 内边距改由头 / 正文 / 尾三段各自负责。</p>
+ */
+.md-kb-dialog {
+  --el-dialog-padding-primary: 0;
+  display: flex;
+  flex-direction: column;
+  max-height: 88vh;
+  border-radius: 16px;
+  overflow: hidden;
+}
+.md-kb-dialog .el-dialog__header {
+  flex-shrink: 0;
+  margin: 0;
+  padding: 18px 56px 14px 24px;
+  border-bottom: 1px solid var(--md-border);
+}
+.md-kb-dialog .el-dialog__title { font-size: 16px; font-weight: 600; color: var(--md-text); }
+.md-kb-dialog .el-dialog__headerbtn {
+  top: 11px; right: 12px;
+  width: 32px; height: 32px;
+  border-radius: 9px;
+  transition: background .14s ease;
+}
+.md-kb-dialog .el-dialog__headerbtn:hover { background: var(--md-surface-2); }
+.md-kb-dialog .el-dialog__body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 18px 24px 6px;
+  /* 细滚动条：内容不超长时根本不出现，超长时也只占窄窄一条 */
+  scrollbar-width: thin;
+  scrollbar-color: var(--md-border-strong) transparent;
+}
+.md-kb-dialog .el-dialog__body::-webkit-scrollbar { width: 8px; }
+.md-kb-dialog .el-dialog__body::-webkit-scrollbar-track { background: transparent; }
+.md-kb-dialog .el-dialog__body::-webkit-scrollbar-thumb {
+  background: var(--md-border-strong);
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background-clip: content-box;
+}
+.md-kb-dialog .el-dialog__body::-webkit-scrollbar-thumb:hover {
+  background: var(--md-text-3);
+  background-clip: content-box;
+}
+.md-kb-dialog .el-dialog__footer {
+  flex-shrink: 0;
+  padding: 14px 24px 18px;
+  border-top: 1px solid var(--md-border);
+  background: var(--md-surface);
+}
+
+/* 表单分组：小标题 + 主色短竖条，用留白分组，省掉一条条分割线 */
+.md-kb-group + .md-kb-group { margin-top: 14px; }
+.md-kb-group__title {
+  display: flex; align-items: center; gap: 8px;
+  margin: 0 0 10px;
+  font-size: 12.5px; font-weight: 600; color: var(--md-text-2);
+}
+.md-kb-group__title::before {
+  content: ''; width: 3px; height: 13px; border-radius: 2px; background: var(--md-primary);
+}
+.md-kb-group__opt {
+  padding: 1px 8px; border-radius: 999px;
+  font-size: 11px; font-weight: 400; color: var(--md-text-3);
+  background: var(--md-surface-2);
+}
+
+/* 两列并排：短字段并到一行，直接省掉一半竖向空间 */
+.md-kb-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 0 20px; }
+.md-kb-cols > .el-form-item { min-width: 0; }
+@media (max-width: 720px) {
+  .md-kb-cols { grid-template-columns: 1fr; gap: 0; }
+}
+
+/* 弹窗内表单收紧节奏：分组标题已经承担了分隔，行距不必再铺那么开 */
+.md-kb-dialog .el-form-item { margin-bottom: 12px; }
+.md-kb-dialog .el-form-item__label { padding-bottom: 5px; line-height: 1.4; }
+.md-kb-dialog .md-form-hint { margin-top: 5px; }
+.md-kb-cover {
+  display: block; margin-top: 10px;
+  max-width: 200px; max-height: 110px; object-fit: cover;
+  border: 1px solid var(--md-border); border-radius: 8px;
+}
+
+/* ------------------------------------------------------------ 分享弹窗 */
+/*
+ * 面板只有「一条链接 + 两项设置」，套表单反而会被标签在上、控件在下的空档撑开，
+ * 所以改用两块卡片承载：上面是链接本体（状态 / 数据 / 地址 / 动作），下面是设置。
+ * 每项设置「说明在左、控件在右」同排，竖向空间直接省掉一半。
+ */
+.md-share { min-height: 208px; }
+
+/* 链接卡片 */
+.md-share-link {
+  padding: 12px 14px;
+  border: 1px solid var(--md-border);
+  border-radius: 12px;
+  background: var(--md-surface-2);
+}
+.md-share-link__head {
+  display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+.md-share-state {
+  display: inline-flex; align-items: center; gap: 6px;
+  height: 22px; padding: 0 10px;
+  border-radius: 999px;
+  font-size: 12px; font-weight: 600;
+}
+.md-share-state__dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.md-share-state.is-ok { color: var(--md-success); background: color-mix(in srgb, var(--md-success) 14%, transparent); }
+.md-share-state.is-warn { color: var(--md-warning); background: color-mix(in srgb, var(--md-warning) 14%, transparent); }
+.md-share-state.is-muted { color: var(--md-text-3); background: var(--md-surface); }
+/* 深色底上 #16a34a / #d97706 压不住，与可见性徽标同一套提亮口径 */
+[data-theme='dark'] .md-share-state.is-ok { color: #4ade80; background: rgba(34, 197, 94, .16); }
+[data-theme='dark'] .md-share-state.is-warn { color: #fbbf24; background: rgba(217, 119, 6, .18); }
+
+.md-share-metric {
+  display: inline-flex; align-items: center; gap: 5px;
+  color: var(--md-text-2); font-size: 12.5px;
+}
+.md-share-metric .md-icon { color: var(--md-text-3); }
+
+.md-share-link__row { display: flex; align-items: center; gap: 8px; }
+/* 地址独占剩余宽度并截断：不这么做，长 URL 会把「打开」挤到第二行去 */
+.md-share-link__url {
+  flex: 1; min-width: 0;
+  padding: 7px 10px;
+  border: 1px solid var(--md-border);
+  border-radius: 8px;
+  background: var(--md-surface);
+  color: var(--md-text-2);
+  font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 12.5px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+.md-share-empty { border-radius: 12px; }
+
+/* 设置区：一行一项，项间用发丝线分隔，不再靠大留白拉开 */
+.md-share-panel {
+  margin-top: 14px;
+  padding: 2px 14px;
+  border: 1px solid var(--md-border);
+  border-radius: 12px;
+}
+.md-share-panel__title {
+  display: flex; align-items: center; gap: 8px;
+  margin: 13px 0 2px;
+  font-size: 12.5px; font-weight: 600; color: var(--md-text-2);
+}
+.md-share-panel__title::before {
+  content: ''; width: 3px; height: 13px; border-radius: 2px; background: var(--md-primary);
+}
+.md-share-field { display: flex; align-items: center; gap: 12px; padding: 11px 0; }
+.md-share-field + .md-share-field { border-top: 1px solid var(--md-border); }
+.md-share-field--stack { display: block; }
+.md-share-field__text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.md-share-field__label {
+  display: inline-flex; align-items: center; gap: 6px;
+  color: var(--md-text); font-size: 13px; font-weight: 500;
+}
+.md-share-field__label .md-icon { color: var(--md-text-3); }
+.md-share-field__hint { color: var(--md-text-3); font-size: 12px; line-height: 1.5; }
+
+.md-share-note {
+  display: flex; align-items: flex-start; gap: 6px;
+  margin: 12px 0 0;
+  color: var(--md-text-3); font-size: 12px; line-height: 1.6;
+}
+.md-share-note .md-icon { margin-top: 2px; }
+
+/* ------------------------------------------------------- 分享导航菜单配置器 */
+/* 上面是已选清单（顺序即分享页顶栏顺序），下面是可勾选的目录树 */
+.md-share-panel__hint {
+  margin: 4px 0 10px;
+  color: var(--md-text-3); font-size: 12px; line-height: 1.6;
+}
+
+.md-menu-pick { display: flex; flex-direction: column; gap: 10px; padding-bottom: 13px; }
+.md-menu-pick__list {
+  display: flex; flex-direction: column; gap: 4px;
+  margin: 0; padding: 0; list-style: none;
+}
+.md-menu-pick__row {
+  display: flex; align-items: center; gap: 8px;
+  height: 32px; padding: 0 6px 0 8px;
+  border: 1px solid var(--md-border); border-radius: 8px;
+  background: var(--md-surface-2);
+}
+.md-menu-pick__idx {
+  width: 18px; height: 18px; flex-shrink: 0;
+  display: grid; place-items: center; border-radius: 5px;
+  background: var(--md-primary-soft); color: var(--md-primary);
+  font-size: 11px; font-weight: 600; font-variant-numeric: tabular-nums;
+}
+.md-menu-pick__icon { flex-shrink: 0; color: var(--md-text-3); }
+.md-menu-pick__label {
+  flex: 1; min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-size: 12.5px; color: var(--md-text);
+}
+.md-menu-pick__ops { display: flex; align-items: center; gap: 2px; flex-shrink: 0; }
+.md-menu-pick__ops button {
+  width: 24px; height: 24px; border: 0; border-radius: 6px;
+  background: transparent; color: var(--md-text-3);
+  display: grid; place-items: center; cursor: pointer;
+}
+.md-menu-pick__ops button:hover:not(:disabled) { background: var(--md-surface); color: var(--md-primary); }
+.md-menu-pick__ops button:disabled { opacity: .35; cursor: not-allowed; }
+/* 「下移」复用同一个上箭头图标，翻转过来即可 */
+.md-menu-pick__ops .is-flip { transform: rotate(180deg); }
+.md-menu-pick__empty {
+  margin: 0; padding: 8px 10px;
+  border: 1px dashed var(--md-border-strong); border-radius: 8px;
+  color: var(--md-text-3); font-size: 12px; text-align: center;
+}
+/* 树区自己滚，别把弹窗撑高：弹窗正文区的高度是固定的 */
+.md-menu-pick__tree {
+  max-height: 200px; overflow-y: auto;
+  padding: 6px 8px;
+  border: 1px solid var(--md-border); border-radius: 8px;
+  background: var(--md-surface);
+}
+.md-menu-pick__tree::-webkit-scrollbar { width: 8px; }
+.md-menu-pick__tree::-webkit-scrollbar-track { background: transparent; }
+.md-menu-pick__tree::-webkit-scrollbar-thumb {
+  background: var(--md-border-strong); border-radius: 8px; border: 2px solid transparent; background-clip: padding-box;
+}
+.md-menu-pick__node { display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
+.md-menu-pick__node .md-menu-pick__label { font-size: 13px; }
+
+/* 底栏：撤销靠左、其余靠右——危险动作与主按钮拉开距离，才不会被顺手点到 */
+.md-share-foot { display: flex; align-items: center; gap: 10px; width: 100%; }
+.md-share-foot__right { display: flex; align-items: center; gap: 10px; margin-left: auto; }
+
+@media (max-width: 620px) {
+  /* 窄屏一行放不下「说明 + 控件」，退回上下两段，避免开关/下拉被压成一条缝 */
+  .md-share-field { flex-wrap: wrap; }
+  .md-share-field__text { flex: 1 1 100%; }
+  .md-share-link__row { flex-wrap: wrap; }
+  .md-share-link__url { flex: 1 1 100%; }
+}
+
+/* ------------------------------------------------------------ 标签编辑器 */
+/*
+ * 标签与输入框共用一根边框，整体读起来是「一个标签输入框」，而不是
+ * 「一堆标签 + 旁边一根孤立的小输入框」。点容器任意处落焦，键盘手感按
+ * 标签编辑器的通用约定走：回车收下、空框退格删掉最后一个。
+ */
+.md-tag-field {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 6px;
+  width: 100%;
+  min-height: 32px;
+  padding: 3px 8px;
+  border: 1px solid var(--md-border-strong);
+  border-radius: 8px;
+  background: var(--md-surface);
+  cursor: text;
+  transition: border-color .14s ease, box-shadow .14s ease;
+}
+.md-tag-field:hover { border-color: var(--md-primary); }
+.md-tag-field.is-focus {
+  border-color: var(--md-primary);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--md-primary) 16%, transparent);
+}
+.md-tag-field.is-error { border-color: var(--md-danger); }
+.md-tag-field.is-error.is-focus {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--md-danger) 16%, transparent);
+}
+
+.md-tag-chip {
+  display: inline-flex; align-items: center; gap: 1px;
+  max-width: 100%;
+  height: 24px; padding: 0 3px 0 9px;
+  border-radius: 7px;
+  background: var(--md-primary-soft); color: var(--md-primary);
+  font-size: 12px;
+}
+.md-tag-chip__text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.md-tag-chip__del {
+  flex-shrink: 0;
+  display: grid; place-items: center;
+  width: 16px; height: 16px; padding: 0;
+  border: 0; border-radius: 4px;
+  background: none; color: inherit; cursor: pointer;
+  opacity: .55;
+  transition: opacity .14s ease, background .14s ease;
+}
+.md-tag-chip__del:hover {
+  opacity: 1;
+  background: color-mix(in srgb, var(--md-primary) 22%, transparent);
+}
+
+.md-tag-field__input {
+  flex: 1; min-width: 84px;
+  height: 24px; padding: 0 2px;
+  border: 0; outline: none; background: none;
+  color: var(--md-text); font-size: 12.5px; font-family: inherit;
+}
+.md-tag-field__input::placeholder { color: var(--md-text-3); }
+.md-tag-field__full { flex: 1; color: var(--md-text-3); font-size: 12px; }
+.md-tag-field__count {
+  flex-shrink: 0; margin-left: auto; padding-left: 6px;
+  color: var(--md-text-3); font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+.md-form-hint.is-error { color: var(--md-danger); }
+
+/* ================================================================== 移动端适配 */
+/*
+ * 断点约定（JS 侧 useIsMobile() 取 768，必须与下面第二组严格一致）：
+ *   ≤1024px  外壳：侧栏变抽屉、顶栏精简（见上方「移动端抽屉」）
+ *   ≤768px   内容：核心列表页表格换卡片流、弹窗全宽、筛选栏竖排
+ *   ≤560px   进一步压缩：统计卡单列、分页只留页码
+ * 之前管理端只有「表格 + 横向滚动」一条路，手机上被固定的操作列挤得只剩一条缝，
+ * 所以核心列表页改成卡片流，而不是把表格硬塞进窄屏。
+ */
+
+/* 只在窄屏 / 只在宽屏出现的工具类。用 .md-ad- 前缀避开阅读端同名的 .md-only-mobile */
+.md-ad-only-sm { display: none !important; }
+@media (max-width: 768px) {
+  .md-ad-only-sm { display: block !important; }
+  .md-ad-hide-sm { display: none !important; }
+}
+
+/* ---------------------------------------------------------- 窄屏卡片流（列表页） */
+.md-ad-cards { display: grid; gap: 10px; }
+.md-ad-item {
+  background: var(--md-surface); border: 1px solid var(--md-border); border-radius: 12px;
+  padding: 12px 13px; display: flex; flex-direction: column; gap: 9px;
+}
+.md-ad-item__head { display: flex; align-items: flex-start; gap: 8px; justify-content: space-between; }
+.md-ad-item__title { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.md-ad-item__title strong {
+  font-size: 14.5px; font-weight: 650; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.md-ad-item__title small {
+  color: var(--md-text-3); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.md-ad-item__chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.md-ad-item__meta { display: flex; flex-wrap: wrap; gap: 4px 12px; color: var(--md-text-3); font-size: 12px; }
+.md-ad-item__meta > span { white-space: nowrap; }
+.md-ad-item__actions {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+  padding-top: 9px; border-top: 1px solid var(--md-border);
+}
+/* flex 的 gap 已经在管间距，抹掉 el-button 相邻自带的外边距，否则卡片里按钮间距忽大忽小 */
+.md-ad-item__actions .el-button + .el-button { margin-left: 0; }
+.md-ad-item__actions .el-dropdown { margin-left: auto; }
+
+@media (max-width: 768px) {
+  /* 筛选栏 / 面板头：竖排、控件撑满，spacer 在竖排里只会撑出一段空白 */
+  .md-panel-head { flex-direction: column; align-items: stretch; gap: 10px; padding: 12px; }
+  .md-panel-head .md-spacer { display: none; }
+  .md-panel-head .el-input,
+  .md-panel-head .el-select,
+  .md-panel-head .el-date-editor,
+  .md-panel-head .el-button { width: 100% !important; }
+  .md-panel-head .el-radio-group { display: flex; width: 100% !important; }
+  .md-panel-head .el-radio-group .el-radio-button { flex: 1; }
+  .md-panel-head .el-radio-group .el-radio-button__inner { width: 100%; }
+  .md-panel-head .el-checkbox { align-self: flex-start; }
+  .md-panel-body { padding: 12px; }
+
+  /* 面板头里的成对控件（搜索框 + 按钮）改竖排，别让两者各分半行 */
+  .md-head-row { flex-direction: column; align-items: stretch; }
+  .md-head-row > * { width: 100% !important; }
+
+  /* 内联表单（如组织设置里的「加成员」）在窄屏改竖排，别挤成半截 */
+  .el-form--inline { display: flex; flex-direction: column; align-items: stretch; }
+  .el-form--inline .el-form-item { margin-right: 0; width: 100%; }
+  .el-form--inline .el-form-item .el-input,
+  .el-form--inline .el-form-item .el-select { width: 100% !important; }
+
+  /* 弹窗：留出安全边距，高度交给内部滚动 */
+  .el-dialog { width: 92vw !important; max-width: 92vw; }
+  .el-message-box { width: 90vw !important; max-width: 420px; }
+  .el-dialog__body { padding: 14px 16px; }
+  /* 知识库表单弹窗：桌面那套 24px 侧边距在手机上吃掉太多正文宽度 */
+  .md-kb-dialog .el-dialog__header { padding: 16px 48px 12px 18px; }
+  .md-kb-dialog .el-dialog__body { padding: 14px 18px 6px; }
+  .md-kb-dialog .el-dialog__footer { padding: 12px 18px 14px; }
+
+  /* 分页：允许折行居中；页码挤不下时先舍掉每页条数 */
+  .el-pagination { flex-wrap: wrap; justify-content: center; row-gap: 8px; }
+  .el-pagination__sizes { display: none; }
+  .md-ad-pager { justify-content: center; }
+
+  /* 统计卡两列、知识库卡单列 */
+  .md-ad-stat-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .md-stat-card { padding: 13px 14px; }
+  .md-stat-card__value { font-size: 22px; }
+  .md-kb-grid { grid-template-columns: 1fr; gap: 12px; }
+
+  /* 成员 / 入组申请这类「一行一件事」在窄屏堆叠 */
+  .md-ad-row { flex-direction: column; align-items: stretch; gap: 10px; }
+  .md-ad-row__actions { justify-content: flex-start; }
+
+  /* 卡片流里的操作按钮：桌面 small(28px) 在手机上按不准，统一抬到 34px 的触控目标 */
+  .md-ad-item__actions .el-button {
+    min-height: 34px;
+    padding: 0 12px;
+  }
+  .md-ad-item__actions .el-button .md-icon { margin-right: 5px; }
+
+  /* 页面级两栏栅格一律并成单列 */
+  .md-page-stack { grid-template-columns: 1fr !important; }
+}
+
+@media (max-width: 560px) {
+  .md-content { padding: 12px 10px; }
+  .md-ad-stat-grid { grid-template-columns: 1fr; }
+  .el-pagination__total { display: none; }
+  /* 顶栏窄到放不下组织名时只留图标，胶囊不撑破整行 */
+  .md-header__org-name { display: none; }
+  .md-header__org { padding: 4px 8px; }
+}
+
+/* ---------------------------------------------------------- 工作区（编辑页）窄屏 */
+/*
+ * 三栏并排在手机上每栏只剩百来像素，所以 ≤900px 时左右两栏收成浮层抽屉，
+ * 由子工具条上的两个图标按钮开关，配一层遮罩。断点与 KbWorkspaceView 里的
+ * useIsMobile('(max-width: 900px)') 必须一致。
+ */
+@media (max-width: 900px) {
+  /* 行内宽度是组件按 localStorage 写的，抽屉宽度只能靠 !important 压过去 */
+  .md-ws__side,
+  .md-ws__toc {
+    position: fixed; top: 0; bottom: 0; z-index: 60;
+    width: min(300px, 86vw) !important;
+    box-shadow: var(--md-shadow);
+  }
+  .md-ws__side { left: 0; }
+  .md-ws__toc { right: 0; }
+  /* 抽屉宽度固定，拖拽把手没有意义，收掉免得误触 */
+  .md-ws__side-resizer,
+  .md-ws__toc-resizer,
+  .md-ws__bytemd-resizer { display: none !important; }
+  .md-ws__mask {
+    position: fixed; inset: 0; z-index: 55;
+    background: rgba(15, 17, 23, .5);
+    animation: md-mask-in .18s ease;
+  }
+
+  /* 并排的「编辑 + 预览」在手机上两边都不够用：编辑态只留编辑区，预览态只留预览区 */
+  .md-ws__editor.is-edit .bytemd-preview { display: none !important; }
+  .md-ws__editor.is-edit .bytemd-editor { flex: 1; }
+  /* bytemd 自带大纲让位给右侧抽屉，避免两份大纲 */
+  .md-ws__editor .bytemd-sidebar { display: none !important; }
+
+  /* 顶栏动作多，改成两行：上排身份，下排可横向滚动的动作条 */
+  .md-ws__top { height: auto; min-height: 54px; flex-wrap: wrap; padding: 8px 10px; row-gap: 8px; }
+  .md-ws__top > .md-spacer { display: none; }
+  .md-ws__actions { width: 100%; overflow-x: auto; scrollbar-width: none; }
+  .md-ws__actions::-webkit-scrollbar { display: none; }
+  .md-ws__actions .md-ws__btn { flex-shrink: 0; }
+
+  /* 子工具条：面包屑可压缩，锁胶囊让位给两个图标按钮 */
+  .md-ws__bar { gap: 6px; padding: 0 10px; }
+  .md-ws__crumb { max-width: 92px; }
+  .md-ws__lock { display: none; }
+  /* 手机上「目录 / 大纲」是唯一的入口，28px 的图标按钮太难点中，放到 34px */
+  .md-ws__icon-btn { width: 34px; height: 34px; }
+
+  /* 底部状态栏指标折行；作者与更新时间先让位，别把「回到顶部」挤出去 */
+  .md-ws__status { height: auto; flex-wrap: wrap; padding: 6px 12px; gap: 4px 12px; }
+  .md-ws__status .md-ws__metric:nth-child(n + 5) { display: none; }
+}

@@ -1,0 +1,140 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+    <!--
+      %clr 不是 logback 自带的转换词，是 Spring Boot 的扩展。不注册这条 conversionRule，
+      启动时 LogbackLoggingSystem 会直接抛 "no conversion class registered for [clr]" 中断启动。
+    -->
+    <conversionRule conversionWord="clr" converterClass="org.springframework.boot.logging.logback.ColorConverter"/>
+
+    <springProperty scope="context" name="VAULT_HOME" source="minidocs.vault-home" defaultValue="./data"/>
+    <springProperty scope="context" name="LOG_LEVEL" source="minidocs.log-level" defaultValue="info"/>
+
+    <property name="LOG_DIR" value="${VAULT_HOME}/logs"/>
+
+    <!--
+      文件用「全量」版式：线程名和 traceId 是把一条请求的上下文串起来的唯一线索，一个都不能省。
+    -->
+    <property name="FILE_PATTERN"
+              value="%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level [%X{traceId}] %logger{40} - %msg%n"/>
+    <!--
+      终端用「精简」版式：日期精确到秒没人看、线程名一屏一变，都去掉；级别按级别上色，
+      traceId 留着（照着它能去文件里捞同一条请求），logger 截到 30 字符免得长行折行。
+    -->
+    <property name="CONSOLE_PATTERN"
+              value="%clr(%d{HH:mm:ss.SSS}){faint} %clr(%-5level) %clr([%X{traceId}]){faint} %clr(%logger{30}){cyan} %clr(-){faint} %msg%n"/>
+
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>${CONSOLE_PATTERN}</pattern>
+            <charset>UTF-8</charset>
+        </encoder>
+    </appender>
+
+    <!--
+      终端上只放「出事了」的那些：访问日志一行一请求，全打到终端会把真正的报错冲走。
+    -->
+    <appender name="CONSOLE_WARN" class="ch.qos.logback.core.ConsoleAppender">
+        <filter class="ch.qos.logback.classic.filter.ThresholdFilter">
+            <level>WARN</level>
+        </filter>
+        <encoder>
+            <pattern>${CONSOLE_PATTERN}</pattern>
+            <charset>UTF-8</charset>
+        </encoder>
+    </appender>
+
+    <!--
+      三个文件都按「日期 + 单文件大小」双阈值滚动，并给整组文件封顶。
+      只设 maxHistory 时，一天之内日志暴涨就能撑出一个 GB 级文件，要等到第二天滚动才回收 ——
+      maxFileSize 管住单个文件，totalSizeCap 管住整组，cleanHistoryOnStart 让重启时顺手清一次。
+    -->
+    <appender name="FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>${LOG_DIR}/minidocs.log</file>
+        <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+            <fileNamePattern>${LOG_DIR}/minidocs.%d{yyyy-MM-dd}.%i.log</fileNamePattern>
+            <maxFileSize>20MB</maxFileSize>
+            <maxHistory>14</maxHistory>
+            <totalSizeCap>500MB</totalSizeCap>
+            <cleanHistoryOnStart>true</cleanHistoryOnStart>
+        </rollingPolicy>
+        <encoder>
+            <pattern>${FILE_PATTERN}</pattern>
+            <charset>UTF-8</charset>
+        </encoder>
+    </appender>
+
+    <!-- WARN 及以上单独一份：真出事时第一个该翻的就是它，所以留得比主日志久 -->
+    <appender name="ERROR_FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>${LOG_DIR}/minidocs-error.log</file>
+        <filter class="ch.qos.logback.classic.filter.ThresholdFilter">
+            <level>WARN</level>
+        </filter>
+        <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+            <fileNamePattern>${LOG_DIR}/minidocs-error.%d{yyyy-MM-dd}.%i.log</fileNamePattern>
+            <maxFileSize>10MB</maxFileSize>
+            <maxHistory>30</maxHistory>
+            <totalSizeCap>200MB</totalSizeCap>
+            <cleanHistoryOnStart>true</cleanHistoryOnStart>
+        </rollingPolicy>
+        <encoder>
+            <pattern>${FILE_PATTERN}</pattern>
+            <charset>UTF-8</charset>
+        </encoder>
+    </appender>
+
+    <!--
+      访问日志独立成文件：2xx 之前只在 debug 级别露头，等于没记；混进主日志又会把业务日志冲散。
+      单独一份之后，minidocs-error.log 里也不会再堆满静态资源 404。
+    -->
+    <appender name="ACCESS_FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>${LOG_DIR}/minidocs-access.log</file>
+        <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+            <fileNamePattern>${LOG_DIR}/minidocs-access.%d{yyyy-MM-dd}.%i.log</fileNamePattern>
+            <maxFileSize>20MB</maxFileSize>
+            <maxHistory>7</maxHistory>
+            <totalSizeCap>300MB</totalSizeCap>
+            <cleanHistoryOnStart>true</cleanHistoryOnStart>
+        </rollingPolicy>
+        <encoder>
+            <pattern>${FILE_PATTERN}</pattern>
+            <charset>UTF-8</charset>
+        </encoder>
+    </appender>
+
+    <!-- ================================================================== 降噪 -->
+    <!--
+      启动阶段这几个框架各刷几行「我起来了」，对定位问题没有任何帮助，统一压到 WARN。
+      刻意不动 org.springframework：README 让人去日志里找 "Tomcat started on port XXXX"，
+      那句和一堆启动噪音同属一个 logger，压掉它就再也找不到了。
+    -->
+    <logger name="org.apache.catalina" level="WARN"/>
+    <logger name="org.apache.coyote" level="WARN"/>
+    <logger name="org.apache.tomcat" level="WARN"/>
+    <logger name="org.hibernate.validator.internal.util.Version" level="WARN"/>
+    <!-- 只压连接池内部的 "Added connection"，保留 HikariDataSource 那两行起停确认 -->
+    <logger name="com.zaxxer.hikari.pool" level="WARN"/>
+    <logger name="org.eclipse.jgit" level="WARN"/>
+    <logger name="com.baomidou.mybatisplus" level="WARN"/>
+    <!--
+      这两条 WARN 说 KbFavorite / DocEditLock 没有 @TableId，于是 MP 不生成 xxById 方法。
+      两张表都是联合主键、代码里也确实不用那些方法，属于每次启动必刷的假警报；留在 WARN
+      会连 minidocs-error.log 一起污染，所以抬到 ERROR 门槛，真报错仍然照记。
+    -->
+    <logger name="com.baomidou.mybatisplus.core.metadata.TableInfoHelper" level="ERROR"/>
+    <logger name="com.baomidou.mybatisplus.core.injector.DefaultSqlInjector" level="ERROR"/>
+
+    <!--
+      访问日志自己一份文件，additivity=false 免得又被 root 的 appender 记一遍；
+      终端那份走 CONSOLE_WARN，于是行为与改造前一致：只在 4xx / 5xx 时露头。
+    -->
+    <logger name="minidocs.access" level="INFO" additivity="false">
+        <appender-ref ref="ACCESS_FILE"/>
+        <appender-ref ref="CONSOLE_WARN"/>
+    </logger>
+
+    <root level="${LOG_LEVEL}">
+        <appender-ref ref="CONSOLE"/>
+        <appender-ref ref="FILE"/>
+        <appender-ref ref="ERROR_FILE"/>
+    </root>
+</configuration>

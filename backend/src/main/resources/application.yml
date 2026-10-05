@@ -1,0 +1,97 @@
+server:
+  port: ${PORT:9098}
+  servlet:
+    # 全站统一挂在这个前缀下：域名:端口/minidocs/…（前端 Vite base 与路由 base 与之对齐）。
+    # 需要换前缀时改 CONTEXT_PATH 即可，不必重新打包前端。
+    context-path: ${CONTEXT_PATH:/minidocs}
+    encoding:
+      charset: UTF-8
+      force: true
+
+spring:
+  application:
+    name: minidocs
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE:dev}
+  servlet:
+    multipart:
+      # 这两个是 Tomcat 层的闸门，必须比 minidocs.import-max-size 宽松：否则超限的请求在进入
+      # Controller 之前就被 413 掉，业务侧那句「导入内容超过 50MB 限制」根本没机会说出口。
+      max-file-size: 50MB
+      max-request-size: 60MB
+  # 关闭 Spring Boot 默认静态资源映射（classpath:/static、/public 等）：
+  # 前端产物由 WebMvcConfig 显式映射（/assets/** 长缓存、/** 协商缓存）；
+  # 若保留默认映射，它同样注册 /**，注册顺序会与自定义映射相互覆盖，首页解析结果不确定。
+  web:
+    resources:
+      add-mappings: false
+  jackson:
+    date-format: yyyy-MM-dd HH:mm:ss
+    time-zone: Asia/Shanghai
+    default-property-inclusion: non_null
+
+mybatis-plus:
+  mapper-locations: classpath*:mapper/**/*.xml
+  configuration:
+    map-underscore-to-camel-case: true
+    cache-enabled: false
+  global-config:
+    banner: false
+    db-config:
+      id-type: auto
+
+sa-token:
+  token-name: Authorization
+  token-prefix: Bearer
+  # 7 天（秒）
+  timeout: 604800
+  active-timeout: -1
+  is-concurrent: true
+  is-share: false
+  is-read-cookie: false
+  is-read-header: true
+  is-log: false
+  # sa-token-jwt：HS256 签名密钥（生产必须通过 JWT_SECRET 覆盖，≥ 32 字节）
+  jwt-secret-key: ${JWT_SECRET:minidocs-dev-only-secret-key-change-me-0123456789}
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+  api-docs:
+    path: /v3/api-docs
+
+minidocs:
+  # 应用数据根目录（日志 + vaults + 开发库）
+  vault-home: ${VAULT_HOME:./data}
+  # 站点基址（协议 + 主机 + 端口，无尾斜杠）：分享链接、复制链接等一切对外地址的唯一来源。
+  # 前后端分离部署（前端由 Nginx 伺服在站点根、后端挂在 context-path 下）时必填，
+  # 例如 https://kb.example.com；留空则按当前请求推导（同源部署可用，需开启
+  # server.forward-headers-strategy=framework 才能识别反代传来的 X-Forwarded-*）。
+  page-base-url: ${PAGE_BASE_URL:}
+  # 可选：外部前端产物目录（其下须有 index.html 与 assets/）。
+  # 前端产物默认由 front/ 构建输出到 front/dist/，由 Nginx 之类的静态服务器伺服在站点根；
+  # 本项仅在「仍由后端伺服前端」（把 CONTEXT_PATH 设为空、base 用 /）时才用得上。
+  # 相对路径按进程工作目录解析，生产建议给绝对路径。classpath 中的产物始终优先。
+  front-dir: ${FRONT_DIR:}
+  jwt-secret: ${JWT_SECRET:minidocs-dev-only-secret-key-change-me-0123456789}
+  jwt-expires-in: ${JWT_EXPIRES_IN:7d}
+  share-cookie-hours: ${SHARE_COOKIE_HOURS:12}
+  admin-user: ${ADMIN_USER:admin}
+  admin-pass: ${ADMIN_PASS:admin123}
+  # 自助注册默认开启（规范 §3.1）：注册者自带一个只有本人的个人组织，进不到别人的组织里。
+  # 内网部署要收回入口时置 REGISTER_ENABLED=false，改由管理员建号。
+  register-enabled: ${REGISTER_ENABLED:true}
+  doc-max-size: 2097152
+  image-max-size: 20971520
+  cover-max-size: 2097152
+  import-max-files: 200
+  import-max-size: 52428800
+  max-depth: 6
+  render-cache-size: 50
+  tree-cache-size: 20
+  log-level: ${LOG_LEVEL:info}
+
+logging:
+  level:
+    root: ${LOG_LEVEL:info}
+    cn.minims.minidocs: ${LOG_LEVEL:info}
