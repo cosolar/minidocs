@@ -1,0 +1,32 @@
+# 构建上下文是仓库根（Dockerfile 要同时 COPY front/ 与 backend/），
+# 下面这些是构建用不到、且会把上下文撑大或把本机数据带进镜像的东西。
+
+.git
+.gitignore
+.idea
+.vscode
+.codebuddy
+.workbuddy
+**/.DS_Store
+
+# 前端
+**/node_modules
+**/dist
+
+# 前端私有源配置：含明文 _authToken，绝不能进构建上下文
+**/.npmrc
+**/.env
+**/.env.*
+
+# 后端构建产物与本机数据（VAULT_HOME）
+**/target
+**/data
+**/*.db
+**/*.db-shm
+**/*.db-wal
+
+# 部署目录里的运行时文件（.env 含明文密码、data 是数据卷挂载点）
+deploy/.env
+deploy/data
+
+*.log

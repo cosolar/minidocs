@@ -17,6 +17,11 @@
 /front/*.log
 /front/*.log.err
 /front/*.txt
+# vite 插件（svg symbol 注入）每次构建都会写这个 err 日志
+/front/*.err
+
+# npm 私有源配置：内含明文 _authToken（阿里云效 / npmjs），绝不入库
+**/.npmrc
 
 # 前端构建产物：front/dist 交给静态服务器伺服在站点根，不入库
 /front/dist/
@@ -32,3 +37,8 @@
 Thumbs.db
 /.workbuddy/
 /.vscode/
+
+# 容器部署：.env 是明文口令，data/ 是数据卷挂载点（文档、头像、日志、SQLite）
+/deploy/.env
+/deploy/data/
+minidocs-src.tar.gz

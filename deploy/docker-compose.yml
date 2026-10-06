@@ -1,0 +1,73 @@
+# MiniDocs 容器编排：Nginx（页面 + 反代） + Spring Boot（接口）
+#
+#   docker compose up -d
+#
+# 形态为 docs/DEPLOYMENT.md 里的「方案 A：前后端分离 + Nginx」。
+# 表不用手工导入：DbMigrator 随 jar 启动按 db/migration/mysql/V*.sql 顺序执行，幂等。
+#
+# 数据库：本文件**不含** MySQL 服务。目标机器上已有一个 1Panel 管理的 MySQL 实例，
+# 内存余量不足以再起一个，所以复用它——先跑一次 ./prep-db.sh 建库建账号，
+# app 通过 1panel-network 直接用容器名 mysql 连过去。
+# 要改成自带 MySQL，见文件末尾「改回自带数据库」。
+
+name: minidocs
+
+services:
+  app:
+    image: ${IMAGE_TAG:-minidocs:1.2.0}
+    container_name: minidocs-app
+    restart: unless-stopped
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      # 页面基址在站点根、接口在 /minidocs，与 minidocs-web 镜像里的构建产物对齐。
+      # 改成单体形态（后端兼作静态服务器）时要置空：CONTEXT_PATH: ""
+      CONTEXT_PATH: /minidocs
+      PORT: "9098"
+      # 数据根：文档、库内资源、头像、站点 Logo、日志。compose 里挂到 ./data
+      VAULT_HOME: /data
+      # 站点基址的兜底值。优先在「站点设置」页里配（/console/platform/site，改完即生效），
+      # 本项只在还没人登录后台、或首启兜底时用。两种方式别填成两个不同地址。
+      PAGE_BASE_URL: ${PAGE_BASE_URL:?请在 deploy/.env 里设置}
+      # host 是 compose 网络里的 MySQL 容器名，不是 127.0.0.1：
+      # app 跑在容器里，localhost 指向它自己
+      DB_URL: "jdbc:mysql://mysql:3306/${MYSQL_DATABASE:-minidocs}?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useSSL=false"
+      DB_USER: ${MYSQL_USER:-minidocs}
+      DB_PASSWORD: ${MYSQL_PASSWORD:?请在 deploy/.env 里设置}
+      JWT_SECRET: ${JWT_SECRET:?请在 deploy/.env 里设置}
+      ADMIN_USER: ${ADMIN_USER:-admin}
+      ADMIN_PASS: ${ADMIN_PASS:?请在 deploy/.env 里设置}
+      REGISTER_ENABLED: ${REGISTER_ENABLED:-false}
+      SHARE_COOKIE_HOURS: ${SHARE_COOKIE_HOURS:-12}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      TZ: Asia/Shanghai
+    volumes:
+      # 文档正文、库内资源、头像、站点 Logo 都在这里，必须持久化
+      - ./data:/data
+    # 只在 compose 网络内可达，不映射宿主端口：对外入口是 web 的 9116，再由 OpenResty 转发
+    expose: ["9098"]
+    # JVM 堆 = APP_MEMORY_LIMIT × 0.75（Dockerfile 里 MaxRAMPercentage=75）。
+    # 必须给上限，否则它按宿主机总内存的 75% 要堆，会把同机的其他服务挤爆。
+    mem_limit: ${APP_MEMORY_LIMIT:-1g}
+    networks: [minidocs, onepanel]
+
+  web:
+    image: ${WEB_IMAGE_TAG:-minidocs-web:1.2.0}
+    container_name: minidocs-web
+    restart: unless-stopped
+    depends_on: [app]
+    ports:
+      # 默认只绑回环：对外由宿主机上的 OpenResty（1Panel）反代进来，
+      # 这样 9116 不直接暴露在公网。要临时用 IP:9116 直连调试，改成 "0.0.0.0:9116:80"
+      - "${WEB_BIND:-127.0.0.1}:${WEB_PORT:-9116}:80"
+    mem_limit: 128m
+    environment:
+      TZ: Asia/Shanghai
+    networks: [minidocs]
+
+networks:
+  minidocs:
+    driver: bridge
+  # 已存在的 1Panel 网络：用来够到那个 MySQL 容器
+  onepanel:
+    external: true
+    name: 1panel-network

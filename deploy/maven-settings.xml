@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Docker 构建期专用：只把 central 镜像到阿里云，其余仓库（spring、jgit 等）保持原样。
+
+  为什么要它：spring-boot-starter-parent 本身在 Maven Central，服务器在国内直连 central
+  下载 jar 常常几百 KB/s，一个 build 能拖到半小时以上。
+
+  海外服务器构建时删掉 -s 参数，或把这个文件里的 mirror 段注释掉。
+-->
+<settings xmlns="http://maven.apache.org/SETTINGS/1.0.0"
+          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+          xsi:schemaLocation="http://maven.apache.org/SETTINGS/1.0.0
+                              https://maven.apache.org/xsd/settings-1.0.0.xsd">
+    <mirrors>
+        <!-- public = central + jcenter 聚合；不要用 mirrorOf=*，会把 spring / jgit 的仓库也劫持掉 -->
+        <mirror>
+            <id>aliyun-public</id>
+            <name>Aliyun Public Mirror</name>
+            <url>https://maven.aliyun.com/repository/public</url>
+            <mirrorOf>central</mirrorOf>
+        </mirror>
+    </mirrors>
+</settings>
