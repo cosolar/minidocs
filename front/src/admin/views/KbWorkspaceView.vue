@@ -12,6 +12,7 @@ import DocTreeNode from '@/admin/components/DocTreeNode.vue'
 import MdIcon from '@/admin/components/MdIcon.vue'
 import ShareDialog from '@/admin/components/ShareDialog.vue'
 import KbSettingsDialog from '@/admin/components/KbSettingsDialog.vue'
+import GitCommitDialog from '@/admin/components/GitCommitDialog.vue'
 import ImagePreview from '@/user/components/ImagePreview.vue'
 import { draggingPath } from '@/admin/components/docDrag'
 import { docApi, kbApi } from '@/admin/api'
@@ -1227,6 +1228,8 @@ function backToList() {
 const isCloudKb = computed(() => kb.value?.sourceType === 'git')
 const gitStatus = ref<GitStatusVO | null>(null)
 const gitBusy = ref(false)
+/** 提交推送面板：动作本身在面板里，这里只持有开关与它要用的状态 */
+const commitVisible = ref(false)
 
 /* ---------------------------------------------------------------- 库设置面板 */
 const settingsVisible = ref(false)
@@ -1413,18 +1416,21 @@ async function gitPull() {
   }
 }
 
-async function gitCommit() {
-  gitBusy.value = true
-  try {
-    const result = await kbApi.gitCommit(kbSlug.value)
-    ElMessage.success(result.message)
-    await loadKb()
-  } catch {
-    /* 拦截器已提示 */
-  } finally {
-    await loadGitStatus()
-    gitBusy.value = false
-  }
+/**
+ * 「提交推送」只负责开面板，提交动作在 {@link GitCommitDialog} 里。
+ *
+ * <p>用户点它时最想知道的不是「成没成功」，而是「会提交哪些文件」——
+ * 这个信息只有面板里有，所以这里不再直接打接口。</p>
+ */
+function openCommitDialog() {
+  commitVisible.value = true
+}
+
+/** 面板提交成功后回到工作区：正文可能被这次推送带走了新提交，目录与计数都要重取 */
+async function onCommitted() {
+  await loadKb()
+  await loadTree()
+  await loadGitStatus()
 }
 
 /* ------------------------------------------------------------------ 面板宽度拖拽 */
@@ -1747,8 +1753,8 @@ onBeforeUnmount(() => {
             type="button"
             class="md-ws__btn"
             :disabled="gitBusy || cloning"
-            title="把工作副本的改动提交并推送到远程仓库"
-            @click="gitCommit"
+            title="查看将要提交的文件并填写提交说明，然后提交并推送"
+            @click="openCommitDialog"
           >
             <MdIcon name="arrow-up" :size="14" />
             提交推送
@@ -2114,6 +2120,14 @@ onBeforeUnmount(() => {
       :can-edit-meta="kbCan('KB_EDIT_META')"
       :can-edit-config="kbCan('KB_EDIT_META')"
       @saved="onSettingsSaved"
+    />
+
+    <GitCommitDialog
+      v-if="isCloudKb"
+      v-model="commitVisible"
+      :kb-slug="kbSlug"
+      :status="gitStatus"
+      @committed="onCommitted"
     />
   </div>
 </template>
