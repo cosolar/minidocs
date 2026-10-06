@@ -1281,9 +1281,12 @@ const cloning = computed(() => !!kb.value?.git && kb.value.git.lastSyncOk === nu
 /** 状态胶囊：把「有改动 / 落后 / 领先」合成一句话，一眼看出该点哪个按钮 */
 const gitStateText = computed(() => {
   if (cloning.value) return '正在拉取仓库…'
-  const status = gitStatus.value
   if (cloningFailed.value) return '拉取失败'
-  if (!status || !status.repository) return '未就绪'
+  const status = gitStatus.value
+  // 「读取中」与「未就绪」必须分开：状态现在是异步补的，两者混用会让用户
+  // 在结果到达前就以为这个库没有远端，然后去检查绑定、去看文档
+  if (!status) return '读取中…'
+  if (!status.repository) return '未就绪'
   const parts: string[] = []
   if (status.changedCount) parts.push(`${status.changedCount} 处改动`)
   if (status.behind) parts.push(`落后 ${status.behind}`)
@@ -1322,6 +1325,22 @@ async function loadGitStatus() {
 }
 
 /**
+ * 非阻塞地补一次工作副本状态。
+ *
+ * <p>git 状态是纯本地扫描（{@code git status} 把工作区跟索引逐个比对），
+ * 实测 189 篇的库要 260ms、冷缓存能到 4s。它只驱动顶栏那颗胶囊
+ * （「有 N 处改动 / 落后 M 个提交」），却曾被 await 在首屏 loading 里 ——
+ * 于是目录树、编辑器、首篇文档全在等它，而它一慢整个工作区就打不开。
+ *
+ * <p>改成不 await：胶囊晚几百毫秒出现毫无影响，工作区先可用才是要紧的。
+ * 顺带把请求挪到首屏渲染之后发出，避免与 loadTree / openDoc 抢带宽。</p>
+ */
+function refreshGitStatusSoon() {
+  if (!isCloudKb.value) return
+  void loadGitStatus()
+}
+
+/**
  * 轮询后台克隆进度，直到落终态。
  *
  * <p>只在「进行中」时启动：克隆是一次性的事件，不是需要盯着的实时状态，
@@ -1350,7 +1369,9 @@ function startClonePolling() {
     clonePollTimer = undefined
     clonePollTicks++
     await loadKb()
-    await loadGitStatus()
+    // 这里刻意不再拉 git 状态：克隆进度由 kb.git.lastSyncOk 驱动（cloning 由它算出），
+    // 而 status() 是本地全量扫描，每 3s 扫一遍 189 个文件纯属浪费。
+    // 轮询到终态后由下面的分支补一次即可。
     if (cloning.value && clonePollTicks < CLONE_POLL_LIMIT) {
       startClonePolling()
     } else if (cloning.value) {
@@ -1359,6 +1380,8 @@ function startClonePolling() {
       ElMessage.error(kb.value?.git?.lastSyncStatus || '仓库拉取失败，可在下方「拉取」重试')
     } else {
       ElMessage.success('仓库拉取完成')
+      // 终态这一次才补 git 状态：之前每轮都拉是纯浪费，此刻才是真有结果可读的时候
+      refreshGitStatusSoon()
     }
   }, CLONE_POLL_MS)
 }
@@ -1547,15 +1570,16 @@ onMounted(async () => {
   try {
     await loadKb()
     await loadTree()
+    await nextTick()
     const requested = (route.query.path as string) || ''
     const first = flatDocs.value[0]
     const target = requested && flatDocs.value.some((doc) => doc.path === requested) ? requested : first?.path || ''
     if (target) await openDoc(target)
-    // 云端库顺带取一次工作副本状态：胶囊上要显示「有 N 处改动 / 落后 M 个提交」
-    await loadGitStatus()
   } finally {
     loading.value = false
   }
+  // 工作区已可用之后再补 git 状态：胶囊是次要信息，不该拖住首屏（该接口本地扫描要 260ms~4s）
+  refreshGitStatusSoon()
   window.addEventListener('keydown', onKeydown)
   window.addEventListener('beforeunload', onBeforeUnload)
   window.addEventListener('resize', onWindowResize)
