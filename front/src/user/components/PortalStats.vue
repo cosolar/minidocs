@@ -12,11 +12,12 @@ const publicPercent = computed(() => {
 })
 
 /**
- * 五张卡片：总数 → 已发布的两档（公开 / 私有）→ 文档量 → 访问量。
+ * 五张卡片：总数 → 已发布的两档（共享 / 加密）→ 文档量 → 访问量。
  *
- * <p>分享等同于发布，门户统计的是已发布库；公开 = 分享未加密，私有 = 分享已加密（需口令）。
+ * <p>分享等同于发布，门户统计的是已发布库；共享 = 分享未加密，加密 = 分享已加密（需口令）。
  * 访问量取的是发布分享的累计 views（分享页与门户阅读命中合并），「本月」按 share_view_log
- * 本月行数（≈ 本月独立访客数）。这里不再出现「本组织」—— 那是可见性读轴的概念，只属于后台管理台。</p>
+ * 本月行数（≈ 本月独立访客数）。这里不出现「本组织」，也不叫「公开 / 私有」——
+ * 那是后台「可见范围」那一层的用词，与「门户上要不要口令」正交，混用会把两件事说成一件事。</p>
  */
 const items = computed(() => {
   const s = props.stats
@@ -34,7 +35,7 @@ const items = computed(() => {
       key: 'public',
       icon: 'globe' as const,
       tone: 'green',
-      label: '公开',
+      label: '共享',
       value: s.kbPublic,
       hint: s.kbTotal > 0 ? `占比 ${publicPercent.value}%` : '',
       trend: false
@@ -43,9 +44,9 @@ const items = computed(() => {
       key: 'private',
       icon: 'lock' as const,
       tone: 'amber',
-      label: '私有',
+      label: '加密',
       value: s.kbPrivate,
-      hint: '需访问密码',
+      hint: '读者需输入访问密码',
       trend: false
     },
     {

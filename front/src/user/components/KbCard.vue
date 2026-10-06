@@ -32,15 +32,20 @@ const palette = computed(() => {
 
 const initial = computed(() => (props.kb.name || '?').trim().charAt(0).toUpperCase())
 /**
- * 徽标按「分享是否加密」两态：公开 = 分享未加密，私有 = 分享已加密（需口令）。
+ * 徽标按「分享是否加密」两态：共享 = 分享未加密，加密 = 分享已加密（需口令）。
  *
  * <p>门户只出已发布的库，所以这里读 {@code shareStatus} 而不是 {@code visibility} ——
- * 可见性读轴（公开 / 本组织 / 私有）决定的是「谁能读」，与「门户上要不要输口令」不是一回事。</p>
+ * 可见范围（所有登录用户 / 本组织成员 / 仅维护名单）决定的是「平台内谁能读」，
+ * 与「陌生人进来要不要输口令」不是一回事。</p>
+ *
+ * <p><b>文案刻意不叫「公开 / 私有」</b>：后台那边的「私有」是权限概念，这里若也叫私有，
+ * 两处同名会被当成同一件事，而它们其实正交。「共享 / 加密」既短又直接对应
+ * 「这条分享链有没有设访问密码」。</p>
  */
 const shareStatus = computed(() => (props.kb.shareStatus === 'private' ? 'private' : 'public'))
 const badgeClass = computed(() => `is-${shareStatus.value}`)
 const shareIcon = computed(() => (shareStatus.value === 'private' ? 'lock' : 'globe'))
-const shareLabel = computed(() => (shareStatus.value === 'private' ? '私有' : '公开'))
+const shareLabel = computed(() => (shareStatus.value === 'private' ? '加密' : '共享'))
 const isMine = computed(() => !!session.user && session.user.id === props.kb.ownerId)
 const link = computed(() => portalKbUrl(props.kb.tenantSlug, props.kb.slug))
 /** 管理入口落在工作区：单 SPA 后组织段照样带上，缺组织信息时退回 /console 让落地页去解析 */
@@ -67,12 +72,26 @@ let copyTimer: number | undefined
 
 onBeforeUnmount(() => window.clearTimeout(copyTimer))
 
+/**
+ * 「复制链接」给的是<b>分享短链</b>（{@code /share/{token}}），不是卡片的跳转地址。
+ *
+ * <p>差在三处，而且都指向门户以外的读者：短链不把组织名和库名一起抖出去；
+ * 库改名后短链照样有效；以及最要紧的一条 —— 短链可以在「分享」面板里撤销，
+ * 而 {@code /kb/{org}/{slug}} 抄出去就再也收不回来了。</p>
+ *
+ * <p>token 理论上不会缺（门户只列已发布的库，必有整库分享），仍然留了降级：
+ * 缺 token 时给门户地址，好过复制出一段 {@code /share/undefined}。</p>
+ */
+const shareLink = computed(() => (props.kb.shareToken
+  ? appHref(`/share/${encodeURIComponent(props.kb.shareToken)}`)
+  : link.value))
+
 async function copyLink(event: MouseEvent) {
   const trigger = event.currentTarget as HTMLElement | null
   trigger?.blur()
   menuOpen.value = false
   try {
-    await navigator.clipboard.writeText(`${window.location.origin}${link.value}`)
+    await navigator.clipboard.writeText(`${window.location.origin}${shareLink.value}`)
     copied.value = true
     window.clearTimeout(copyTimer)
     copyTimer = window.setTimeout(() => (copied.value = false), 1600)
@@ -191,7 +210,7 @@ onBeforeUnmount(() => {
       <Teleport to="body">
         <div v-if="menuOpen" ref="menuRef" class="md-card__menu" role="menu">
           <button type="button" class="md-card__menu-item" role="menuitem" @click="copyLink">
-            <Icon name="link" :size="14" />复制链接
+            <Icon name="link" :size="14" />复制分享链接
           </button>
           <a v-if="isMine" class="md-card__menu-item" role="menuitem" :href="manageUrl">
             <Icon name="dashboard" :size="14" />管理此库

@@ -5,6 +5,7 @@ import cn.minims.minidocs.common.util.TimeUtil;
 import cn.minims.minidocs.common.web.AppPaths;
 import cn.minims.minidocs.kb.entity.KnowledgeBase;
 import cn.minims.minidocs.permission.KbAction;
+import cn.minims.minidocs.share.support.SharePublicationSupport;
 import cn.minims.minidocs.tenant.entity.Tenant;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
@@ -82,11 +83,11 @@ public final class KbDtos {
      * 秘密——看得到这个库的人本来就能看到自己的写权限结论。</p>
      */
     public record KbVO(Long id, Long ownerId, String ownerName, String name, String slug, String description,
-                       String visibility, String maintainScope, String coverUrl, String coverSrc, List<String> tags,
-                       Integer docCount, boolean favored, String shareStatus, String directoryPath,
-                       LocalDateTime createdAt, LocalDateTime updatedAt, String updatedText,
-                       String tenantSlug, String tenantName, List<String> myPermissions,
-                       String sourceType, GitBindingVO git) {
+                      String visibility, String maintainScope, String coverUrl, String coverSrc, List<String> tags,
+                      Integer docCount, boolean favored, String shareStatus, String shareToken, String directoryPath,
+                      LocalDateTime createdAt, LocalDateTime updatedAt, String updatedText,
+                      String tenantSlug, String tenantName, List<String> myPermissions,
+                      String sourceType, GitBindingVO git) {
 
         public static KbVO from(KnowledgeBase kb, boolean favored, String ownerName) {
             return from(kb, favored, ownerName, null);
@@ -110,7 +111,10 @@ public final class KbDtos {
                     : permissions.stream().map(Enum::name).toList();
             return new KbVO(kb.getId(), kb.getOwnerId(), ownerName, kb.getName(), kb.getSlug(), kb.getDescription(),
                     kb.getVisibility(), kb.getMaintainScope(), kb.getCoverUrl(), coverSrc, splitTags(kb.getTags()),
-                    kb.getDocCount() == null ? 0 : kb.getDocCount(), favored, null,
+                    kb.getDocCount() == null ? 0 : kb.getDocCount(), favored,
+                    // 默认「未发布」而不是 null：新建的库一定还没分享，让「没填」直接等于「未发布」，
+                    // 前端就不必为 null 单开一个分支（那处一旦漏判，界面上就成了没有状态）。
+                    SharePublicationSupport.PUBLISH_UNPUBLISHED, null,
                     kb.getStorageKey() == null ? null : "/vaults/" + kb.getStorageKey(),
                     kb.getCreatedAt(), kb.getUpdatedAt(), TimeUtil.display(kb.getUpdatedAt()),
                     tenantSlug, tenant == null ? null : tenant.getName(), granted,
@@ -119,15 +123,28 @@ public final class KbDtos {
         }
 
         /**
-         * 补上门户发布态（{@code public} 未加密 / {@code private} 已加密）。
+         * 补上发布态与分享短链。
          *
-         * <p>记录是不可变的，所以门户链路拿到 {@code from(...)} 之后再补这一格，而不是给
-         * {@code from} 再加一个只有门户用得上的参数。非门户链路（后台管理台）不填，保持缺省。</p>
+         * <p>发布态三档：{@code unpublished} 未发布 / {@code public} 已发布共享 / {@code private} 已发布加密。
+         * 记录是不可变的，所以两条链路都拿到 {@code from(...)} 之后再补，而不是给 {@code from} 加参数：
+         * 门户按批查到的分享填，控制台按 {@code publicationSupport} 填，两处口径必须一致，
+         * 否则「列表说已发布、详情说未发布」这类矛盾会出现在同一个页面上。</p>
+         *
+         * <p>它与 {@code visibility} 正交，不可互相推导：{@code visibility=private} 的库照样可以
+         * 已发布（外面对着链接），{@code visibility=public} 的库也可能一个分享都没建（门户上查无此库）。</p>
+         *
+         * <p><b>关于把 token 下发给前端</b>：分享短链是「对外分享」这个动作的产物，读者拿到的
+         * 本来就是它，所以这不新增任何暴露面——门户上任何人都能点进这个库，也就能拿到同一个链接。
+         * 加密库更是安全：{@code /share/{token} 仍然要先过口令校验才吐正文，token 单独拿到不算凭证。
+         * 反过来说，<b>不</b>下发它才是问题：用户只能去门户拼 {@code /kb/{org}/{slug}}，
+         * 那条地址把组织名与库名一起暴露出去，而且改个名就失效，还没有「撤销」这个动作可用。</p>
+         *
+         * @param shareToken 有效整库分享的 token；未发布时为 null
          */
-        public KbVO withShareStatus(String shareStatus) {
+        public KbVO withPublication(String shareStatus, String shareToken) {
             return new KbVO(id, ownerId, ownerName, name, slug, description, visibility, maintainScope, coverUrl,
-                    coverSrc, tags, docCount, favored, shareStatus, directoryPath, createdAt, updatedAt, updatedText,
-                    tenantSlug, tenantName, myPermissions, sourceType, git);
+                    coverSrc, tags, docCount, favored, shareStatus, shareToken, directoryPath, createdAt, updatedAt,
+                    updatedText, tenantSlug, tenantName, myPermissions, sourceType, git);
         }
     }
 

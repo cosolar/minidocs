@@ -40,8 +40,16 @@ export interface ReadView {
   /** 知识库最近更新时间文案，分享页左栏「共 N 篇 · 更新 …」用 */
   kbUpdatedText?: string
   kbTags: string[]
+  /**
+   * 平台内读权限（public/org/private）。仅供管理端判断，**不要用于读者可见的文案** ——
+   * 读者关心的是「要不要输密码」，那看 {@link shareStatus}。
+   */
   visibility?: string
   publicKb: boolean
+  /** 发布态（unpublished/public/private）：左栏胶囊据此显示「共享 / 加密」 */
+  shareStatus?: 'unpublished' | 'public' | 'private'
+  /** 资源前缀（/minidocs/kb/{org}/{slug}/asset/）：预览库内图片时拼地址用 */
+  assetPrefix?: string
   docCount: number
   tagCount: number
 

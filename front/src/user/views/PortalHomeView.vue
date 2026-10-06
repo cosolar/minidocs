@@ -23,15 +23,17 @@ const failed = ref(false)
 useBodyClasses(computed(() => (failed.value || (!loading.value && !home.value) ? ['md-page--error'] : [])))
 
 /**
- * 页签按「分享是否加密」两态各给一个。
+ * 页签按「陌生人怎么进来」两态各给一个。
  *
- * <p>分享等同于发布：门户只出已发布的库，公开 = 分享未加密、私有 = 分享已加密（需口令）。
- * 可见性读轴（公开 / 本组织 / 私有）不再决定门户列表，故页签里也没有「本组织」这一档。</p>
+ * <p>分享等同于发布：门户只出已发布的库，共享 = 分享未加密、加密 = 分享已加密（需口令）。
+ * 可见范围那一档（所有登录用户 / 本组织成员 / 仅维护名单）不决定门户列表，
+ * 所以这里既没有「本组织」，也不叫「公开 / 私有」——那两个词留给后台的权限语境，
+ * 免得读者把「门户上要口令」理解成「只有某类人能看」。</p>
  */
 const TABS = [
   { key: 'all', label: '全部', icon: 'grid' },
-  { key: 'public', label: '公开', icon: 'globe' },
-  { key: 'private', label: '私有', icon: 'lock' }
+  { key: 'public', label: '共享', icon: 'globe' },
+  { key: 'private', label: '加密', icon: 'lock' }
 ] as const
 
 type FilterKey = (typeof TABS)[number]['key']

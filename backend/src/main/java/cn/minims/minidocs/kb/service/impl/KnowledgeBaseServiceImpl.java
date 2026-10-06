@@ -11,6 +11,7 @@ import cn.minims.minidocs.common.util.SlugUtil;
 import cn.minims.minidocs.common.util.StorageKey;
 import cn.minims.minidocs.common.util.TimeUtil;
 import cn.minims.minidocs.config.properties.MiniDocsProperties;
+import cn.minims.minidocs.git.GitCloneWorker;
 import cn.minims.minidocs.git.GitVaultService;
 import cn.minims.minidocs.git.GitVaultService.RepoStatus;
 import cn.minims.minidocs.git.GitVaultService.SyncOutcome;
@@ -86,6 +87,7 @@ public class KnowledgeBaseServiceImpl extends ServiceImpl<KnowledgeBaseMapper, K
     private final ApplicationEventPublisher eventPublisher;
     private final AuditService auditService;
     private final GitVaultService gitVaultService;
+    private final GitCloneWorker gitCloneWorker;
     private final SharePublicationSupport publicationSupport;
     private final ShareViewLogMapper viewLogMapper;
     private final MiniDocsProperties properties;
@@ -123,12 +125,18 @@ public class KnowledgeBaseServiceImpl extends ServiceImpl<KnowledgeBaseMapper, K
         Set<Long> favIds = favoriteIds(viewer);
         Map<Long, String> ownerNames = ownerNames(result.getRecords());
         Map<Long, Tenant> tenants = tenantFacts(result.getRecords());
+        // 发布态一并下发：控制台得能一眼看出「这个库在门户上是什么状态」。少了这一格，
+        // 建完库的人只能靠「门户上搜不到」倒推自己没发布 —— 而可见性设成 public 也不改变这件事。
+        Map<Long, Share> publishShares = publicationSupport.findOf(
+                result.getRecords().stream().map(KnowledgeBase::getId).toList());
         List<KbVO> list = result.getRecords().stream()
                 // 逐行走 permissionsOf 而不是自己拼判定：可见集是 SQL 条件，判定才是结论，
                 // 两处各写一遍迟早会出现「列表能看到、点进去 404」。分页对象本身已带全列，
                 // 所以这里没有额外取数，只有每行若干次主键级判定查询。
-                .map(kb -> KbVO.from(kb, favIds.contains(kb.getId()), ownerNames.get(kb.getOwnerId()),
-                        tenants.get(kb.getTenantId()), accessService.permissionsOf(kb, viewer)))
+                .map(kb -> withPublication(KbVO.from(kb, favIds.contains(kb.getId()),
+                                ownerNames.get(kb.getOwnerId()), tenants.get(kb.getTenantId()),
+                                accessService.permissionsOf(kb, viewer)),
+                        publishShares.get(kb.getId())))
                 .collect(Collectors.toList());
         return PageResult.of(list, result.getTotal(), result.getCurrent(), result.getSize());
     }
@@ -158,8 +166,8 @@ public class KnowledgeBaseServiceImpl extends ServiceImpl<KnowledgeBaseMapper, K
         Map<Long, Share> shares = publicationSupport.findOf(
                 result.getRecords().stream().map(KnowledgeBase::getId).toList());
         List<KbVO> list = result.getRecords().stream()
-                .map(kb -> KbVO.from(kb, false, ownerNames.get(kb.getOwnerId()), tenants.get(kb.getTenantId()))
-                        .withShareStatus(SharePublicationSupport.accessOf(shares.get(kb.getId()))))
+                .map(kb -> withPublication(KbVO.from(kb, false, ownerNames.get(kb.getOwnerId()),
+                        tenants.get(kb.getTenantId())), shares.get(kb.getId())))
                 .collect(Collectors.toList());
         return PageResult.of(list, result.getTotal(), result.getCurrent(), result.getSize());
     }
@@ -174,7 +182,7 @@ public class KnowledgeBaseServiceImpl extends ServiceImpl<KnowledgeBaseMapper, K
         Map<Long, Share> shares = publicationSupport.findOf(list.stream().map(KnowledgeBase::getId).toList());
         long kbPublic = list.stream()
                 .filter(kb -> SharePublicationSupport.ACCESS_PUBLIC.equals(
-                        SharePublicationSupport.accessOf(shares.get(kb.getId()))))
+                        SharePublicationSupport.publishStatusOf(shares.get(kb.getId()))))
                 .count();
         long docTotal = list.stream().mapToLong(kb -> kb.getDocCount() == null ? 0 : kb.getDocCount()).sum();
         // 访问量取发布分享的 views 累计：分享页与门户阅读都走 recordView，两条链路自然合并到这里
@@ -218,8 +226,9 @@ public class KnowledgeBaseServiceImpl extends ServiceImpl<KnowledgeBaseMapper, K
         KnowledgeBase kb = accessService.requireKb(id, KbAction.KB_VIEW, viewer);
         // 详情给的是磁盘实况而不是缓存计数：先校准内存对象，再让 from 统一出参
         kb.setDocCount((int) countDocsSafely(kb));
-        return KbVO.from(kb, isFavorited(viewer, id), ownerName(kb.getOwnerId()), tenantOf(kb),
-                accessService.permissionsOf(kb, viewer));
+        // 与列表同一口径：详情页的「发布状态」和列表那一列必须一致，否则两处会各说各话
+        return withPublication(KbVO.from(kb, isFavorited(viewer, id), ownerName(kb.getOwnerId()), tenantOf(kb),
+                accessService.permissionsOf(kb, viewer)), publicationSupport.find(kb.getId()));
     }
 
     @Override
@@ -255,19 +264,57 @@ public class KnowledgeBaseServiceImpl extends ServiceImpl<KnowledgeBaseMapper, K
         }
         save(kb);
 
+        // 目录先建好：异步克隆要往里写，缺目录会直接失败
+        vaultFileService.ensureRoot(kb.getStorageKey());
+
         if (git) {
-            // 克隆失败就整体失败：留一个「说好是云端、点进去却什么都没有」的库比建库失败更糟。
-            // 半成品目录由 GitVaultService 自己清掉，这里不做二次清理。
-            gitVaultService.cloneRepository(kb.getGitUrl(), kb.getGitBranch(), kb.getGitUsername(),
-                    decryptToken(kb), vaultFileService.ensureRoot(kb.getStorageKey()));
-        } else {
-            vaultFileService.ensureRoot(kb.getStorageKey());
+            // 云端库不在这里拉代码。JGit 一次克隆几十秒到两分钟，放在 @Transactional 方法里意味着
+            // 这段时间数据库连接与行锁一直被占着、HTTP 请求也一直挂着——用户只能对着转圈等，
+            // 网络一抖就超时，刷新也救不回来（服务端那个请求还在跑）。
+            // 所以这里只把「已排队」落进状态字段，提交后再由 GitCloneWorker 去做，
+            // 前端按 git_last_sync_ok 是否为 null 决定要不要继续轮询。
+            markQueued(kb);
+            cloneWhenCommitted(kb.getId());
         }
-        log.info("创建知识库 id={} slug={} tenant={} owner={} source={}",
-                kb.getId(), slug, tenant.getId(), ownerId, sourceType);
+        log.info("创建知识库 id={} slug={} tenant={} owner={} source={} queued={}",
+                kb.getId(), slug, tenant.getId(), ownerId, sourceType, git);
         // 建库的人必定是自己的 OWNER，权限向量照算给前端，不要回一个空数组让人以为刚建的库没权限
         return KbVO.from(kb, false, ownerName(ownerId), tenant,
                 accessService.permissionsOf(kb, actor));
+    }
+
+    /**
+     * 事务提交后再触发后台克隆。
+     *
+     * <p>必须在提交之后：{@code GitCloneWorker} 靠 {@code kbId} 反查库记录，事务没提交时那条记录
+     * 对别的连接不可见，异步线程会查个空然后直接放弃。</p>
+     *
+     * <p>没有活动事务时（单元测试或将来的非事务调用）就地触发，语义不变。</p>
+     */
+    private void cloneWhenCommitted(Long kbId) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            gitCloneWorker.cloneAsync(kbId);
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                gitCloneWorker.cloneAsync(kbId);
+            }
+        });
+    }
+
+    /**
+     * 把「已排队、正在拉取」写进状态列。
+     *
+     * <p>{@code git_last_sync_ok} 留空表示「进行中」——这个字段本来是 {@code Boolean}，而项目里
+     * 此前从未写过它，正好拿来承载这个语义。终态由 {@code GitCloneWorker} 落。</p>
+     */
+    private void markQueued(KnowledgeBase kb) {
+        update(Wrappers.<KnowledgeBase>lambdaUpdate()
+                .eq(KnowledgeBase::getId, kb.getId())
+                .set(KnowledgeBase::getGitLastSyncStatus, "正在拉取仓库…")
+                .set(KnowledgeBase::getGitLastSyncOk, null));
     }
 
     @Override
@@ -345,7 +392,19 @@ public class KnowledgeBaseServiceImpl extends ServiceImpl<KnowledgeBaseMapper, K
         }
     }
 
-    /** 把工作副本的改动提交并推送到远程。 */
+    /**
+     * 把一条分享解析成「发布态 + 短链 token」填进 VO。
+     *
+     * <p>门户列表与控制台列表/详情都要走这里，避免两处各写一遍「状态怎么判、token 怎么取」，
+     * 而那正是最容易出现「列表说已发布、详情说未发布」的地方。</p>
+     */
+    private static KbVO withPublication(KbVO vo, Share share) {
+        return vo.withPublication(SharePublicationSupport.publishStatusOf(share),
+                share == null ? null : share.getToken());
+    }
+
+    /**
+     * 把工作副本的改动提交并推送到远程。 */
     @Override
     public GitSyncVO gitCommitPush(Long id, GitSyncRequest request, LoginUser actor) {
         KnowledgeBase kb = requireGitKb(id, KbAction.DOC_WRITE, actor);

@@ -28,10 +28,25 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class SharePublicationSupport {
 
-    /** 发布态：分享未加密，门户上无需口令即可阅读。 */
+    /**
+     * 发布态：分享未加密，门户上无需口令即可阅读。
+     *
+     * <p>与 {@code knowledge_base.visibility} 里的 {@code public} 是两回事：那个是平台内的读权限
+     * （所有登录用户可读），这个是对外发布后的访问方式（陌生人要不要口令）。两者正交，
+     * 名字撞车是历史遗留，所以控制台侧一律配「已发布 · 共享 / 已发布 · 加密」这样的完整文案，
+     * 门户侧简称「共享 / 加密」，都不单说「公开」。</p>
+     */
     public static final String ACCESS_PUBLIC = "public";
     /** 发布态：分享已加密，门户上需输入访问密码。 */
     public static final String ACCESS_PRIVATE = "private";
+    /**
+     * 发布态：未发布 —— 没有有效的整库分享，门户上不出现。
+     *
+     * <p>只可能出现在控制台链路：门户的查询（{@link #publishedExists}）天然只出已发布的库，
+     * 所以门户侧永远拿不到这一档。它存在的意义是让建库的人<b>看得见</b>「我这个库还没对外」，
+     * 而不是只能靠「门户上没搜到」倒推。</p>
+     */
+    public static final String PUBLISH_UNPUBLISHED = "unpublished";
 
     private final ShareMapper shareMapper;
 
@@ -82,10 +97,16 @@ public class SharePublicationSupport {
         return byKb;
     }
 
-    /** 发布态的判定：未加密 = 公开，加密 = 私有。 */
-    public static String accessOf(Share share) {
+    /**
+     * 发布态的三档判定：未发布 / 已发布共享 / 已发布加密。
+     *
+     * <p>「是否公开」与「要不要口令」在当前模型里是同一件事（{@code password_hash} 空否），
+     * 所以门户侧只需要两档；控制台侧多出 {@link #PUBLISH_UNPUBLISHED} 一档，用于回答
+     * 「我这个库到底发布了没有」。将来若要让免密与口令解耦，这里就是拆分点。</p>
+     */
+    public static String publishStatusOf(Share share) {
         if (share == null) {
-            return null;
+            return PUBLISH_UNPUBLISHED;
         }
         return share.encrypted() ? ACCESS_PRIVATE : ACCESS_PUBLIC;
     }

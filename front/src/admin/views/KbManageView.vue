@@ -14,6 +14,9 @@ import { useIsMobile } from '@/admin/composables/useIsMobile'
 import {
   maintainScopeHint,
   maintainScopeLabel,
+  publishStatusChipClass,
+  publishStatusHint,
+  publishStatusLabel,
   visibilityChipClass,
   visibilityHint,
   visibilityLabel
@@ -242,10 +245,12 @@ async function submitForm() {
     }
     ElMessage.success(
       isCreate && form.sourceType === 'git'
-        ? '云端知识库已创建，仓库已克隆到服务器'
+        ? '云端知识库已创建，正在后台拉取仓库，可在工作区查看进度'
         : isCreate && form.maintainScope === 'members'
           ? '知识库已创建。维护名单还是空的，记得在「权限」里添加可写的人。'
-          : isCreate ? '知识库已创建' : '已保存'
+          : isCreate
+            ? '知识库已创建，尚未发布到门户 —— 需要对外分享请点这一行的「分享」'
+            : '已保存'
     )
     formVisible.value = false
     await load()
@@ -476,10 +481,10 @@ watch(org, () => {
   <div class="md-card-panel">
     <div class="md-panel-head">
       <el-input v-model="query.keyword" placeholder="搜索名称 / 描述 / 标签" clearable style="width: 240px" />
-      <el-select v-model="query.visibility" placeholder="全部可见性" clearable style="width: 140px" @change="load">
-        <el-option label="公开" value="public" />
-        <el-option label="本组织" value="org" />
-        <el-option label="私有" value="private" />
+      <el-select v-model="query.visibility" placeholder="全部可见范围" clearable style="width: 160px" @change="load">
+        <el-option label="所有登录用户" value="public" />
+        <el-option label="本组织成员" value="org" />
+        <el-option label="仅维护名单" value="private" />
       </el-select>
       <el-select v-model="query.sort" style="width: 140px" @change="load">
         <el-option label="最近更新" value="updated" />
@@ -539,7 +544,7 @@ watch(org, () => {
             </div>
           </template>
         </el-table-column>
-        <el-table-column label="可见性" width="88">
+        <el-table-column label="可见范围" width="104">
           <template #default="{ row }">
             <span
               class="md-ad-chip"
@@ -547,6 +552,22 @@ watch(org, () => {
               :title="visibilityHint(row.visibility)"
             >
               {{ visibilityLabel(row.visibility) }}
+            </span>
+          </template>
+        </el-table-column>
+        <!--
+          发布状态独立成列，不与「可见范围」合并成一列「公开/私有」：
+          前者答的是「平台内谁能读」，后者答的是「门户上出去了没有、要不要口令」，
+          两者正交（私有库可以已发布，公开库也可以没发布）。合成一列就回到老问题上去了。
+        -->
+        <el-table-column label="发布状态" width="116">
+          <template #default="{ row }">
+            <span
+              class="md-ad-chip"
+              :class="publishStatusChipClass(row.shareStatus)"
+              :title="publishStatusHint(row.shareStatus)"
+            >
+              {{ publishStatusLabel(row.shareStatus) }}
             </span>
           </template>
         </el-table-column>
@@ -591,7 +612,7 @@ watch(org, () => {
               <span class="md-kb-card__name" :title="kb.name">{{ kb.name }}</span>
               <MdIcon v-if="kb.favored" name="star" :size="13" class="md-kb-card__fav" title="已收藏" />
             </div>
-            <!-- 来源、可见性、标签同属「这库是什么」的元信息，合成一行小章；标题行只留名字 -->
+            <!-- 来源、可见范围、发布状态、标签同属「这库是什么」的元信息，合成一行小章；标题行只留名字 -->
             <div class="md-kb-card__chips">
               <span
                 v-if="kb.sourceType === 'git'"
@@ -601,6 +622,11 @@ watch(org, () => {
               <span class="md-ad-chip" :class="visibilityChipClass(kb.visibility)" :title="visibilityHint(kb.visibility)">
                 {{ visibilityLabel(kb.visibility) }}
               </span>
+              <span
+                class="md-ad-chip"
+                :class="publishStatusChipClass(kb.shareStatus)"
+                :title="publishStatusHint(kb.shareStatus)"
+              >{{ publishStatusLabel(kb.shareStatus) }}</span>
               <span v-for="tag in kb.tags" :key="tag" class="md-ad-chip md-ad-chip--tag">{{ tag }}</span>
             </div>
             <p class="md-kb-card__desc">{{ kb.description || '暂无描述' }}</p>
@@ -672,7 +698,7 @@ watch(org, () => {
             </el-radio-group>
             <div class="md-form-hint">
               {{ form.sourceType === 'git'
-                ? '克隆线上仓库到服务器作为工作副本；在工作区里可以「拉取」远程更新、「提交并推送」本地改动。'
+                ? '把线上仓库克隆到服务器作为工作副本（后台进行，创建后立刻返回）；在工作区里可以「拉取」远程更新、「提交并推送」本地改动。'
                 : '只在服务器上建一个空目录，内容全部由本平台管理。' }}
             </div>
           </el-form-item>
@@ -699,7 +725,7 @@ watch(org, () => {
               :closable="false"
               show-icon
               style="margin-bottom: 4px"
-              title="创建时会立即克隆仓库；克隆失败则本次创建不生效，不会留下一个空壳的云端库。"
+              title="创建后立即返回，代码在后台拉取；地址或分支填错时库仍会建好，失败原因显示在工作区顶部，点「拉取」可重试。"
             />
           </template>
         </section>
@@ -715,13 +741,13 @@ watch(org, () => {
         </section>
 
         <section class="md-kb-group">
-          <h4 class="md-kb-group__title">可见性与维护</h4>
+          <h4 class="md-kb-group__title">可见范围与维护权限</h4>
           <div class="md-kb-cols">
-            <el-form-item label="可见性（谁能读）">
+            <el-form-item label="可见范围（平台内谁能读）">
               <el-radio-group v-model="form.visibility">
-                <el-radio-button value="org">本组织</el-radio-button>
-                <el-radio-button value="private">私有</el-radio-button>
-                <el-radio-button value="public">公开</el-radio-button>
+                <el-radio-button value="org">本组织成员</el-radio-button>
+                <el-radio-button value="private">仅维护名单</el-radio-button>
+                <el-radio-button value="public">所有登录用户</el-radio-button>
               </el-radio-group>
               <div class="md-form-hint">{{ visibilityHint(form.visibility) }}</div>
             </el-form-item>
@@ -739,6 +765,16 @@ watch(org, () => {
               </div>
             </el-form-item>
           </div>
+          <!--
+            这一段是整组里最要紧的一句话：上面两个下拉都只在「平台内」生效，
+            而用户建完库最想要的「让外面的人看到」属于发布那一层。
+            少了它，「可见范围选了所有登录用户但门户上搜不到」就会被当成 bug。
+          -->
+          <p class="md-form-hint md-kb-group__note">
+            以上两项都只作用于<b>平台内</b>。要让这个库出现在门户上、让不登录的人也能访问，
+            还需要另外创建一份<b>整库分享链接</b>（卡片右侧「分享」）；链接是否设访问密码，
+            决定它在门户上显示为「共享」还是「加密」。这两层互相独立。
+          </p>
         </section>
 
         <section class="md-kb-group">
@@ -842,11 +878,11 @@ watch(org, () => {
     -->
     <el-dialog v-model="permVisible" :title="`权限 · ${permTarget?.name || ''}`" width="620px">
       <el-form label-position="top">
-        <el-form-item label="可见性（谁能读）">
+        <el-form-item label="可见范围（平台内谁能读）">
           <el-radio-group v-if="kbCan(permTarget, 'KB_SET_VISIBILITY')" v-model="perms.visibility">
-            <el-radio-button value="org">本组织</el-radio-button>
-            <el-radio-button value="private">私有</el-radio-button>
-            <el-radio-button value="public">公开</el-radio-button>
+            <el-radio-button value="org">本组织成员</el-radio-button>
+            <el-radio-button value="private">仅维护名单</el-radio-button>
+            <el-radio-button value="public">所有登录用户</el-radio-button>
           </el-radio-group>
           <span v-else class="md-ad-sub">{{ visibilityLabel(perms.visibility) }} · 只有创建者与组织管理员能改</span>
           <div class="md-form-hint">{{ visibilityHint(perms.visibility) }}</div>
