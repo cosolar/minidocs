@@ -253,20 +253,50 @@ public class MarkdownService {
         for (Element img : body.select("img[src]")) {
             String src = img.attr("src").trim();
             if (src.isEmpty()) {
-                img.remove();
+                img.replaceWith(placeholder("图片地址为空"));
                 continue;
             }
-            if (isAbsolute(src) || src.startsWith("//") || src.startsWith("data:")) {
+            if (src.startsWith("data:") || src.startsWith("//") || isExternal(src)) {
                 continue;
             }
-            String resolved = resolveRelative(docPath, stripAnchor(src));
+            /*
+             * 坑一：`/images/a.png` 这种以 / 开头的**库内绝对路径**。
+             * 它长得像站内路径，但站点根不是库根 —— 原样放行会让浏览器去请求
+             * `https://站点/images/a.png`，撞上 SPA 回退、拿回一段 HTML，图片永远裂着。
+             * Obsidian / 某些导出工具偏偏就爱写这种绝对形式，所以按库内路径处理它。
+             * 真正的站外图片（http(s)://）在上面已经 return 了，不会走到这里。
+             */
+            String candidate = src.startsWith("/") ? src.substring(1) : src;
+            String resolved = resolveRelative(docPath, stripAnchor(candidate));
             if (resolved == null) {
-                img.remove();
+                // 坑二：越出库根（`../../x.png`）或路径非法。
+                // 原来直接 img.remove()，图片凭空消失、页面上什么都不剩，
+                // 读者完全无从判断是「作者没放图」还是「平台不给看」。
+                // 改为留下占位：alt 文本照旧显示，缺失原因也写在 title 里。
+                img.replaceWith(placeholder("图片在库根之外，无法显示", img.attr("alt")));
                 continue;
             }
             img.attr("src", ASSET_TOKEN + encodePath(resolved));
             img.attr("loading", "lazy");
         }
+    }
+
+    /**
+     * 图片不可用时的占位元素。
+     *
+     * <p>用文字块而不是 {@code <img src="">}：后者会让浏览器再次发起一次无意义请求，
+     * 而空 src 在部分浏览器上还会回退到当前页面 URL。</p>
+     */
+    private static Element placeholder(String reason) {
+        return placeholder(reason, "");
+    }
+
+    private static Element placeholder(String reason, String alt) {
+        Element el = new Element("span");
+        el.addClass("md-img-missing");
+        el.attr("title", reason);
+        el.text(alt == null || alt.isBlank() ? "图片无法显示" : alt);
+        return el;
     }
 
     private void rewriteLinks(Element body, String docPath, Variant variant) {

@@ -897,6 +897,8 @@ body.is-col-resizing .md-ws__bytemd-resizer::after { background: var(--md-primar
   flex: 1; min-width: 0; padding: 5px 2px; font-size: 13px; cursor: pointer;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--md-text-2);
 }
+/* 图片节点：图标已经能区分，再把名字压暗一档，双重保险（很多人不看图标只扫字） */
+.md-ad-tree__name.is-asset { color: var(--md-text-3); }
 .md-ad-tree__more {
   display: inline-grid; place-items: center; width: 22px; height: 22px; margin-right: 2px;
   border: 0; border-radius: 6px; background: none; color: var(--md-text-3); cursor: pointer;
@@ -1178,6 +1180,20 @@ body.is-col-resizing .md-ws__bytemd-resizer::after { background: var(--md-primar
 .md-kb-dialog .el-form-item { margin-bottom: 12px; }
 .md-kb-dialog .el-form-item__label { padding-bottom: 5px; line-height: 1.4; }
 .md-kb-dialog .md-form-hint { margin-top: 5px; }
+/*
+ * 建库弹窗里那段「可见范围只作用于平台内，对外要另建分享链接」的说明。
+ * 它是整组里最容易被扫过去、也最容易被误解的一行（用户会以为选了「所有登录用户」
+ * 就等于公开出去了），所以给它底色和左侧标线，让它看起来就该被读到。
+ */
+.md-kb-group__note {
+  margin: 8px 0 0;
+  padding: 9px 12px;
+  border-radius: 8px;
+  border-left: 2px solid var(--md-primary);
+  background: var(--md-primary-soft);
+  color: var(--md-text-2);
+}
+.md-kb-group__note b { color: var(--md-text-1); font-weight: 600; }
 .md-kb-cover {
   display: block; margin-top: 10px;
   max-width: 200px; max-height: 110px; object-fit: cover;

@@ -374,7 +374,8 @@ button { font-family: inherit; }
   margin-left: 14px; padding-left: 9px;
   border-left: 1px solid var(--md-border);
 }
-.md-tree__item.is-collapsed > .md-tree { display: none; }
+/* 子树的显隐由 DocTree.vue 的 v-if 控制（收起时不渲染，胜过 display:none 的假折叠）；
+   is-collapsed 在这里只负责把箭头转成收起方向。 */
 .md-tree__item.is-hidden { display: none; }
 .md-tree__row { display: flex; align-items: center; }
 
@@ -394,6 +395,23 @@ button { font-family: inherit; }
 .md-tree__name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .md-tree__chevron { color: var(--md-text-3); transition: transform 0.18s ease, color 0.15s; }
 .md-tree__item.is-collapsed > .md-tree__row .md-tree__chevron { transform: rotate(-90deg); }
+/* 图片节点：用 button 承载（不能跳路由），把浏览器默认的按钮态抹平 */
+.md-tree__link--asset {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  text-align: left;
+  font: inherit;
+  color: var(--md-text-3);
+  cursor: pointer;
+}
+.md-tree__link--asset:hover { color: var(--md-text-1); }
 .md-tree__label:hover .md-tree__chevron { color: var(--md-text-2); }
 .md-tree__count {
   margin-left: auto; flex-shrink: 0; font-style: normal;

@@ -78,6 +78,9 @@ cd front && npm run dev    # http://localhost:5173，接口自动代理到 :9098
 
 ## 部署
 
+下面是速查，完整步骤（数据库初始化、Nginx 全量配置、systemd、备份与升级、故障排查）见
+[部署指南](docs/DEPLOYMENT.md)。
+
 ### 前后端分离（推荐）
 
 前端产物交给任意静态服务器，后端只提供接口。
@@ -105,7 +108,9 @@ location / { try_files $uri $uri/ /index.html; }     # SPA 深链接（/share/xx
 location /minidocs/ { proxy_pass http://127.0.0.1:9098; }
 ```
 
-- `--minidocs.page-base-url` 是分享链接的基址，**分离部署必配**，否则复制出去的链接会带上接口前缀而打不开
+- 站点基址（分享链接的地址前缀）**推荐在「站点设置」页里配**（`/console/platform/site`，改完立即生效，不必重启后端）。
+  `--minidocs.page-base-url` 只是部署期兜底，用于「还没人登录后台」或「配置由平台注入不便入库」的场景
+- 分离部署若基址没配对，复制出去的链接会带上接口前缀而打不开
 - 置于反向代理之后时建议开启 `server.forward-headers-strategy=framework`，让后端正确识别 `X-Forwarded-*`
 
 ### 单体部署（只分发一个 jar）
@@ -148,7 +153,7 @@ java -jar target/minidocs.jar \
 
 ```
 minidocs/
-├── backend/                Spring Boot 3 · MyBatis-Plus · Sa-Token · flexmark
+├── backend/                Spring Boot 3 · MyBatis-Plus · Druid · Sa-Token · flexmark
 │   └── src/main/java/cn/minims/minidocs
 │       ├── reader/         渲染与阅读视图（门户 / 分享共用一条管线）
 │       ├── kb/ · doc/      知识库与文档
@@ -185,7 +190,7 @@ cd front  && npm run build    # 产出 front/dist
 | --- | --- | --- |
 | `PORT` | `9098` | HTTP 端口 |
 | `CONTEXT_PATH` | `/minidocs` | 后端 context-path，即**接口**前缀（页面不带这一层） |
-| `PAGE_BASE_URL` | 空 | 站点基址，分享链接的唯一来源；留空按当前请求推导。分离部署必填 |
+| `PAGE_BASE_URL` | 空 | 站点基址的**部署期兜底**。优先在「站点设置」页配（改完即生效）；本项只在页面上没配时用 |
 | `VAULT_HOME` | `./data` | 数据根目录（SQLite、文档、日志），**建议生产写绝对路径** |
 | `SPRING_PROFILES_ACTIVE` | `dev` | `dev`=SQLite，`prod`=MySQL |
 | `DB_HOST` / `DB_USER` / `DB_PASSWORD` / `DB_URL` | — | MySQL 连接信息 |

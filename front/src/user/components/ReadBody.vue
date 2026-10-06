@@ -7,7 +7,7 @@ import OutlineTree from './OutlineTree.vue'
 import { enhanceMarkdown } from '@/shared/enhanceMarkdown'
 import { appHref, stripAppBase } from '@/shared/appBase'
 import { flattenOutline, useScrollSpy } from '@/user/composables/useScrollSpy'
-import { visibilityLabel } from '@/shared/visibility'
+import ImagePreview from '@/user/components/ImagePreview.vue'
 import type { DocNode, OutlineNode, ReadView } from '@/user/api/types'
 
 const props = defineProps<{
@@ -118,11 +118,35 @@ watch(() => props.view.outline, () => outlineOverrides.clear())
 const isShare = computed(() => props.view.mode === 'share')
 const searchPlaceholder = computed(() => (isShare.value ? '搜索文档…' : '搜索本文档…'))
 
-/** 可见性档位与对应图标：门户侧栏那颗胶囊用，与门户卡片的徽标同一套口径 */
-const visibility = computed(() => props.view.visibility || (props.view.publicKb ? 'public' : 'private'))
-const visibilityIcon = computed(() =>
-  visibility.value === 'public' ? 'globe' : visibility.value === 'org' ? 'building' : 'lock'
-)
+/**
+ * 左栏那颗胶囊答的是「进来要不要输密码」，所以读发布态（{@code shareStatus}），
+ * **不是** {@code visibility}。
+ *
+ * <p>此前这里读的是 visibility，于是门户页左下角写着「私有」，而同一页的列表卡片写着「公开」——
+ * 两个都用 globe/lock 图标、两个都叫「公开/私有」，说的却分别是平台内权限和发布后的口令。
+ * 读者不关心这个库归谁管，所以改成读发布态，与门户卡片、门户页签同一套口径。</p>
+ *
+ * <p>分享页整颗隐藏：能走到这一步说明口令已校验通过，再提示「加密」只会让人以为自己还欠一关。</p>
+ */
+const showAccessPill = computed(() => !isShare.value)
+const needsPassword = computed(() => props.view.shareStatus === 'private')
+const accessLabel = computed(() => (needsPassword.value ? '加密' : '共享'))
+const accessIcon = computed(() => (needsPassword.value ? 'lock' : 'globe'))
+
+/**
+ * 当前预览的库内图片；为 null 时正文区照常显示文章。
+ *
+ * <p>从目录树点图片进来、切走时置空。单篇分享（{@code singleDoc}）下没有目录树，
+ * 所以这个状态只可能出现在整库阅读页。</p>
+ */
+const previewAsset = ref<DocNode | null>(null)
+
+/** 换了文档就退出预览：否则上一篇的图片会盖在新一篇的正文上。 */
+watch(() => props.view.path, () => { previewAsset.value = null })
+
+function onTreeSelect(node: DocNode) {
+  previewAsset.value = node.type === 'image' ? node : null
+}
 
 /**
  * 两侧栏宽可拖拽调节（门户阅读页与分享页共用）：宽度存在根元素 CSS 变量上，样式表只在
@@ -256,8 +280,8 @@ function routerTo(link?: string) {
               <span class="md-aside__pill">
                 <Icon name="list" :size="12" />{{ view.tagCount }} 标签
               </span>
-              <span class="md-aside__pill" :class="`is-${visibility}`">
-                <Icon :name="visibilityIcon" :size="12" />{{ visibilityLabel(visibility) }}
+              <span v-if="showAccessPill" class="md-aside__pill" :class="needsPassword ? 'is-private' : 'is-public'">
+                <Icon :name="accessIcon" :size="12" />{{ accessLabel }}
               </span>
             </div>
           </div>
@@ -273,6 +297,7 @@ function routerTo(link?: string) {
             :current-path="view.currentPath"
             :link-prefix="view.docLinkPrefix || ''"
             :keyword="keyword"
+            @select="onTreeSelect"
           />
         </nav>
       </div>
@@ -319,7 +344,14 @@ function routerTo(link?: string) {
           留在正文顶部只会把读者第一眼要看的标题往下压。有效期改由分享页顶栏右侧承载，
           标题与摘要本来就写在正文里（后端只是把它们推导出来），交还给正文自己。
         -->
-        <div ref="markdownEl" class="md-markdown" v-html="view.html" @click="onContentClick" />
+        <ImagePreview
+          v-if="previewAsset"
+          :path="previewAsset.path"
+          :name="previewAsset.name"
+          :asset-prefix="view.assetPrefix || ''"
+          @close="previewAsset = null"
+        />
+        <div v-else ref="markdownEl" class="md-markdown" v-html="view.html" @click="onContentClick" />
 
         <nav v-if="view.prevPath || view.nextPath" class="md-doc__nav">
           <router-link v-if="view.prevPath" class="md-doc__nav-item" :to="routerTo(view.prevLink)">

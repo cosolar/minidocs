@@ -7,10 +7,6 @@
 [4. 后端开发](#4-后端开发) / [5. 前端开发](#5-前端开发)，动手前扫一遍
 [8. 提交前检查清单](#8-提交前检查清单)。
 
-产品能力与部署方式见 [README](../README.md)；权限与功能细则见
-[多租户知识库权限与功能规范.md](多租户知识库权限与功能规范.md)。
-
----
 
 ## 1. 环境与启动
 
@@ -22,10 +18,6 @@
 | Maven | 3.9+ | 需能拉取依赖；离线环境请先备好本地仓库 |
 | Node.js | 20+ | Vite 6 的下限是 18，但 20 起更稳 |
 
-> **Windows 用户的两个坑**
-> 1. 命令行默认是 PowerShell。若 `npm` / `java` 指向的是 `Invoke-WebRequest` 之类的别名（报
->    `缺少参数 SessionVariable` 之类），改用 `npm.cmd` / `curl.exe` 即可。
-> 2. 删除文件时若被 `node` / `java` 进程占用会失败，先停掉 dev server 与后端进程。
 
 ### 1.2 拉代码与装依赖
 
@@ -75,14 +67,16 @@ npm run dev
 | --- | --- | --- | --- |
 | 页面基址 `PAGE_BASE` | `''`（站点根） | `front/vite.config.ts` 的 `base` | 产物资源地址、vue-router base、页面内链 |
 | 后端前缀 `BACKEND_BASE` | `/minidocs` | 构建变量 `VITE_BACKEND_BASE` | `API_BASE` 与后端拼出来的地址（头像 / 封面 / 正文内库链接） |
-| 分享链接基址 | 空（按当前请求推导） | 后端 `minidocs.page-base-url` | 分享链接、复制链接 |
+| 分享链接基址 | 空（按当前请求推导） | 后端 `site_config.config.baseUrl` → `minidocs.page-base-url` | 分享链接、复制链接 |
 
 源码落点：前端 `front/src/shared/appBase.ts`（导出 `PAGE_BASE` / `BACKEND_BASE` / `API_BASE` /
-`appHref()` / `appBackendHref()` / `stripAppBase()`），后端唯一出口是
-`share/support/ShareLinks.java` 的 `baseUrl()`。
+`appHref()` / `appBackendHref()` / `stripAppBase()`），后端取值优先级集中在
+`site/support/SiteBaseUrlResolver.java`（站点设置页配置 > `PAGE_BASE_URL` > 按请求推导），
+拼装在 `share/support/ShareLinks.java`。
 
 要改后端前缀：`CONTEXT_PATH`（后端）+ `VITE_BACKEND_BASE`（前端构建）一起改；
-要改对外地址：后端 `--minidocs.page-base-url=https://your.host`，并让 Nginx 把 `/minidocs/` 反代过去。
+要改对外地址：在「站点设置」页（`/console/platform/site`）填「站点基址」，改完即生效；
+部署期兜底才用 `--minidocs.page-base-url=https://your.host`，并让 Nginx 把 `/minidocs/` 反代过去。
 
 ---
 
@@ -102,6 +96,7 @@ minidocs/
 │       ├── search/              内存倒排索引全文检索
 │       ├── portal/              门户数据、旧链接重定向、SPA 回退
 │       ├── auth/ · user/        登录态、账号资料
+│       ├── site/                站点品牌与站点基址（设置页可改，配置在 site_config）
 │       └── common/              ApiResponse、异常、路径守卫、Web 配置、安全响应头
 │   └── src/main/resources/
 │       ├── application.yml      端口、context-path、minidocs.* 阈值
@@ -195,7 +190,9 @@ ReaderService.build(kb, ReadRequest)
   独立访客按 `share_view_log` 的 `(share, 访客, 日期)` 唯一键按天去重。
 - 口令哈希存储；分享 Cookie 以 token 命名并 HMAC 签名，作用域为 `/`（取数接口在 `/api/share/{token}`、
   资源代理在 `/share/{token}/asset/**`，与页面路径并不同前缀）。
-- 对外绝对地址只有一个出口：`share/support/ShareLinks.baseUrl()`。
+- 对外绝对地址只有一个出口：`site/support/SiteBaseUrlResolver.resolve(request)`，
+  拼装在 `share/support/ShareLinks.java`。取值优先级：**站点设置页配的基址** > `PAGE_BASE_URL` > 按请求推导。
+  管理员改完站点设置立即生效（保存时清缓存），不必重启后端。
 
 ### 4.6 数据库迁移
 
@@ -392,7 +389,7 @@ CI 尚未接入（仓库暂无 `.github/workflows`），所以上面这两条命
 | IDE 报「无法解析自定义属性 `--md-xxx`」 | 这些变量是运行时由 JS 写进根元素的，静态分析看不见 | 忽略；或改用 `var(--md-xxx, 兜底)` |
 | 页面整片没样式（元素都是原生外观） | 样式由 `/@vite/client` 动态注入，dev server 重启后旧模块图会失效 | 停掉 dev server、删 `front/node_modules/.vite` 后重启，再硬刷新 |
 | 预览区渲染高亮 / 图表重复出现 | 增强函数不幂等（预览会反复跑后处理） | 用 `dataset` 标记或判「父节点已存在」去重 |
-| 分享链接复制出来带 `/minidocs` | 未配置站点基址 | 设 `--minidocs.page-base-url=https://your.host` |
+| 分享链接复制出来带 `/minidocs` | 站点基址未配对 | 在「站点设置」页填「站点基址」；或用部署兜底 `--minidocs.page-base-url=https://your.host` |
 | 页面 404、接口正常 | 静态服务器没配 SPA 回退 | `location / { try_files $uri $uri/ /index.html; }` |
 | 外部字体 / 资源被浏览器拦 | CSP 只放行 `'self'` | 在 `SecurityHeaderFilter.DEFAULT_CSP` 显式加域名 |
 | SQLite 报文件锁 | 另一个后端进程还开着同一个 `VAULT_HOME` | 停掉旧进程，或换 `VAULT_HOME` |

@@ -13,6 +13,7 @@ import { reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { authApi } from '@/admin/api'
+import { toApiErrorInfo } from '@/shared/api/http'
 import { appHref } from '@/shared/appBase'
 import MdIcon from '@/admin/components/MdIcon.vue'
 import { useAuthStore } from '@/admin/stores/auth'
@@ -57,8 +58,10 @@ async function submit() {
     } catch {
       ElMessage.success('注册完成，请登录')
     }
-  } catch {
-    /* 用户名占用 / 注册关闭等文案由拦截器提示 */
+  } catch (error) {
+    // register 带 silentError，全局 onError 不再兜底，所以「用户名已被占用」「自助注册已关闭」
+    // 这些文案必须在这里说出口 —— 否则用户点完注册什么反应都没有，只能反复试。
+    ElMessage.error(toApiErrorInfo(error).message)
   } finally {
     loading.value = false
   }

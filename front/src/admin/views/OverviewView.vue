@@ -58,13 +58,13 @@ function openPortal(slug: string) {
         <div class="md-stat-card__hint">本月新增 {{ stats?.kbTotalDelta ?? 0 }}</div>
       </div>
       <div class="md-stat-card">
-        <div class="md-stat-card__label">公开 / 本组织 / 私有</div>
+        <div class="md-stat-card__label">可见范围分布</div>
         <div class="md-stat-card__value">
           {{ stats?.kbPublic ?? 0 }} <span style="font-size: 16px; color: var(--md-text-3)">/</span>
           {{ stats?.kbOrg ?? 0 }} <span style="font-size: 16px; color: var(--md-text-3)">/</span>
           {{ stats?.kbPrivate ?? 0 }}
         </div>
-        <div class="md-stat-card__hint">可见性分布，与门户发布无关</div>
+        <div class="md-stat-card__hint">所有登录用户 / 本组织成员 / 仅维护名单，与门户发布无关</div>
       </div>
       <div class="md-stat-card">
         <div class="md-stat-card__label">文档总数</div>
@@ -72,9 +72,9 @@ function openPortal(slug: string) {
         <div class="md-stat-card__hint">本月新增 {{ stats?.docTotalDelta ?? 0 }}</div>
       </div>
       <div class="md-stat-card">
-        <div class="md-stat-card__label">公开库文档</div>
+        <div class="md-stat-card__label">对外开放库中的文档</div>
         <div class="md-stat-card__value">{{ stats?.publicDocTotal ?? 0 }}</div>
-        <div class="md-stat-card__hint">可见性为公开的库的文档数</div>
+        <div class="md-stat-card__hint">可见范围为「所有登录用户」的库，其文档总数</div>
       </div>
     </div>
 

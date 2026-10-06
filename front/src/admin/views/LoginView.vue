@@ -5,6 +5,7 @@ import { ElMessage } from 'element-plus'
 import MdIcon from '@/admin/components/MdIcon.vue'
 import { useAuthStore } from '@/admin/stores/auth'
 import { useSiteStore } from '@/shared/stores/site'
+import { toApiErrorInfo } from '@/shared/api/http'
 import { appHref } from '@/shared/appBase'
 
 /**
@@ -36,8 +37,10 @@ async function submit() {
     // 默认落在 /console：组织段不在地址栏里就没法进任何管理页，交给落地页去解析该进哪个组织
     const redirect = (route.query.redirect as string) || '/console'
     router.replace(redirect)
-  } catch {
-    /* 拦截器已提示 */
+  } catch (error) {
+    // 这条请求带 silentError，全局 onError 不弹 401，所以「用户名或密码错误」必须在这里说出口。
+    // 直接吞掉的话，用户点了登录什么反应都没有，只能反复检查自己有没有敲错。
+    ElMessage.error(toApiErrorInfo(error).message)
   } finally {
     loading.value = false
   }

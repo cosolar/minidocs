@@ -13,6 +13,7 @@ import cn.minims.minidocs.markdown.model.MarkdownModels.RenderContext;
 import cn.minims.minidocs.markdown.model.MarkdownModels.RenderResult;
 import cn.minims.minidocs.markdown.model.MarkdownModels.Variant;
 import cn.minims.minidocs.reader.model.ReadView;
+import cn.minims.minidocs.share.support.SharePublicationSupport;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -32,6 +33,13 @@ public class ReaderService {
 
     private final VaultFileService vaultFileService;
     private final MarkdownService markdownService;
+    /**
+     * 只为给阅读页左栏那颗胶囊提供「共享 / 加密」。
+     *
+     * <p>不用 {@code kb.getVisibility()} 代替：那答的是「平台内谁能读」，读者并不关心，
+     * 摆出来只会让人以为「私有库我却有入口」，反而制造困惑。</p>
+     */
+    private final SharePublicationSupport publicationSupport;
 
     /**
      * 阅读页渲染参数。
@@ -77,6 +85,8 @@ public class ReaderService {
         view.setKbTags(splitTags(kb.getTags()));
         view.setVisibility(kb.getVisibility());
         view.setPublicKb(kb.isPublic());
+        // 阅读页左栏那颗「共享 / 加密」胶囊的数据源。与 visibility 正交，别混用。
+        view.setShareStatus(SharePublicationSupport.publishStatusOf(publicationSupport.find(kb.getId())));
         view.setDocCount(docPaths.size());
         view.setTagCount(splitTags(kb.getTags()).size());
         view.setShowTree(request.includeTree());

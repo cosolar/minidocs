@@ -38,8 +38,22 @@ public class ReadView {
     /** 知识库最近更新时间（展示用文案），分享页左栏「共 N 篇 · 更新 …」用。 */
     private String kbUpdatedText;
     private List<String> kbTags = new ArrayList<>();
+    /**
+     * 平台内的读权限档位（public/org/private）。
+     *
+     * <p><b>不要拿它给读者做「公开 / 私有」文案</b>：读者不关心这个库在平台内归谁管，
+     * 那是后台的治理信息。读者唯一关心的是「我进来要不要输密码」，那看 {@link #shareStatus}。
+     * 留着这个字段是因为它仍参与部分入口的判定与调试可见性，但展示层请走 {@code shareStatus}。</p>
+     */
     private String visibility = "private";
     private boolean publicKb;
+    /**
+     * 发布态（unpublished / public / private）：这个库在门户上是共享（未设口令）还是加密（需口令）。
+     *
+     * <p>与 {@link #visibility} 正交：private 库也可以已发布（外面对着链接），
+     * public 库也可能一个分享都没建。阅读页左栏那颗胶囊读的是它。</p>
+     */
+    private String shareStatus = "unpublished";
     private int docCount;
     private int tagCount;
 
