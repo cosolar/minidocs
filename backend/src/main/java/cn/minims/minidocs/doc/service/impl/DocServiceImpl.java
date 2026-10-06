@@ -83,6 +83,13 @@ public class DocServiceImpl implements DocService {
         KnowledgeBase kb = accessService.requireKb(kbId, KbAction.DOC_READ, user);
         Path root = vaultFileService.rootOf(kb.getStorageKey());
         String normalized = PathGuard.normalizeRelative(path);
+        // 按路径直达的入口也要过隐藏规则：这条路径不经过目录树，
+        // 所以「左栏看不见、?path= 或旧分享链接却打得开」是最容易漏的一处。
+        // 报 404 而不是 403：隐藏项与「不存在」在界面上无法区分，
+        // 而且报 403 等于承认「这里有个东西，只是不让你看」。
+        if (vaultFileService.isHiddenPath(root, normalized)) {
+            throw BizException.notFound("文档不存在");
+        }
         Path file = vaultFileService.resolve(root, normalized);
         String content = vaultFileService.read(root, normalized);
         return new DocContentVO(normalized, PathGuard.fileNameOf(normalized),

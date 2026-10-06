@@ -10,7 +10,6 @@ import cn.minims.minidocs.common.util.PathEncoder;
 import cn.minims.minidocs.common.util.TimeUtil;
 import cn.minims.minidocs.common.web.AccessLogFilter;
 import cn.minims.minidocs.common.web.AppPaths;
-import cn.minims.minidocs.config.properties.MiniDocsProperties;
 import cn.minims.minidocs.doc.dto.DocDtos.DocNode;
 import cn.minims.minidocs.doc.service.VaultFileService;
 import cn.minims.minidocs.kb.entity.KnowledgeBase;
@@ -23,8 +22,8 @@ import cn.minims.minidocs.reader.service.ReaderService;
 import cn.minims.minidocs.share.entity.Share;
 import cn.minims.minidocs.share.service.ShareService;
 import cn.minims.minidocs.share.support.ShareAccessSupport;
-import cn.minims.minidocs.share.support.ShareLinks;
 import cn.minims.minidocs.share.support.ShareTokenUtil;
+import cn.minims.minidocs.site.support.SiteBaseUrlResolver;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
@@ -70,7 +69,7 @@ public class ShareApiController {
     private static final Duration PASSWORD_WINDOW = Duration.ofSeconds(60);
 
     private final ShareService shareService;
-    private final MiniDocsProperties properties;
+    private final SiteBaseUrlResolver siteBaseUrlResolver;
     private final KnowledgeBaseService knowledgeBaseService;
     private final VaultFileService vaultFileService;
     private final AssetService assetService;
@@ -100,6 +99,12 @@ public class ShareApiController {
             if (share.getDocPath() == null || !vaultFileService.exists(root, share.getDocPath())) {
                 throw BizException.notFound("内容已删除");
             }
+            // 单篇分享不走目录树（整库分享那份走 ReaderService 的已过滤文档列表），
+            // 所以作者把文档隐藏之后，这条早先发出的链接仍能打开 —— 隐藏等于没生效。
+            // 这里与「已删除」同一种说法：读者无从分辨，也少一条存在性侧信道。
+            if (vaultFileService.isHiddenPath(root, share.getDocPath())) {
+                throw BizException.notFound("内容已删除");
+            }
         }
 
         /*
@@ -120,8 +125,8 @@ public class ShareApiController {
             throw BizException.notFound("内容已删除");
         }
         view.setMenu(resolveMenu(share, view));
-        // 顶栏「分享」按钮复制的绝对地址与后台管理台那条 URL 同源，都出自 ShareLinks
-        view.setSiteBase(ShareLinks.baseUrl(request, properties));
+        // 顶栏「分享」按钮复制的绝对地址与后台管理台那条 URL 同源，都出自 SiteBaseUrlResolver
+        view.setSiteBase(siteBaseUrlResolver.resolve(request));
 
         return ApiResponse.ok(ShareReadVO.ok(view));
     }

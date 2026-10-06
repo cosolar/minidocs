@@ -19,8 +19,10 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.DirectoryStream;
+import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.PathMatcher;
 import java.text.Collator;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
@@ -49,16 +51,44 @@ public class VaultFileService {
     private static final Collator ZH_COLLATOR = Collator.getInstance(Locale.CHINA);
 
     /**
-     * 自定义顺序清单，只在知识库根目录放一份：{@code { 目录相对路径 → 子项名有序数组 }}，根目录用空串。
+     * 库级配置，只在知识库根目录放一份。
+     *
+     * <p>两种格式并存，读的时候自动判别：</p>
+     * <pre>
+     * 新格式（推荐，显式分区）：
+     *   {"order": {"": ["docs", "README.md"], "docs": ["a.md"]}, "hidden": ["drafts", "**&#47;_*"]}
+     * 旧格式（历史包袱）：{"": ["docs"], "docs": ["a.md"]}  —— 顶层每个数组键都当顺序
+     * </pre>
+     *
+     * <p>之所以保留旧格式：{@code order} 这个能力早于隐藏规则就已经能用了，直接改成新格式会让
+     * 所有已写好的排序配置一夜失效（读到的全是 {@code {"order": …}} 之外的键，顺序全丢）。</p>
      *
      * <p>放在库内（而非数据库）是为了随云库的 Git 一起同步；以 {@code .} 开头，扫描时被
      * {@link #isIgnored} 跳过，不会混进目录树。</p>
      */
     private static final String ORDER_FILE = ".minidocs.json";
 
+    /** 保留键：顺序分区。仅当值是对象时才是新格式，否则按旧格式的「目录路径 → 数组」处理。 */
+    private static final String CONFIG_KEY_ORDER = "order";
+    /** 保留键：隐藏规则数组。 */
+    private static final String CONFIG_KEY_HIDDEN = "hidden";
+
     private static final ObjectMapper JSON = new ObjectMapper();
-    private static final TypeReference<Map<String, List<String>>> ORDER_MAP = new TypeReference<>() {
+    private static final TypeReference<Map<String, Object>> CONFIG_MAP = new TypeReference<>() {
     };
+
+    /**
+     * 库级配置。
+     *
+     * @param order  目录相对路径 → 该目录下的子项有序数组；根目录用空串
+     * @param hidden 隐藏规则；精确路径或 glob，命中即不进入目录树、搜索与计数
+     */
+    private record KbConfig(Map<String, List<String>> order, List<String> hidden) {
+
+        static KbConfig empty() {
+            return new KbConfig(new LinkedHashMap<>(), new ArrayList<>());
+        }
+    }
 
     private final MiniDocsProperties properties;
 
@@ -316,25 +346,83 @@ public class VaultFileService {
 
     /** 目录树（目录在前，按 zh-CN 排序；仅 Markdown 与空目录）。 */
     public List<DocNode> tree(Path root) {
-        String key = root.toString();
+        KbConfig config = readConfig(root);
+        // 缓存键带上配置文件的 mtime：作者改完 .minidocs.json（比如新加一条隐藏规则）后，
+        // 不该还要等他把另外 19 个库轮一遍才生效。文件不存在时是 0，配置一落地键就变。
+        String key = root + "@" + configStamp(root);
         List<DocNode> cached = treeCache.getIfPresent(key);
         if (cached != null) {
             return cached;
         }
-        List<DocNode> tree = scan(root, "", 0, readOrder(root));
+        List<DocNode> tree = scan(root, "", 0, config);
         treeCache.put(key, tree);
         return tree;
     }
 
-    /** 文档总数（含子目录，不含 assets 等系统目录）。 */
-    public long countDocs(Path root) {
-        return countDocs(root, "", 0);
+    /** 配置文件的时间戳；不存在视为 0。用它做缓存键的一部分，好让改配置立刻生效。 */
+    private long configStamp(Path root) {
+        try {
+            Path file = root.resolve(ORDER_FILE);
+            return Files.isRegularFile(file) ? Files.getLastModifiedTime(file).toMillis() : 0L;
+        } catch (IOException e) {
+            return 0L;
+        }
     }
 
-    /** 全部文档相对路径（用于全文搜索 / 校准）。 */
+    /**
+     * 未过滤的完整树：{@link #isHidden} 的规则一律不生效。
+     *
+     * <p>只给「库设置」面板用。理由很直接：设置界面要能勾选隐藏项，那就必须<b>看得见</b>已被隐藏的
+     * 内容，否则用户只能加规则、没法取消 —— 一个只能单向操作的面板等于把配置变成只写。</p>
+     *
+     * <p>仍然过滤 {@link #isIgnored} 那批系统目录与隐藏文件（{@code .git}、{@code assets} 等）：
+     * 那些不是作者能配置的东西，列出来只会让人以为能勾。</p>
+     */
+    public List<DocNode> treeIncludingHidden(Path root) {
+        String key = root + "@full@" + configStamp(root);
+        List<DocNode> cached = treeCache.getIfPresent(key);
+        if (cached != null) {
+            return cached;
+        }
+        List<DocNode> tree = scan(root, "", 0, null);
+        treeCache.put(key, tree);
+        return tree;
+    }
+
+    /**
+     * 当前的隐藏规则（相对库根的路径列表）。
+     *
+     * <p>设置面板用它回填勾选状态。缺省返回空列表而不是 null，前端不必判空。</p>
+     */
+    public List<String> hiddenRules(Path root) {
+        return List.copyOf(readConfig(root).hidden());
+    }
+
+    /**
+     * 覆盖写隐藏规则。
+     *
+     * <p><b>整份替换而非增删</b>：面板给出的是勾选后的全集，按差集增量算的话，勾选与取消的顺序
+     * 会影响结果，中途刷新一次就可能把别人的规则冲掉。</p>
+     *
+     * <p>排序清单与隐藏规则写进同一个 {@code .minidocs.json}，这里只动 hidden 分区，
+     * 排序部分原样带回（见 {@link #writeConfig}）。</p>
+     */
+    public void saveHiddenRules(Path root, List<String> rules) {
+        writeConfig(root, readConfig(root).order(), rules);
+        // 两棵树（过滤 / 未过滤）的缓存键都含配置 mtime，这里失效是兜底：
+        // 某些文件系统上 mtime 精度只到秒，同一秒内的两次改动会撞键
+        invalidateTree(root);
+    }
+
+    /** 文档总数（含子目录，不含 assets 等系统目录与被隐藏的内容）。 */
+    public long countDocs(Path root) {
+        return countDocs(root, "", 0, readConfig(root));
+    }
+
+    /** 全部文档相对路径（用于全文搜索 / 校准；不含被隐藏的内容）。 */
     public List<String> listDocPaths(Path root) {
         List<String> paths = new ArrayList<>();
-        collectDocs(root, "", 0, paths, readOrder(root));
+        collectDocs(root, "", 0, paths, readConfig(root));
         return paths;
     }
 
@@ -342,6 +430,45 @@ public class VaultFileService {
     public String firstDoc(Path root) {
         List<String> paths = listDocPaths(root);
         return paths.isEmpty() ? null : paths.get(0);
+    }
+
+    /**
+     * 这个相对路径是否被作者配置为隐藏。
+     *
+     * <p>供<b>按路径直达</b>的入口自查：{@link DocServiceImpl#read}（工作区点开一篇）、
+     * {@code ?path=} 深链接、旧的分享链接，这些都不经过目录树，
+     * 不会自动被 {@link #tree} 过滤掉——不在这里挡一道，就会出现
+     * 「左栏里看不见、点旧链接却打得开」，隐藏规则等于没生效一半。</p>
+     */
+    public boolean isHiddenPath(Path root, String relativePath) {
+        return isHiddenWithAncestors(relativePath, readConfig(root));
+    }
+
+    /**
+     * 单路径判定：命中自身<b>或它的任一祖先</b>的隐藏规则，都算隐藏。
+     *
+     * <p>{@link #isHidden} 刻意只做全等比对（见其注释）：扫描是深度优先的，父目录被跳过
+     * 就走不到子节点，树 / 文档列表 / 计数三个调用方天然没有漏，不必为它们多付一次前缀比较。
+     * 但本方法是<b>第四个调用方，也是唯一没有递归兜底的那个</b> —— 直达入口只判这一个路径。
+     * 于是规则写着 {@code drafts} 时，{@code drafts/secret.md} 与它不等比、判定放行，
+     * 作者「藏了整个目录」的意图在深链接上完全失效。逐级剥掉尾部补前缀即可补齐，
+     * 代价是 O(路径段数) 次字符串比较，相对一次磁盘读可以忽略。</p>
+     */
+    private boolean isHiddenWithAncestors(String relativePath, KbConfig config) {
+        if (isHidden(relativePath, config)) {
+            return true;
+        }
+        String normalized = relativePath.startsWith("./") ? relativePath.substring(2) : relativePath;
+        // slash > 0 而不是 >= 0：下标 0 处是斜杠说明路径以分隔符开头（脏数据），
+        // 那时 substring(0, 0) 是空串，继续 while 就会原地打转。
+        int slash = normalized.lastIndexOf('/');
+        while (slash > 0) {
+            if (isHidden(normalized.substring(0, slash), config)) {
+                return true;
+            }
+            slash = normalized.lastIndexOf('/', slash - 1);
+        }
+        return false;
     }
 
     public void invalidateTree(Path root) {
@@ -354,12 +481,13 @@ public class VaultFileService {
 
     // ------------------------------------------------------------------ 内部实现
 
-    private List<DocNode> scan(Path dir, String prefix, int depth, Map<String, List<String>> order) {
+    private List<DocNode> scan(Path dir, String prefix, int depth, KbConfig config) {
         List<DocNode> result = new ArrayList<>();
         if (depth >= properties.getMaxDepth()) {
             return result;
         }
         List<Path> children = listChildren(dir);
+        Map<String, List<String>> order = config == null ? Map.of() : config.order();
         children.sort(childComparator(order.getOrDefault(prefix, List.of())));
         for (Path child : children) {
             String name = child.getFileName().toString();
@@ -367,17 +495,26 @@ public class VaultFileService {
                 continue;
             }
             String relative = PathGuard.join(prefix, name);
+            // config 为 null 是「未过滤」模式（设置面板用），此时不套任何作者规则。
+            // 隐藏判定放在拼出相对路径之后：规则是相对库根写的（如 "drafts"、"notes/private.md"）
+            if (config != null && isHidden(relative, config)) {
+                continue;
+            }
             if (Files.isDirectory(child)) {
-                List<DocNode> sub = scan(child, relative, depth + 1, order);
+                List<DocNode> sub = scan(child, relative, depth + 1, config);
                 result.add(DocNode.dir(name, relative, sub));
             } else if (FileNameUtil.isMarkdown(name)) {
                 result.add(DocNode.doc(name, relative, sizeOf(child), modifiedAt(child)));
+            } else if (FileNameUtil.isImage(name)) {
+                // 图片只进树，不进 countDocs / listDocPaths（那两处仍只收 Markdown）：
+                // 否则文档数会算上图片、上/下一篇会试着打开一张二进制、搜索会返回一堆无用命中
+                result.add(DocNode.image(name, relative, sizeOf(child), modifiedAt(child)));
             }
         }
         return result;
     }
 
-    private long countDocs(Path dir, String prefix, int depth) {
+    private long countDocs(Path dir, String prefix, int depth, KbConfig config) {
         if (depth >= properties.getMaxDepth()) {
             return 0L;
         }
@@ -387,8 +524,12 @@ public class VaultFileService {
             if (isIgnored(name)) {
                 continue;
             }
+            String relative = PathGuard.join(prefix, name);
+            if (isHidden(relative, config)) {
+                continue;
+            }
             if (Files.isDirectory(child)) {
-                count += countDocs(child, PathGuard.join(prefix, name), depth + 1);
+                count += countDocs(child, relative, depth + 1, config);
             } else if (FileNameUtil.isMarkdown(name)) {
                 count++;
             }
@@ -396,12 +537,12 @@ public class VaultFileService {
         return count;
     }
 
-    private void collectDocs(Path dir, String prefix, int depth, List<String> collector,
-                             Map<String, List<String>> order) {
+    private void collectDocs(Path dir, String prefix, int depth, List<String> collector, KbConfig config) {
         if (depth >= properties.getMaxDepth()) {
             return;
         }
         List<Path> children = listChildren(dir);
+        Map<String, List<String>> order = config.order();
         children.sort(childComparator(order.getOrDefault(prefix, List.of())));
         for (Path child : children) {
             String name = child.getFileName().toString();
@@ -409,17 +550,30 @@ public class VaultFileService {
                 continue;
             }
             String relative = PathGuard.join(prefix, name);
+            // 与 scan / countDocs 同一份判断：不然「目录藏起来了，它的正文却还能被搜到」
+            if (isHidden(relative, config)) {
+                continue;
+            }
             if (Files.isDirectory(child)) {
-                collectDocs(child, relative, depth + 1, collector, order);
+                collectDocs(child, relative, depth + 1, collector, config);
             } else if (FileNameUtil.isMarkdown(name)) {
                 collector.add(relative);
             }
         }
     }
 
+    /**
+     * 目录下的子项；目录不存在（或读不了）时返回**可变**空表。
+     *
+     * <p>刻意不返回 {@code List.of()}：两个调用方会就地 {@code sort()}，而
+     * {@code List.of()} 是不可变实现，{@code sort()} 直接抛
+     * {@link UnsupportedOperationException}。知识库目录还不存在时就会走到这个空分支 ——
+     * 新建库还没传文档、云端库还没同步下来、或磁盘上目录被误删，
+     * 此时阅读页本该回一句「内容已删除」，不该是 500。</p>
+     */
     private List<Path> listChildren(Path dir) {
         if (!Files.isDirectory(dir)) {
-            return List.of();
+            return new ArrayList<>();
         }
         List<Path> children = new ArrayList<>();
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(dir)) {
@@ -464,38 +618,146 @@ public class VaultFileService {
         };
     }
 
-    // ------------------------------------------------------------------ 顺序清单
+    // ------------------------------------------------------------------ 库级配置（排序 + 隐藏）
 
-    /** 读取顺序清单；缺失或损坏一律当「没有自定义顺序」——坏文件不该让整棵树打不开。 */
-    private Map<String, List<String>> readOrder(Path root) {
+    /**
+     * 读取库级配置；缺失或损坏一律当「没有配置」。
+     *
+     * <p>坏文件不该让整棵树打不开，更不该让文档凭空消失 —— 所以解析失败只记一条 warn，
+     * 然后按「无配置」继续，文档照常全部可见。</p>
+     */
+    private KbConfig readConfig(Path root) {
         Path file = root.resolve(ORDER_FILE);
         if (!Files.isRegularFile(file)) {
-            return new LinkedHashMap<>();
+            return KbConfig.empty();
         }
         try {
-            Map<String, List<String>> order =
-                    JSON.readValue(Files.readString(file, StandardCharsets.UTF_8), ORDER_MAP);
-            return order == null ? new LinkedHashMap<>() : new LinkedHashMap<>(order);
+            Map<String, Object> raw = JSON.readValue(Files.readString(file, StandardCharsets.UTF_8), CONFIG_MAP);
+            if (raw == null || raw.isEmpty()) {
+                return KbConfig.empty();
+            }
+            Map<String, List<String>> order = new LinkedHashMap<>();
+            List<String> hidden = new ArrayList<>();
+            for (Map.Entry<String, Object> entry : raw.entrySet()) {
+                String key = entry.getKey();
+                if (CONFIG_KEY_ORDER.equals(key)) {
+                    if (entry.getValue() instanceof Map<?, ?> map) {
+                        map.forEach((k, v) -> order.put(String.valueOf(k), asStringList(v)));
+                    }
+                } else if (CONFIG_KEY_HIDDEN.equals(key)) {
+                    hidden.addAll(asStringList(entry.getValue()));
+                } else if (entry.getValue() instanceof List) {
+                    // 旧格式：顶层其余的数组键是「目录相对路径 → 子项有序数组」
+                    order.put(key, asStringList(entry.getValue()));
+                }
+            }
+            return new KbConfig(order, hidden);
         } catch (Exception e) {
-            log.warn("顺序清单解析失败，按默认顺序展示：{} - {}", file, e.getMessage());
-            return new LinkedHashMap<>();
+            log.warn("库级配置解析失败，按默认展示：{} - {}", file, e.getMessage());
+            return KbConfig.empty();
         }
     }
 
-    /** 写回顺序清单；全部为空时删掉文件，免得留下一份没有内容的清单。 */
-    private void writeOrder(Path root, Map<String, List<String>> order) {
+    private static List<String> asStringList(Object value) {
+        if (!(value instanceof List<?> list)) {
+            return new ArrayList<>();
+        }
+        List<String> result = new ArrayList<>(list.size());
+        for (Object item : list) {
+            if (item != null) {
+                result.add(String.valueOf(item));
+            }
+        }
+        return result;
+    }
+
+    /**
+     * 这个相对路径是否被作者配置为隐藏。
+     *
+     * <p>规则逐条匹配，支持两种写法：</p>
+     * <ul>
+     *   <li><b>精确路径</b>：{@code "drafts"}、{@code "notes/private.md"}。目录命中即整棵子树
+     *       不再遍历 —— 扫描是逐层递归的，父目录被跳过，里面的东西自然不会出现在任何地方；</li>
+     *   <li><b>通配符</b>：{@code "**&#47;_*"}、{@code "drafts/*"}，走 JDK 的 glob 匹配。
+     *       判定顺序是「先全部精确、再全部通配」：精确是字符串比较，几乎零成本；
+     *       通配要建匹配器，只在精确没命中时才逐条试。</li>
+     * </ul>
+     *
+     * <p><b>刻意不重复判祖先</b>：扫描是深度优先的，父目录一旦被跳过就不会走到子节点，
+     * 而树 / 文档列表 / 计数三处共用这一个判断 —— 所以不会出现「目录藏了但里面的文档
+     * 还进搜索结果」这种漏。<b>前提是调用方也在递归里</b>：单路径直达入口
+     * （{@link #isHiddenPath}）没有这层兜底，得由 {@link #isHiddenWithAncestors} 自己补前缀。</p>
+     */
+    private boolean isHidden(String relativePath, KbConfig config) {
+        List<String> rules = config.hidden();
+        if (rules.isEmpty()) {
+            return false;
+        }
+        String normalized = relativePath.startsWith("./") ? relativePath.substring(2) : relativePath;
+        for (String rule : rules) {
+            if (rule != null && rule.trim().equals(normalized)) {
+                return true;
+            }
+        }
+        for (String rule : rules) {
+            if (rule == null || rule.isBlank() || rule.indexOf('*') < 0) {
+                continue;
+            }
+            String pattern = rule.trim();
+            try {
+                if (FileSystems.getDefault().getPathMatcher("glob:" + pattern).matches(Path.of(normalized))) {
+                    return true;
+                }
+            } catch (Exception e) {
+                // 非法 glob 只该让这一条规则失效，不该让整棵树打不开
+                log.warn("忽略非法的隐藏规则：{}", pattern);
+            }
+        }
+        return false;
+    }
+
+    /**
+     * 写回配置。
+     *
+     * <p>顺序与隐藏分区写；两者都空时删文件，免得留下一份没有内容的配置。</p>
+     */
+    private void writeConfig(Path root, Map<String, List<String>> order, List<String> hidden) {
         order.entrySet().removeIf(entry -> entry.getValue() == null || entry.getValue().isEmpty());
+        List<String> rules = new ArrayList<>(hidden);
+        rules.removeIf(item -> item == null || item.isBlank());
         Path file = root.resolve(ORDER_FILE);
         try {
-            if (order.isEmpty()) {
+            if (order.isEmpty() && rules.isEmpty()) {
                 Files.deleteIfExists(file);
                 return;
             }
-            Files.writeString(file, JSON.writerWithDefaultPrettyPrinter().writeValueAsString(order),
+            Map<String, Object> out = new LinkedHashMap<>();
+            if (!order.isEmpty()) {
+                out.put(CONFIG_KEY_ORDER, order);
+            }
+            if (!rules.isEmpty()) {
+                out.put(CONFIG_KEY_HIDDEN, rules);
+            }
+            Files.writeString(file, JSON.writerWithDefaultPrettyPrinter().writeValueAsString(out),
                     StandardCharsets.UTF_8);
         } catch (IOException e) {
-            throw new UncheckedIOException("写入顺序清单失败", e);
+            throw new UncheckedIOException("写入库级配置失败", e);
         }
+    }
+
+    /** 只取顺序部分。 */
+    private Map<String, List<String>> readOrder(Path root) {
+        return readConfig(root).order();
+    }
+
+    /**
+     * 只写顺序部分，<b>原样保留已有的隐藏规则</b>。
+     *
+     * <p>这个保留是必须的：重命名 / 移动 / 排序都会走到写配置，如果顺手按「只有排序」重写，
+     * 作者的隐藏清单就会被抹掉 —— 而配置是他自己写在仓库里、还跟着 Git 走的，丢了没法找回。</p>
+     */
+    private void writeOrder(Path root, Map<String, List<String>> order) {
+        writeConfig(root, order, readConfig(root).hidden());
     }
 
     /**
@@ -507,8 +769,10 @@ public class VaultFileService {
      * @param newPath 新相对路径；{@code null} 表示删除
      */
     private void patchOrder(Path root, String oldPath, String newPath) {
-        Map<String, List<String>> order = readOrder(root);
-        if (order.isEmpty()) {
+        KbConfig config = readConfig(root);
+        Map<String, List<String>> order = config.order();
+        List<String> hidden = new ArrayList<>(config.hidden());
+        if (order.isEmpty() && hidden.isEmpty()) {
             return;
         }
         String oldParent = PathGuard.parentOf(oldPath);
@@ -526,6 +790,8 @@ public class VaultFileService {
         }
         if (newPath == null) {
             dropOrderKeys(order, oldPath);
+            // 删掉的东西不必继续藏着（留着也无害，但清单会越攒越脏）
+            hidden.removeIf(rule -> rule.equals(oldPath) || rule.startsWith(oldPath + "/"));
         } else {
             String newParent = PathGuard.parentOf(newPath);
             if (!newParent.equals(oldParent)) {
@@ -536,8 +802,21 @@ public class VaultFileService {
                 }
             }
             rekeyOrder(order, oldPath, newPath);
+            // 隐藏规则同步换前缀：作者藏的是「某个东西」，它改名了不该自己冒出来。
+            // 只改精确路径那部分；通配规则靠模式匹配，改名后自动跟上。
+            for (int i = 0; i < hidden.size(); i++) {
+                String rule = hidden.get(i);
+                if (rule == null) {
+                    continue;
+                }
+                if (rule.equals(oldPath)) {
+                    hidden.set(i, newPath);
+                } else if (rule.startsWith(oldPath + "/")) {
+                    hidden.set(i, newPath + rule.substring(oldPath.length()));
+                }
+            }
         }
-        writeOrder(root, order);
+        writeConfig(root, order, hidden);
     }
 
     /** 目录改名 / 移动：把清单里以旧路径为前缀的 key 整体换成新路径（含目录自身那份）。 */
