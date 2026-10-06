@@ -43,7 +43,25 @@ export interface KbVO {
   tags: string[]
   docCount: number
   favored: boolean
-  shareStatus?: string
+  /**
+   * 发布态：这个库在门户上是什么状态。
+   *
+   * <p>与 {@link visibility} <b>正交，不可互相推导</b>：
+   * {@code visibility='private'} 的库照样可以是「已发布」（外面对着一条链接），
+   * {@code visibility='public'} 的库也可能「未发布」（压根没建分享链接，门户上查无此库）。
+   * UI 上两者必须分区呈现，别合成一个「公开/私有」控件。</p>
+   *
+   * <p>{@code public} 在这里指「已发布且未设口令」（界面简称「共享」），不是「所有人可读」——
+   * 读权限那一层看 {@link visibility}。</p>
+   */
+  shareStatus?: 'unpublished' | 'public' | 'private'
+  /**
+   * 有效整库分享的短链 token，用于拼 {@code /share/{token}}。
+   *
+   * <p>「复制链接」给的是它而不是 {@code /kb/{org}/{slug}}：短链更短、不暴露组织名与库名，
+   * 而且可以被撤销 —— 后者改个名就失效，且没有任何收回的办法。未发布时缺键。</p>
+   */
+  shareToken?: string
   directoryPath?: string
   /**
    * 当前用户在这个库上的动作集，列表 / 详情 / 创建都会下发（规范 §4.2）。
@@ -59,6 +77,18 @@ export interface KbVO {
   sourceType?: 'local' | 'git'
   /** 云端库的绑定信息；本地库后端不下发这一块 */
   git?: GitBindingVO
+}
+
+/**
+ * 库级配置（{@code .minidocs.json} 的可见部分）。
+ *
+ * <p>{@code tree} 是<b>未过滤</b>的完整树：设置面板必须能看见已隐藏的项，
+ * 否则用户只能加规则、没法取消 —— 一个只能单向操作的面板等于把配置变成只写。</p>
+ */
+export interface KbConfigVO {
+  /** 当前的隐藏规则原文；元素是相对库根的路径，可能是目录也可能是文件 */
+  hidden: string[]
+  tree: DocNode[]
 }
 
 /** 云端知识库的绑定信息（令牌只以 tokenSet 回传，明文不出后端）。 */
@@ -221,7 +251,11 @@ export interface DocNode {
   name: string
   path: string
   encodedPath: string
-  type: 'dir' | 'doc'
+  /**
+   * 节点类型。`image` 是图片：它只进目录树，不计入文档数、不参与上一篇/下一篇与搜索
+   * （后端 {@code scan} 里图片走单独一支），所以前端凡是判「这是个文档」的地方都要先排掉它。
+   */
+  type: 'dir' | 'doc' | 'image'
   size: number
   modifiedAt?: string
   children: DocNode[]
@@ -361,12 +395,16 @@ export interface LoginResponse {
  *
  * <p>全部署一份，门户顶栏、阅读页、分享页、后台侧栏共用。{@code logo} 是库里存的文件名，
  * {@code logoSrc} 才是可直接放进 {@code <img src>} 的地址；没配 Logo 时两者都缺键。</p>
+ *
+ * <p>{@code baseUrl} 是「站点设置里配的基址」，没配时缺键 —— 此时实际生效的基址回落到
+ * 部署配置 {@code PAGE_BASE_URL} 或按当前请求推导，两者不是一回事，别在别处当「生效值」用。</p>
  */
 export interface SiteConfig {
   name: string
   subtitle?: string
   logo?: string
   logoSrc?: string
+  baseUrl?: string
 }
 
 export interface SuggestItem {

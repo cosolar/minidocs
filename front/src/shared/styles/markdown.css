@@ -366,6 +366,27 @@
 /* 前台图片可点开灯箱，后台预览没有灯箱，不要给出误导性的放大光标 */
 .md-markdown img { cursor: zoom-in; }
 
+/*
+ * 图片不可用时的占位。
+ *
+ * <p>两个来源：后端在路径越出库根 / 地址为空时替掉整个 <img>；
+ * 前端在图片 404 时（文件被删或改名）用 enhanceMarkdown 的 onerror 换上。
+ * 不做兜底的话就是「图片凭空消失」或「浏览器自带的破图图标」，
+ * 读者分不清是作者没放图还是平台不给看。</p>
+ */
+.md-img-missing {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.5em;
+  padding: 0 10px;
+  border: 1px dashed var(--md-border);
+  border-radius: 6px;
+  background: var(--md-surface-2);
+  color: var(--md-text-3);
+  font-size: 13px;
+  cursor: help;
+}
+
 /* ------------------------------------------------------------------ 提示块 */
 .md-admonition {
   margin: 1.15em 0;

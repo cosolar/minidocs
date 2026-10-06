@@ -12,6 +12,17 @@ const props = defineProps<{
   /** 由工作区统一广播的折叠信号：切换时把本级目录一并展开/收起 */
   collapseAll?: boolean
   /**
+   * 初始是否折叠。缺省为「折叠」。
+   *
+   * <p>默认折叠是刻意的：一个库动辄上百篇，全部铺开会把左栏拉成一条看不到头的长尾，
+   * 而刚进工作区的人真正关心的是「现在开着哪一篇」和它沿途那一层。父级（工作区）只给
+   * 顶层第一个目录传 {@code false}，让它作为「入口目录」保持展开。</p>
+   *
+   * <p>用「初始」而不是「当前」：用户手动开合过的目录不该被父级重置，
+   * 所以这个值只在实例创建时读一次（见 {@code collapsed} 的初值）。</p>
+   */
+  initCollapsed?: boolean
+  /**
    * 我在这个库上的动作向量（后端下发，规范 §2.6）。
    *
    * <p>逐项判定而不是一个「可写」布尔：删文档、改名、分享各有各的动作，合成一个布尔就等于
@@ -27,7 +38,13 @@ const emit = defineEmits<{
   (e: 'reorder', payload: { path: string; targetPath: string; position: 'before' | 'after' }): void
 }>()
 
-const collapsed = ref(false)
+/**
+ * 缺省收起；父级显式给 {@code initCollapsed: false} 的那一个（顶层入口目录）初始展开。
+ *
+ * <p>读 props 的时点只在初始化，之后 {@code collapseAll} 与「祖先自动展开」两条 watch
+ * 才会改它 —— 初始值只决定「第一次进来长什么样」。</p>
+ */
+const collapsed = ref(props.initCollapsed !== false)
 
 /** 拖动中的这一行本身：给它降透明度，让人看得出「拿起的是哪一个」 */
 const isDragging = computed(() => draggingPath.value === props.node.path)
@@ -58,20 +75,30 @@ const allowed = (action: KbActionName) => can(props.perms, action)
  * <p>文档总有一条「下载 Markdown」可给，所以文档恒有菜单；目录只剩治理类动作，一个都没有时
  * 点开一个全灰的菜单比没有菜单更让人找不着北。</p>
  */
-const showMenu = computed(
-  () =>
-    props.node.type === 'doc' ||
-    allowed('DOC_WRITE') ||
-    allowed('DOC_RENAME') ||
-    allowed('DOC_MOVE') ||
-    allowed('DOC_DELETE')
-)
-
 const isActive = computed(() => props.node.type === 'doc' && props.activePath === props.node.path)
 /** 当前文档位于本目录之内：高亮 + 自动展开，避免定位不到正在编辑的文件 */
 const isAncestor = computed(
   () => props.node.type === 'dir' && !!props.activePath && props.activePath.startsWith(`${props.node.path}/`)
 )
+
+/** 图片用单独的图标：跟文档混在一起时，一眼能分出「这个点开是看图还是读文」 */
+const typeIcon = computed(() => (props.node.type === 'dir' ? 'folder' : props.node.type === 'image' ? 'image' : 'file'))
+
+/**
+ * 图片不该有「⋯」菜单。
+ *
+ * <p>菜单里那些动作（重命名 / 移动 / 下载 markdown / 删除）要么对图片没有意义，
+ * 要么会让人以为图片能像文档一样被编辑。给它一个「下载」就够了 ——
+ * 而下载走资源端点即可，不必在树上再开一条路径。</p>
+ */
+const showMenu = computed(() => {
+  if (props.node.type === 'image') return false
+  return props.node.type === 'doc'
+    || allowed('DOC_WRITE')
+    || allowed('DOC_RENAME')
+    || allowed('DOC_MOVE')
+    || allowed('DOC_DELETE')
+})
 
 watch(
   () => props.collapseAll,
@@ -233,9 +260,9 @@ function onDrop(event: DragEvent) {
       </button>
       <span v-else class="md-ad-tree__toggle md-ad-tree__toggle--spacer" />
 
-      <MdIcon class="md-ad-tree__type" :name="node.type === 'dir' ? 'folder' : 'file'" :size="15" />
+      <MdIcon class="md-ad-tree__type" :name="typeIcon" :size="15" />
 
-      <span class="md-ad-tree__name" :title="node.path" @click="onSelect">{{ node.name }}</span>
+      <span class="md-ad-tree__name" :class="{ 'is-asset': node.type === 'image' }" :title="node.path" @click="onSelect">{{ node.name }}</span>
 
       <el-dropdown v-if="showMenu" trigger="click" placement="bottom-end" @command="onAction">
         <button type="button" class="md-ad-tree__more" title="更多操作" @click.stop>

@@ -19,11 +19,40 @@ const props = defineProps<{
   keyword?: string
 }>()
 
-/** 折叠状态按路径记住，节点重新渲染时不丢 */
-const collapsed = reactive<Record<string, boolean>>({})
+/** 图片节点点开：交给外层切到预览。目录仍是目录，展开行为不变。 */
+const emit = defineEmits<{
+  (e: 'select', node: DocNode): void
+}>()
+
+/**
+ * 展开状态按路径记住，节点重新渲染时不丢。
+ *
+ * <p><b>默认折叠</b>：目录一多（动辄几百篇文档），全展开会把左栏拉成一条看不到尽头的长尾，
+ * 而读者点进来时通常只关心「当前这篇」和它沿途那一层。这里的默认值是「收起」，
+ * 展开沿途目录交给 {@link watch} 自动做。</p>
+ *
+ * <p>用「展开」而不是「折叠」记录状态，是因为默认值必须是「假」：
+ * 若沿用 {@code collapsed}，未出现过的键是 {@code undefined}（falsy），
+ * 天然等于「展开」，要改成默认收起就得在每个读取处补一层 {@code !== false} 判断 ——
+ * 反过来让「缺省即收起」，新增判断点时不会漏。</p>
+ */
+const expanded = reactive<Record<string, boolean>>({})
 
 function toggle(path: string) {
-  collapsed[path] = !collapsed[path]
+  expanded[path] = !expanded[path]
+}
+
+/**
+ * 展开本层的全部目录。
+ *
+ * <p>这里只遍历一层，不递归调用自己：{@code DocTree} 是递归组件，每个实例只持有自己直接
+ * 渲染的那一节，祖先链上的每一节各自跑一遍这个 watch，整棵树自然就都开了 ——
+ * 和下面自动展开 currentPath 祖先用的是同一套机制。</p>
+ */
+function expandAll(nodes: DocNode[]) {
+  for (const node of nodes) {
+    if (node.type === 'dir') expanded[node.path] = true
+  }
 }
 
 /**
@@ -32,14 +61,20 @@ function toggle(path: string) {
  * <p>菜单项是一篇文章时，它是被「跳」进来的，左栏被收窄到它所在的那一层；读者先前若把某个
  * 祖先目录收起了，点菜单就会落到一篇看不见的文档上。这里按 currentPath 的前缀把沿途目录一律
  * 展开 —— 每层实例只认自己直接渲染的那一节，逐层跑下来整条链就都开了。</p>
+ *
+ * <p>搜索时改为全展开：命中项可能落在任意目录里，父目录收着的话搜索结果就等于没搜到。</p>
  */
 watch(
-  () => [props.currentPath, props.nodes] as const,
+  () => [props.currentPath, props.nodes, props.keyword] as const,
   () => {
+    if ((props.keyword || '').trim()) {
+      expandAll(props.nodes)
+      return
+    }
     const current = props.currentPath
     if (!current) return
     for (const node of props.nodes) {
-      if (node.type === 'dir' && current.startsWith(`${node.path}/`)) collapsed[node.path] = false
+      if (node.type === 'dir' && current.startsWith(`${node.path}/`)) expanded[node.path] = true
     }
   },
   { immediate: true }
@@ -73,7 +108,7 @@ function linkTo(node: DocNode) {
       v-for="node in nodes"
       :key="node.path"
       class="md-tree__item"
-      :class="[node.type === 'dir' ? 'is-dir' : 'is-doc', { 'is-collapsed': collapsed[node.path], 'is-hidden': isHidden(node) }]"
+      :class="[node.type === 'dir' ? 'is-dir' : 'is-doc', { 'is-collapsed': !expanded[node.path], 'is-hidden': isHidden(node) }]"
     >
       <div class="md-tree__row">
         <!--
@@ -84,12 +119,27 @@ function linkTo(node: DocNode) {
           v-if="node.type === 'dir'"
           type="button"
           class="md-tree__label"
-          :aria-expanded="!collapsed[node.path]"
+          :aria-expanded="!!expanded[node.path]"
           @click="toggle(node.path)"
         >
           <Icon class="md-tree__chevron" name="chevronDown" :size="14" />
           <span class="md-tree__name">{{ node.name }}</span>
           <em class="md-tree__count">{{ node.children.length }}</em>
+        </button>
+        <!--
+          图片节点：不能跳路由（没有对应页面），改为上抛给外层切预览。
+          用 button 而不是 router-link 的另一个理由是它不该出现在 Tab 顺序的
+          文档跳转序列里 —— 它不是一个「页面」。
+        -->
+        <button
+          v-else-if="node.type === 'image'"
+          type="button"
+          class="md-tree__link md-tree__link--asset"
+          :title="`预览图片：${node.name}`"
+          @click="emit('select', node)"
+        >
+          <Icon class="md-tree__dot" name="image" :size="12" />
+          <span class="md-tree__name">{{ node.name }}</span>
         </button>
         <router-link
           v-else
@@ -101,12 +151,18 @@ function linkTo(node: DocNode) {
           <span class="md-tree__name">{{ node.name }}</span>
         </router-link>
       </div>
+      <!--
+        收起时直接不渲染子树，而不是靠 CSS 的 display:none 藏起来：
+        后者只是看不见，几百个节点的 DOM 照样在内存里、也要参与 diff，
+        目录一多，开合一次就要重算整棵看不见的树。少渲染一层是一层。
+      -->
       <DocTree
-        v-if="node.type === 'dir' && node.children.length"
+        v-if="node.type === 'dir' && node.children.length && expanded[node.path]"
         :nodes="node.children"
         :current-path="currentPath"
         :link-prefix="linkPrefix"
         :keyword="keyword"
+        @select="(n) => emit('select', n)"
       />
     </li>
   </ul>

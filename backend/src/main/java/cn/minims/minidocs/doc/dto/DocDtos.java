@@ -15,7 +15,13 @@ public final class DocDtos {
     private DocDtos() {
     }
 
-    /** 目录树节点。type = dir | doc */
+    /**
+     * 目录树节点。type = dir | doc | image
+     *
+     * <p><b>image 是给人看的，不是文档</b>：它能出现在树上、能点开预览，但
+     * {@code countDocs} 与 {@code listDocPaths} 仍只收 {@code .md} —— 否则文档数会把
+     * 图片算进去、上/下一篇会把图片当文档打开、全文搜索会返回一堆二进制命中。</p>
+     */
     public record DocNode(String name, String path, String encodedPath, String type, long size,
                           LocalDateTime modifiedAt, List<DocNode> children) {
 
@@ -25,6 +31,17 @@ public final class DocDtos {
 
         public static DocNode doc(String name, String path, long size, LocalDateTime modifiedAt) {
             return new DocNode(name, path, PathEncoder.encodePath(path), "doc", size, modifiedAt, List.of());
+        }
+
+        /**
+         * 图片节点。
+         *
+         * <p>markdown 里引用的本地图片大多就躺在文档旁边的 {@code images/} 里，
+         * 以前它们在树上完全不可见：读者能看见图、却没法知道它叫什么、也没法在图与图之间翻。
+         * 让它出现在树上就是补这条路径。</p>
+         */
+        public static DocNode image(String name, String path, long size, LocalDateTime modifiedAt) {
+            return new DocNode(name, path, PathEncoder.encodePath(path), "image", size, modifiedAt, List.of());
         }
     }
 

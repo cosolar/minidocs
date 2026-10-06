@@ -440,6 +440,7 @@ function openLightbox(media: LightboxMedia) {
  */
 function initLightbox(root: ParentNode) {
   root.querySelectorAll<HTMLImageElement>('img').forEach((img) => {
+    markBrokenImage(img)
     // 图片外面套了链接时，点击应当去跳转，别把链接抢掉
     if (img.closest('a')) return
     // 已经确认加载失败的破图不值得放大
@@ -453,6 +454,34 @@ function initLightbox(root: ParentNode) {
     if (svg.getBoundingClientRect().width < 80) return
     bindLightbox(svg, () => ({ src: svgToDataUrl(svg), alt: '', svg: true }))
   })
+}
+
+/**
+ * 裂图兜底：把加载失败的 {@code <img>} 换成与后端同款的占位块。
+ *
+ * <p>为什么需要：资源端点对「文件不存在」返回 404，浏览器的默认表现是显示浏览器自带的
+ * 破图图标 —— 作者没写 alt 时那个图标旁边什么都没有，读者看不出这里原本该有张图。
+ * 换成带虚线框和悬停说明的占位，缺图就变成一件「看得见的事」。</p>
+ *
+ * <p>已用 {@code dataset} 去重：后处理会被反复调用（预览区每轮重渲染都跑一遍），
+ * 不去重会套出一层又一层的占位块。</p>
+ */
+function markBrokenImage(img: HTMLImageElement) {
+  const fail = () => {
+    if (img.dataset.brokenMarked) return
+    img.dataset.brokenMarked = '1'
+    const tip = document.createElement('span')
+    tip.className = 'md-img-missing'
+    tip.title = '图片加载失败：文件可能已被删除或改名'
+    tip.textContent = img.alt || '图片无法显示'
+    img.replaceWith(tip)
+  }
+  // 缓存里已经失败的图不会再触发 onerror，得单独补一刀
+  if (img.complete && img.naturalWidth === 0) {
+    fail()
+    return
+  }
+  img.addEventListener('error', fail, { once: true })
 }
 
 function bindLightbox(el: Element, media: () => LightboxMedia) {
