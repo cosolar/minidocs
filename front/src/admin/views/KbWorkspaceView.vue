@@ -11,6 +11,8 @@ import 'bytemd/dist/index.css'
 import DocTreeNode from '@/admin/components/DocTreeNode.vue'
 import MdIcon from '@/admin/components/MdIcon.vue'
 import ShareDialog from '@/admin/components/ShareDialog.vue'
+import KbSettingsDialog from '@/admin/components/KbSettingsDialog.vue'
+import ImagePreview from '@/user/components/ImagePreview.vue'
 import { draggingPath } from '@/admin/components/docDrag'
 import { docApi, kbApi } from '@/admin/api'
 import { TOKEN_KEY } from '@/admin/api/http'
@@ -19,7 +21,7 @@ import { can } from '@/shared/api/caps'
 import { portalKbUrl } from '@/shared/portal'
 import { appHref } from '@/shared/appBase'
 import KbGlyph from '@/shared/components/KbGlyph.vue'
-import { maintainScopeHint, maintainScopeLabel, visibilityChipClass, visibilityHint, visibilityLabel } from '@/shared/visibility'
+import { maintainScopeHint, maintainScopeLabel, publishStatusChipClass, publishStatusHint, publishStatusLabel, visibilityChipClass, visibilityHint, visibilityLabel } from '@/shared/visibility'
 import { enhancePreview } from '@/shared/enhanceMarkdown'
 import { frontmatterStrip } from '@/shared/bytemdFrontmatter'
 import { useIsMobile } from '@/admin/composables/useIsMobile'
@@ -1226,9 +1228,61 @@ const isCloudKb = computed(() => kb.value?.sourceType === 'git')
 const gitStatus = ref<GitStatusVO | null>(null)
 const gitBusy = ref(false)
 
+/* ---------------------------------------------------------------- 库设置面板 */
+const settingsVisible = ref(false)
+
+/* ---------------------------------------------------------------- 图片预览 */
+/** 当前预览的库内图片；非 null 时编辑区让位给预览面板 */
+const previewAsset = ref<DocNode | null>(null)
+
+/**
+ * 目录树点选：文档照旧打开，图片改成预览。
+ *
+ * <p>图片节点不能走 openDoc —— 它不是 markdown，{@code listDocPaths} 里根本没有它，
+ * 真去读只会拿到 404。</p>
+ */
+function onTreeSelect(item: DocNode) {
+  if (item.type === 'doc') {
+    previewAsset.value = null
+    void openDoc(item.path)
+    return
+  }
+  if (item.type === 'image') {
+    previewAsset.value = item
+  }
+}
+
+/** 后台的资源端点与门户同形，只是前缀挂在 /api/console 下 */
+const assetPrefix = computed(() => `/api/console/${encodeURIComponent(org.value)}/kbs/`
+  + `${encodeURIComponent(kbSlug.value)}/asset/`)
+/** 打开时顺带把文档树与库信息重取一次：隐藏规则一改，左栏与计数都会变 */
+async function onSettingsSaved(payload: { kb?: KbVO }) {
+  if (payload.kb) kb.value = payload.kb
+  await loadTree()
+  await loadKb()
+}
+function openSettings() {
+  settingsVisible.value = true
+}
+
+/**
+ * 后台克隆进行中。
+ *
+ * <p>建云端库时克隆已改成异步（后端提交事务后才拉代码），所以进到工作区可能什么都还没有 ——
+ * 这时必须让用户看见「正在拉取」而不是「未就绪」，否则他会以为功能坏了，并去点「拉取」，
+ * 而那时克隆还在跑，重复触发只会互相踩。</p>
+ *
+ * <p>判据是 {@code lastSyncOk == null}：后端只在「已排队 / 进行中」时把它留空，
+ * 成功或失败都会写成 true / false。</p>
+ */
+const cloning = computed(() => !!kb.value?.git && kb.value.git.lastSyncOk === null
+  && !!kb.value.git.lastSyncStatus)
+
 /** 状态胶囊：把「有改动 / 落后 / 领先」合成一句话，一眼看出该点哪个按钮 */
 const gitStateText = computed(() => {
+  if (cloning.value) return '正在拉取仓库…'
   const status = gitStatus.value
+  if (cloningFailed.value) return '拉取失败'
   if (!status || !status.repository) return '未就绪'
   const parts: string[] = []
   if (status.changedCount) parts.push(`${status.changedCount} 处改动`)
@@ -1237,9 +1291,14 @@ const gitStateText = computed(() => {
   return parts.length ? parts.join(' · ') : '已同步'
 })
 
+const cloningFailed = computed(() => kb.value?.git?.lastSyncOk === false)
+
 const gitStateTitle = computed(() => {
   const git = kb.value?.git
   const status = gitStatus.value
+  if (cloningFailed.value) {
+    return git?.lastSyncStatus || '克隆失败，可在下方「拉取」重试'
+  }
   return [
     git?.branch ? `分支 ${git.branch}` : '',
     git?.url || '',
@@ -1261,6 +1320,57 @@ async function loadGitStatus() {
     gitStatus.value = null
   }
 }
+
+/**
+ * 轮询后台克隆进度，直到落终态。
+ *
+ * <p>只在「进行中」时启动：克隆是一次性的事件，不是需要盯着的实时状态，
+ * 终态之后继续轮询就是纯浪费（而且会把接口日志刷满）。</p>
+ *
+ * <p>间隔 3s、上限 5 分钟：JGit 侧超时是 120s，留出余量足够覆盖慢仓库与重试；
+ * 超时后停止并提示，不再无限轮询下去。</p>
+ */
+const CLONE_POLL_MS = 3000
+const CLONE_POLL_LIMIT = 100
+let clonePollTimer: number | undefined
+let clonePollTicks = 0
+
+function stopClonePolling() {
+  if (clonePollTimer !== undefined) {
+    window.clearTimeout(clonePollTimer)
+    clonePollTimer = undefined
+  }
+  clonePollTicks = 0
+}
+
+function startClonePolling() {
+  stopClonePolling()
+  if (!cloning.value) return
+  clonePollTimer = window.setTimeout(async () => {
+    clonePollTimer = undefined
+    clonePollTicks++
+    await loadKb()
+    await loadGitStatus()
+    if (cloning.value && clonePollTicks < CLONE_POLL_LIMIT) {
+      startClonePolling()
+    } else if (cloning.value) {
+      ElMessage.warning('拉取耗时较长，已停止自动刷新，请手动刷新页面查看结果')
+    } else if (cloningFailed.value) {
+      ElMessage.error(kb.value?.git?.lastSyncStatus || '仓库拉取失败，可在下方「拉取」重试')
+    } else {
+      ElMessage.success('仓库拉取完成')
+    }
+  }, CLONE_POLL_MS)
+}
+
+// 状态从「进行中」翻到终态的那一刻起轮询；反向（重试后再次排队）同样要接上
+watch(cloning, (now, before) => {
+  if (now) {
+    startClonePolling()
+  } else if (before) {
+    stopClonePolling()
+  }
+}, { immediate: true })
 
 async function gitPull() {
   gitBusy.value = true
@@ -1464,6 +1574,7 @@ watch(
 
 onBeforeUnmount(() => {
   alive = false
+  stopClonePolling()
   window.removeEventListener('keydown', onKeydown)
   window.removeEventListener('beforeunload', onBeforeUnload)
   window.removeEventListener('resize', onWindowResize)
@@ -1501,6 +1612,16 @@ onBeforeUnmount(() => {
             <span class="md-ad-chip md-ad-chip--private" :title="maintainScopeHint(kb?.maintainScope)">
               可写：{{ maintainScopeLabel(kb?.maintainScope) }}
             </span>
+            <!--
+              发布态与上面两条轴正交，所以单列一颗而不是并进「可写」里：
+              在工作区里改文档的人经常同时是那个要决定「要不要对外发布」的人，
+              让他不用切回列表页就知道这个库目前门户上是什么状态。
+            -->
+            <span
+              class="md-ad-chip"
+              :class="publishStatusChipClass(kb?.shareStatus)"
+              :title="publishStatusHint(kb?.shareStatus)"
+            >{{ publishStatusLabel(kb?.shareStatus) }}</span>
             <span v-if="isCloudKb" class="md-ad-chip md-ad-chip--cloud" :title="kb?.git?.url || '绑定线上 Git 仓库'">
               云端
             </span>
@@ -1543,6 +1664,23 @@ onBeforeUnmount(() => {
           {{ saveStateText }}
         </span>
 
+        <!--
+          设置放在顶栏而不是左栏底部：它管的是「这个库是什么、哪些内容不给人看」，
+          属于库级治理而不是文档级操作，和「分享」并排放在一起才说得通。
+          v-if 用 kbCan 而不是常量 true——只读成员进来时按钮整个消失比灰着更好：
+          那一栏可点的东西本来就都不能做。
+        -->
+        <button
+          v-if="kbCan('KB_EDIT_META') || kbCan('KB_SET_VISIBILITY')"
+          type="button"
+          class="md-ws__btn"
+          title="知识库设置：基本信息与隐藏配置"
+          @click="openSettings"
+        >
+          <MdIcon name="settings" :size="14" />
+          设置
+        </button>
+
         <button
           v-if="kbCan('SHARE_CREATE')"
           type="button"
@@ -1571,8 +1709,10 @@ onBeforeUnmount(() => {
             v-if="canWriteKb"
             type="button"
             class="md-ws__btn"
-            :disabled="gitBusy"
-            title="把远程仓库的新提交拉到工作副本；本地有未提交改动时会拒绝"
+            :disabled="gitBusy || cloning"
+            :title="cloning
+              ? '仓库正在后台拉取，完成后才能拉取'
+              : '把远程仓库的新提交拉到工作副本；本地有未提交改动时会拒绝'"
             @click="gitPull"
           >
             <MdIcon name="cloud" :size="14" />
@@ -1582,7 +1722,7 @@ onBeforeUnmount(() => {
             v-if="canWriteKb"
             type="button"
             class="md-ws__btn"
-            :disabled="gitBusy"
+            :disabled="gitBusy || cloning"
             title="把工作副本的改动提交并推送到远程仓库"
             @click="gitCommit"
           >
@@ -1705,14 +1845,15 @@ onBeforeUnmount(() => {
           </p>
           <ul v-else class="md-ad-tree">
             <DocTreeNode
-              v-for="node in visibleTree"
+              v-for="(node, index) in visibleTree"
               :key="node.path"
               :node="node"
               :active-path="currentPath"
               :depth="0"
+              :init-collapsed="!(index === 0 && node.type === 'dir')"
               :collapse-all="collapseAll"
               :perms="kb?.myPermissions"
-              @select="(item) => item.type === 'doc' && openDoc(item.path)"
+              @select="onTreeSelect"
               @action="onTreeAction"
               @move="onTreeMove"
               @reorder="onTreeReorder"
@@ -1808,7 +1949,19 @@ onBeforeUnmount(() => {
         </div>
 
         <div ref="editorRef" class="md-ws__editor" :class="paneClass" :style="editorStyle">
-          <div v-if="!currentPath && !loading" class="md-ws__blank">
+          <!--
+            选中库内图片时，编辑区让位给预览面板。
+            放在 bytemd 之前而不是之后：预览态下不该还挂着一份编辑器实例（锁、光标心跳、
+            未保存提示全都不该继续跑），而 v-if 天然把这两件事一起停掉。
+          -->
+          <ImagePreview
+            v-if="previewAsset"
+            :path="previewAsset.path"
+            :name="previewAsset.name"
+            :asset-prefix="assetPrefix"
+            @close="previewAsset = null"
+          />
+          <div v-else-if="!currentPath && !loading" class="md-ws__blank">
             <div class="md-ws__blank-card">
               <span class="md-ws__blank-icon"><MdIcon name="file" :size="22" /></span>
               <h3>选择一篇文档开始编辑</h3>
@@ -1820,7 +1973,7 @@ onBeforeUnmount(() => {
           </div>
 
           <!-- @bytemd/vue-next 的根节点是无样式的 div，这里补一层 host 保证编辑器拿到确定高度 -->
-          <div v-if="!!currentPath" class="md-ws__editor-host">
+          <div v-if="!!currentPath && !previewAsset" class="md-ws__editor-host">
             <Editor
               :value="content"
               :plugins="plugins"
@@ -1930,5 +2083,13 @@ onBeforeUnmount(() => {
     />
 
     <ShareDialog v-model="shareVisible" :kb-slug="kbSlug" :doc-path="sharePath" :title="shareTitle" />
+
+    <KbSettingsDialog
+      v-model="settingsVisible"
+      :kb="kb"
+      :can-edit-meta="kbCan('KB_EDIT_META')"
+      :can-edit-config="kbCan('KB_EDIT_META')"
+      @saved="onSettingsSaved"
+    />
   </div>
 </template>

@@ -2,21 +2,30 @@ import { request } from './http'
 import { kbPath, kbUrl, orgPath } from './context'
 import type {
   AdminUserVO, AuditVO, DiscoverOrgVO, DocContentVO, DocNode, GitStatusVO, GitSyncVO, ImportResult,
-  KbRosterVO, KbVO, LockVO,
+  KbConfigVO, KbRosterVO, KbVO, LockVO,
   LoginResponse, MeVO, OrgMemberVO, OrgVO, PageResult, PathChangeVO, JoinRequestVO, RenderVO,
   ShareVO, SiteConfig, StatsVO, UserVO
 } from '@/shared/api/types'
 
 /* ------------------------------------------------------------------ 认证 */
 export const authApi = {
+  /**
+   * 登录。
+   *
+   * <p>{@code silentError} 是必需的：全局 onError 故意不弹 401（那套语义是「登录态失效，
+   * 交给 onUnauthorized 跳转」），而后端「用户名或密码错误」也正好返回 401，于是密码敲错时
+   * 全链路一声不吭。所以这个请求自己处理提示，由登录页 catch 后弹。</p>
+   */
   login: (data: { username: string; password: string }) =>
-    request<LoginResponse>({ url: '/auth/login', method: 'post', data }),
+    request<LoginResponse>({ url: '/auth/login', method: 'post', data, silentError: true }),
   /**
    * 自助注册。后端**不回 token**（它只建账号 + 个人组织），所以注册成功后要用同一组
    * 凭据再走一次 {@link login}，别在这里猜一个「注册即登录」的行为。
+   *
+   * <p>同样关掉全局提示：注册失败（用户名已占用等）由注册页自己呈现，那边要展示得更具体。</p>
    */
   register: (data: { username: string; password: string; displayName?: string; email?: string }) =>
-    request<UserVO>({ url: '/auth/register', method: 'post', data }),
+    request<UserVO>({ url: '/auth/register', method: 'post', data, silentError: true }),
   me: () => request<UserVO>({ url: '/auth/me' }),
   updateAccount: (data: { username?: string; displayName?: string; email?: string }) =>
     request<UserVO>({ url: '/auth/account', method: 'put', data }),
@@ -64,6 +73,16 @@ export const kbApi = {
     request<KbVO>({ url: `${orgPath()}/kbs`, method: 'post', data }),
   update: (kbSlug: string, data: Record<string, unknown>) =>
     request<KbVO>({ url: `${kbPath(kbSlug)}`, method: 'put', data }),
+  /**
+   * 库级配置：隐藏规则 + **未过滤**的完整树。
+   *
+   * <p>与 {@link page} 的目录树分开是因为两者要的正好相反：那边给「读者该看到的」（已过滤），
+   * 这边给「作者该配置的」（未过滤）。合成一个就会出现「已隐藏的项无法取消隐藏」。</p>
+   */
+  config: (kbSlug: string) => request<KbConfigVO>({ url: `${kbPath(kbSlug)}/config` }),
+  /** 保存隐藏规则（整份覆盖，不是增量） */
+  saveConfig: (kbSlug: string, hidden: string[]) =>
+    request<string[]>({ url: `${kbPath(kbSlug)}/config`, method: 'put', data: { hidden } }),
   remove: (kbSlug: string) => request<void>({ url: `${kbPath(kbSlug)}`, method: 'delete' }),
   favorite: (kbSlug: string, favored: boolean) =>
     request<{ favored: boolean }>({ url: `${kbPath(kbSlug)}/favorite`, method: favored ? 'delete' : 'post' }),
