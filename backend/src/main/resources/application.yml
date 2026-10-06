@@ -13,6 +13,11 @@ spring:
     name: minidocs
   profiles:
     active: ${SPRING_PROFILES_ACTIVE:dev}
+  # 连接池实现。classpath 上有 Druid 时 Spring Boot 本就会优先选它，这里写出来是为了
+  # 「用的哪个池」在配置里可查，也避免以后误加 starter 时静默回退到 Hikari。
+  # 注意这里必须是 DruidDataSource 的全限定名：写 DruidDataSourceWrapper 匹配不上 Druid 的条件。
+  datasource:
+    type: com.alibaba.druid.pool.DruidDataSource
   servlet:
     multipart:
       # 这两个是 Tomcat 层的闸门，必须比 minidocs.import-max-size 宽松：否则超限的请求在进入
@@ -63,11 +68,17 @@ springdoc:
 minidocs:
   # 应用数据根目录（日志 + vaults + 开发库）
   vault-home: ${VAULT_HOME:./data}
-  # 站点基址（协议 + 主机 + 端口，无尾斜杠）：分享链接、复制链接等一切对外地址的唯一来源。
-  # 前后端分离部署（前端由 Nginx 伺服在站点根、后端挂在 context-path 下）时必填，
-  # 例如 https://kb.example.com；留空则按当前请求推导（同源部署可用，需开启
-  # server.forward-headers-strategy=framework 才能识别反代传来的 X-Forwarded-*）。
-  page-base-url: ${PAGE_BASE_URL:}
+  # 站点基址（协议 + 主机 [+ 路径]，无尾斜杠）：分享链接、复制链接等一切对外地址的基址。
+  #
+  # 优先级：站点设置页里配的「站点基址」> 本项 > 按当前请求推导。
+  # 也就是说常规部署不必再动这个文件 —— 管理员在 /console/platform/site 里改完即生效，
+  # 不必重启后端。本项保留是为了两种场合：容器编排下配置由平台注入、不便进数据库；
+  # 以及首次启动、还没人登录后台时的兜底。
+  #
+  # 前后端分离部署（前端由 Nginx 伺服在站点根、后端挂在 context-path 下）时，
+  # 这一层兜底尤其重要：页面地址里没有 context-path，从请求推导会指向错的一层。
+  # 反代之后还要开 server.forward-headers-strategy=framework，否则推导出来的是内网 http 地址。
+  page-base-url: ${PAGE_BASE_URL:docs.minims.cn/minidocs}
   # 可选：外部前端产物目录（其下须有 index.html 与 assets/）。
   # 前端产物默认由 front/ 构建输出到 front/dist/，由 Nginx 之类的静态服务器伺服在站点根；
   # 本项仅在「仍由后端伺服前端」（把 CONTEXT_PATH 设为空、base 用 /）时才用得上。

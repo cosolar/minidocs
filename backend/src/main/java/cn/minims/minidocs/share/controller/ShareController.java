@@ -4,12 +4,11 @@ import cn.minims.minidocs.common.api.ApiResponse;
 import cn.minims.minidocs.common.api.PageResult;
 import cn.minims.minidocs.common.context.TenantContext;
 import cn.minims.minidocs.common.context.UserContext;
-import cn.minims.minidocs.config.properties.MiniDocsProperties;
 import cn.minims.minidocs.share.dto.ShareDtos.CreateRequest;
 import cn.minims.minidocs.share.dto.ShareDtos.ShareVO;
 import cn.minims.minidocs.share.dto.ShareDtos.UpdateRequest;
 import cn.minims.minidocs.share.service.ShareService;
-import cn.minims.minidocs.share.support.ShareLinks;
+import cn.minims.minidocs.site.support.SiteBaseUrlResolver;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
@@ -42,7 +41,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class ShareController {
 
     private final ShareService shareService;
-    private final MiniDocsProperties properties;
+    private final SiteBaseUrlResolver siteBaseUrlResolver;
 
     @Operation(summary = "创建 / 更新分享")
     @PostMapping
@@ -96,10 +95,9 @@ public class ShareController {
      *
      * <p>分享链接指向的是<b>页面</b>，而页面与接口未必同前缀：前端由 Nginx 伺服在站点根时，
      * 链接不能带 {@code /minidocs}（那是接口前缀，页面路由匹配不上，深链接会白屏）。
-     * 因此先看配置 {@code minidocs.page-base-url}，没配才回落当前请求的 context-path
-     * —— 也就是「页面与后端同前缀」的单jar 部署方式。</p>
+     * 取值优先级（站点设置页 &gt; {@code PAGE_BASE_URL} &gt; 按请求推导）见 {@link SiteBaseUrlResolver}。</p>
      */
     private String baseUrl(HttpServletRequest request) {
-        return ShareLinks.baseUrl(request, properties);
+        return siteBaseUrlResolver.resolve(request);
     }
 }

@@ -1,10 +1,14 @@
 <script setup lang="ts">
 /**
- * 站点设置：品牌名称 / 副标题 / Logo（路由 {@code /platform/site}）。
+ * 站点设置：品牌名称 / 副标题 / Logo / 站点基址（路由 {@code /platform/site}）。
  *
  * <p>这一页改的是「整个部署」的品牌，不是某个组织、也不是某个人：所以它不带组织段，
  * 门槛是平台角色（路由 meta.platformAdmin + 后端 {@code /api/platform/site} 的 AdminInterceptor）。
  * 保存成功后把出参回灌共享 site store，顶栏、侧栏、页面标题立即跟着变，不必刷新。</p>
+ *
+ * <p>站点基址（{@code baseUrl}）管的是分享链接：改了之后所有新复制出去的链接立即跟着变。
+ * 留空则回落到部署配置 {@code PAGE_BASE_URL}，再没有就按当前请求推导 ——
+ * 最后这一层要求同源部署，反代后面直接用会让链接指向内网地址。</p>
  */
 import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
@@ -19,10 +23,25 @@ const saving = ref(false)
 const uploading = ref(false)
 const fileRef = ref<HTMLInputElement | null>(null)
 
-const form = reactive({ name: '', subtitle: '' })
+const form = reactive({ name: '', subtitle: '', baseUrl: '' })
 
 /** 预览优先用刚保存下来的地址；还没保存过的本地选择不做即时预览，避免与后端真值不一致 */
 const logoSrc = computed(() => site.value.logoSrc || '')
+
+/**
+ * 本地即时校验，与后端 {@code SiteBaseUrls.require} 同一套规则。
+ *
+ * <p>放在前端是为了少一次往返，不是为了取代后端校验：绕过界面的调用（比如脚本）照样要过那一关。</p>
+ */
+const baseUrlError = computed(() => {
+  const value = form.baseUrl.trim()
+  if (!value) return ''
+  if (value.length > 200) return '不能超过 200 个字符'
+  const withScheme = /^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//.test(value) ? value : `https://${value}`
+  if (!/^https?:\/\//i.test(withScheme)) return '只支持 http 或 https'
+  if (!/^https?:\/\/[^/?#\s]+/i.test(withScheme)) return '缺少主机名'
+  return ''
+})
 
 async function load() {
   loading.value = true
@@ -31,6 +50,7 @@ async function load() {
     site.apply(data)
     form.name = data.name || ''
     form.subtitle = data.subtitle || ''
+    form.baseUrl = data.baseUrl || ''
   } finally {
     loading.value = false
   }
@@ -41,12 +61,22 @@ async function save() {
     ElMessage.warning('站点名称不能为空')
     return
   }
+  if (baseUrlError.value) {
+    ElMessage.warning(baseUrlError.value)
+    return
+  }
   saving.value = true
   try {
-    const data = await siteApi.update({ name: form.name.trim(), subtitle: form.subtitle.trim() })
+    const data = await siteApi.update({
+      name: form.name.trim(),
+      subtitle: form.subtitle.trim(),
+      baseUrl: form.baseUrl.trim()
+    })
     site.apply(data)
     form.name = data.name
     form.subtitle = data.subtitle || ''
+    // 回填后端归一化过的值（补上的 https://、去掉的尾斜杠），别让输入框里留着一段需要人脑补的字符串
+    form.baseUrl = data.baseUrl || ''
     ElMessage.success('站点信息已更新')
   } finally {
     saving.value = false
@@ -94,6 +124,13 @@ onMounted(load)
           <el-form-item label="副标题">
             <el-input v-model="form.subtitle" maxlength="48" show-word-limit placeholder="极简知识库" />
           </el-form-item>
+          <el-form-item label="站点基址" :error="baseUrlError">
+            <el-input
+              v-model="form.baseUrl"
+              maxlength="200"
+              placeholder="https://docs.example.com"
+            />
+          </el-form-item>
           <el-form-item>
             <el-button type="primary" :loading="saving" @click="save">
               <MdIcon name="save" :size="14" />保存
@@ -102,6 +139,12 @@ onMounted(load)
         </el-form>
         <p class="md-copy-hint">
           名称与副标题出现在门户顶栏、阅读页、分享页与后台侧栏；留空则回落到内置默认品牌。
+        </p>
+        <p class="md-copy-hint">
+          站点基址是分享链接的地址前缀（协议 + 域名，可带路径如
+          <code>/minidocs</code>），改完立即对所有新分享生效。
+          留空则回落到部署配置 <code>PAGE_BASE_URL</code>，再没有就按当前请求推导 ——
+          最后这一层仅适合同源部署，反向代理后面直接用会让链接指向内网地址。
         </p>
       </div>
     </div>

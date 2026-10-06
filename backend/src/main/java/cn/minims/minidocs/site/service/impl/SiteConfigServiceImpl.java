@@ -13,6 +13,8 @@ import cn.minims.minidocs.site.dto.SiteDtos.SiteConfigVO;
 import cn.minims.minidocs.site.entity.SiteConfig;
 import cn.minims.minidocs.site.mapper.SiteConfigMapper;
 import cn.minims.minidocs.site.service.SiteConfigService;
+import cn.minims.minidocs.site.support.SiteBaseUrlResolver;
+import cn.minims.minidocs.site.support.SiteBaseUrls;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -30,18 +32,15 @@ import java.util.Map;
  *
  * <p>整张 {@code site_config} 表只有 {@code id = 1} 一行；没有行时读出来就是默认品牌，
  * 不预先插一条空记录 —— 少一次「先有鸡还是先有蛋」的初始化，也让「恢复默认」等价于清空字段。</p>
+ *
+ * <p>「站点基址」也在这张表里（{@code baseUrl} 键），管理员在站点设置页改完即生效。
+ * 之所以不新发一版迁移：{@code config} 是 JSON 列，加键不动 schema ——
+ * 这正是当初选 JSON 而不是逐列建列的原因。</p>
  */
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class SiteConfigServiceImpl implements SiteConfigService {
-
-    /** 单行表的固定主键 */
-    private static final int SINGLETON_ID = 1;
-
-    private static final String KEY_NAME = "name";
-    private static final String KEY_SUBTITLE = "subtitle";
-    private static final String KEY_LOGO = "logo";
 
     private static final String DEFAULT_NAME = "MiniDocs";
     private static final String DEFAULT_SUBTITLE = "极简知识库";
@@ -53,6 +52,7 @@ public class SiteConfigServiceImpl implements SiteConfigService {
     private final MiniDocsProperties properties;
     private final ImageValidator imageValidator;
     private final AssetService assetService;
+    private final SiteBaseUrlResolver siteBaseUrlResolver;
 
     @Override
     public SiteConfigVO get() {
@@ -64,8 +64,9 @@ public class SiteConfigServiceImpl implements SiteConfigService {
     public SiteConfigVO update(Map<String, Object> patch) {
         Map<String, Object> config = readConfig();
         if (patch != null) {
-            applyText(config, patch, KEY_NAME, MAX_NAME, "站点名称");
-            applyText(config, patch, KEY_SUBTITLE, MAX_SUBTITLE, "站点副标题");
+            applyText(config, patch, SiteConfig.KEY_NAME, MAX_NAME, "站点名称");
+            applyText(config, patch, SiteConfig.KEY_SUBTITLE, MAX_SUBTITLE, "站点副标题");
+            applyBaseUrl(config, patch);
         }
         save(config);
         return toVO(config);
@@ -79,8 +80,8 @@ public class SiteConfigServiceImpl implements SiteConfigService {
         write(properties.siteDir().resolve(fileName), file, extension);
         Map<String, Object> config = readConfig();
         // 先落新图再删旧图：中途失败最坏是留个孤儿文件，不会把站点 Logo 弄没
-        deleteLogoFile(text(config.get(KEY_LOGO)), fileName);
-        config.put(KEY_LOGO, fileName);
+        deleteLogoFile(text(config.get(SiteConfig.KEY_LOGO)), fileName);
+        config.put(SiteConfig.KEY_LOGO, fileName);
         save(config);
         return toVO(config);
     }
@@ -89,8 +90,8 @@ public class SiteConfigServiceImpl implements SiteConfigService {
     @Transactional(rollbackFor = Exception.class)
     public SiteConfigVO removeLogo() {
         Map<String, Object> config = readConfig();
-        deleteLogoFile(text(config.get(KEY_LOGO)), null);
-        config.remove(KEY_LOGO);
+        deleteLogoFile(text(config.get(SiteConfig.KEY_LOGO)), null);
+        config.remove(SiteConfig.KEY_LOGO);
         save(config);
         return toVO(config);
     }
@@ -118,17 +119,36 @@ public class SiteConfigServiceImpl implements SiteConfigService {
         }
     }
 
+    /**
+     * 站点基址：校验 + 归一化后写入，空串表示清除（回落到环境变量或按请求推导）。
+     *
+     * <p>不套用 {@link #applyText} 的长度上限：基址要交给 {@code SiteBaseUrls} 一起判协议与主机名，
+     * 它的报错比「不能超过 N 个字符」更能让人知道该怎么填。</p>
+     */
+    private void applyBaseUrl(Map<String, Object> config, Map<String, Object> patch) {
+        if (!patch.containsKey(SiteConfig.KEY_BASE_URL)) {
+            return;
+        }
+        Object raw = patch.get(SiteConfig.KEY_BASE_URL);
+        String value = SiteBaseUrls.require(raw == null ? null : String.valueOf(raw));
+        if (value.isEmpty()) {
+            config.remove(SiteConfig.KEY_BASE_URL);
+        } else {
+            config.put(SiteConfig.KEY_BASE_URL, value);
+        }
+    }
+
     private Map<String, Object> readConfig() {
-        SiteConfig entity = siteConfigMapper.selectById(SINGLETON_ID);
+        SiteConfig entity = siteConfigMapper.selectById(SiteConfig.SINGLETON_ID);
         return entity == null ? new LinkedHashMap<>() : JsonUtil.toMap(entity.getConfig());
     }
 
     private void save(Map<String, Object> config) {
         String json = JsonUtil.toJson(config);
-        SiteConfig entity = siteConfigMapper.selectById(SINGLETON_ID);
+        SiteConfig entity = siteConfigMapper.selectById(SiteConfig.SINGLETON_ID);
         if (entity == null) {
             entity = new SiteConfig();
-            entity.setId(SINGLETON_ID);
+            entity.setId(SiteConfig.SINGLETON_ID);
             entity.setConfig(json);
             entity.setUpdatedAt(TimeUtil.now());
             siteConfigMapper.insert(entity);
@@ -137,18 +157,22 @@ public class SiteConfigServiceImpl implements SiteConfigService {
             entity.setUpdatedAt(TimeUtil.now());
             siteConfigMapper.updateById(entity);
         }
+        // 放在最后：只有真落库了才让缓存失效，否则事务回滚后缓存已被清、下次读又拿到旧值，
+        // 虽然结果一样，但白白多打一次库。TTL 会兜住漏掉的失效，不依赖这一步。
+        siteBaseUrlResolver.invalidate();
     }
 
     private SiteConfigVO toVO(Map<String, Object> config) {
-        String name = text(config.get(KEY_NAME));
-        String subtitle = text(config.get(KEY_SUBTITLE));
-        String logo = text(config.get(KEY_LOGO));
+        String name = text(config.get(SiteConfig.KEY_NAME));
+        String subtitle = text(config.get(SiteConfig.KEY_SUBTITLE));
+        String logo = text(config.get(SiteConfig.KEY_LOGO));
         String logoSrc = logo == null ? null : AppPaths.of(SiteConfigVO.LOGO_PREFIX + logo);
         return new SiteConfigVO(
                 name == null ? DEFAULT_NAME : name,
                 subtitle == null ? DEFAULT_SUBTITLE : subtitle,
                 logo,
-                logoSrc);
+                logoSrc,
+                text(config.get(SiteConfig.KEY_BASE_URL)));
     }
 
     /** 取字符串，空白一律归一为 null。 */

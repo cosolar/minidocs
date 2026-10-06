@@ -6,11 +6,28 @@ spring:
     # 第二条直接 SQLITE_BUSY，接口返回 500。WAL 让读不挡写，5s 的等待窗口让写请求排队而不是报错。
     url: jdbc:sqlite:${VAULT_HOME:./data}/minidocs.db?journal_mode=WAL&busy_timeout=5000
     driver-class-name: org.sqlite.JDBC
-    hikari:
-      pool-name: minidocs-sqlite
-      maximum-pool-size: 8
-      minimum-idle: 1
-      connection-timeout: 10000
+    druid:
+      name: minidocs-sqlite
+      initial-size: 1
+      min-idle: 1
+      max-active: 8
+      max-wait: 10000
+      # SQLite 建连接只是打开本地文件，没有「连接会因防火墙/超时而失效」这类问题，
+      # 而 test-while-idle 每次校验都要走一次驱动探测（sqlite-jdbc 的 isValid 会执行 PRAGMA），
+      # 收益为零开销实在，故关掉。Druid 默认是 true，这里必须显式关。
+      test-while-idle: false
+      test-on-borrow: false
+      test-on-return: false
+      # 空闲驱逐对 SQLite 无意义：min-evictable-idle-time-millis 给足 10 分钟，
+      # 免得空闲连接刚被驱逐掉，下一个请求又要重新开文件。
+      time-between-eviction-runs-millis: 60000
+      min-evictable-idle-time-millis: 600000
+      # 不配 filters：本地开发不需要 SQL 统计，也就不挂 StatFilter（它会插在每一层 JDBC 调用上）。
+      # filter.stat.enabled 显式关掉：默认是 matchIfMissing=true，不关的话 starter 仍会建一个
+      # 从未 init 的 StatFilter 单例（StatViewServlet 打开时才用得上），不如压根不建。
+      filter:
+        stat:
+          enabled: false
 
 minidocs:
   db-dialect: sqlite

@@ -1,14 +1,58 @@
 # 生产环境：MySQL 8.0
 spring:
   datasource:
-    url: ${DB_URL:jdbc:mysql://${DB_HOST:localhost}:3306/minidocs?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useSSL=false}
-    username: ${DB_USER:root}
-    password: ${DB_PASSWORD:}
+    url: ${DB_URL:jdbc:mysql://${DB_HOST:10.0.4.14}:3306/minidocs?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useSSL=false}
+    username: ${DB_USER:minidocs}
+    password: ${DB_PASSWORD:minidocs123.}
     driver-class-name: com.mysql.cj.jdbc.Driver
-    hikari:
-      pool-name: minidocs-mysql
-      maximum-pool-size: 20
-      minimum-idle: 5
+    druid:
+      name: minidocs-mysql
+      # initial-size 对齐原来的 minimum-idle：启动即建好连接，避免首个请求去等建连。
+      initial-size: 5
+      min-idle: 5
+      max-active: 20
+      # 取连接的最长等待。等于此前 Hikari 的 connection-timeout 默认值 30s；
+      # Druid 默认是 -1（无限等），MySQL 挂掉时会把工作线程全挂住，必须显式给上限。
+      max-wait: 30000
+      time-between-eviction-runs-millis: 60000
+      min-evictable-idle-time-millis: 300000
+      # validation-query 必须给：Druid 不配它时退化成调 Connection#isValid，
+      # 而 isValid 会走一次驱动探测，比 "SELECT 1" 慢且在 MySQL 8 上偶有误判。
+      validation-query: SELECT 1
+      test-while-idle: true
+      test-on-borrow: false
+      test-on-return: false
+      # 池监控：/minidocs/druid/index.html
+      # 默认关闭。要看就置 DRUID_MONITOR_ENABLED=true，并把 DRUID_MONITOR_PASSWORD 换成强密码——
+      # 这个页面对未认证访问不设防，且默认 allow 只放行本机，远程查看请走 SSH 隧道。
+      # 该 servlet 不在 AuthInterceptor 的拦截路径（只拦 /api/**）内，认证只能靠它自己。
+      stat-view-servlet:
+        enabled: ${DRUID_MONITOR_ENABLED:false}
+        login-connector: druid
+        login-username: ${DRUID_MONITOR_USER:admin}
+        login-password: ${DRUID_MONITOR_PASSWORD:admin}
+        # 禁止在页面上执行 "Reset All" 清统计数据
+        reset-enable: false
+        # 只允许本机访问；需要从别的机器看就改成自己的网段（如 10.0.0.0/8）再逗号分隔
+        allow: 127.0.0.1
+      # SQL 统计依赖 StatFilter，置空即关闭（省掉每条 SQL 的解析开销，池监控页仍可用）。
+      # 这里默认开：知识库系统 QPS 低，解析开销可忽略，而慢 SQL 日志只在 StatFilter 存在时才有。
+      filters: ${DRUID_FILTERS:stat}
+      filter:
+        stat:
+          # 合并参数值，监控页与慢 SQL 日志里显示 SELECT * FROM users WHERE id = ? 而不是真实 id
+          merge-sql: true
+          slow-sql-millis: ${DB_SLOW_SQL_MILLIS:2000}
+          log-slow-sql: true
 
 minidocs:
   db-dialect: mysql
+
+# 生产关掉接口文档：/minidocs/swagger-ui 与 /minidocs/v3/api-docs 公开可访问，
+# 等于把全部接口形状、参数与错误码摊给任何访客。需要临时查看时用
+# SWAGGER_ENABLED=true 打开（见 deploy/.env.example）。
+springdoc:
+  api-docs:
+    enabled: ${SWAGGER_ENABLED:false}
+  swagger-ui:
+    enabled: ${SWAGGER_ENABLED:false}

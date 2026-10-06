@@ -38,6 +38,10 @@ public class MiniDocsProperties {
      *
      * <p>前后端分离部署（前端由 Nginx 伺服在根、后端挂在 context-path 下）时必须配置，
      * 例如 {@code https://kb.example.com}；要换前缀不必重打包前端，但改这个值要重启后端。</p>
+     *
+     * <p><b>优先级</b>：站点设置页里配的「站点基址」({@code site_config.config.baseUrl}) 高于本项。
+     * 两者都没配才按当前请求推导。取值逻辑集中在 {@code SiteBaseUrlResolver}，
+     * 本项因此退居「部署期兜底 / 平台注入配置」的角色，常规调整请到站点设置页改。</p>
      */
     private String pageBaseUrl;
 
@@ -110,6 +114,19 @@ public class MiniDocsProperties {
         }
         return Optional.of(Paths.get(frontDir).toAbsolutePath().normalize());
     }
+
+    /**
+     * CSP 的 {@code img-src} 是否允许任意 https 来源（默认允许）。
+     *
+     * <p>关掉之后，markdown 里的外链图片（自建图床、{@code img.shields.io} 徽章）会被浏览器
+     * 按「已屏蔽：csp」丢弃，页面上只剩空白。知识库要读别人写的文档，外链图片是常态，
+     * 所以默认开着；图片是惰性内容，{@code script-src} 仍为 {@code 'self'}，拿不到执行能力，
+     * 代价只是图片请求会带上 Referer。</p>
+     *
+     * <p><b>注意</b>：前端与接口两侧各发一份 CSP（后端过滤器 + Nginx），改这一项的同时
+     * 也要改 {@code deploy/nginx.conf} 里那份，否则两份取交集，仍会被更严的那份挡掉。</p>
+     */
+    private boolean cspAllowExternalImages = true;
 
     public static final List<String> DOC_EXTENSIONS = List.of(".md", ".markdown");
 

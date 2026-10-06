@@ -111,8 +111,12 @@
     <logger name="org.apache.coyote" level="WARN"/>
     <logger name="org.apache.tomcat" level="WARN"/>
     <logger name="org.hibernate.validator.internal.util.Version" level="WARN"/>
-    <!-- 只压连接池内部的 "Added connection"，保留 HikariDataSource 那两行起停确认 -->
-    <logger name="com.zaxxer.hikari.pool" level="WARN"/>
+    <!--
+      连接池降噪：只压 Druid 建/借/还连接的 DEBUG 明细，保留 DruidDataSource 那两行起停确认
+      （"... inited" 与 "... closed" 都是 INFO，正是「池起来了 / 关掉了」的确认信号）。
+      慢 SQL 日志也出自 StatFilter（INFO），别一起压掉。
+    -->
+    <logger name="com.alibaba.druid.pool.DruidDataSource" level="INFO"/>
     <logger name="org.eclipse.jgit" level="WARN"/>
     <logger name="com.baomidou.mybatisplus" level="WARN"/>
     <!--
