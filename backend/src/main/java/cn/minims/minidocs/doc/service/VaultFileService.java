@@ -72,6 +72,10 @@ public class VaultFileService {
     private static final String CONFIG_KEY_ORDER = "order";
     /** 保留键：隐藏规则数组。 */
     private static final String CONFIG_KEY_HIDDEN = "hidden";
+    /** 保留键：展示偏好对象。值是 Map，不会被旧格式那条「顶层其余数组键」误当成排序。 */
+    private static final String CONFIG_KEY_DISPLAY = "display";
+    /** 展示偏好里唯一一项：目录树是否显示 Markdown 后缀（{@code .md}）。 */
+    private static final String CONFIG_KEY_SHOW_MD_SUFFIX = "showMdSuffix";
 
     private static final ObjectMapper JSON = new ObjectMapper();
     private static final TypeReference<Map<String, Object>> CONFIG_MAP = new TypeReference<>() {
@@ -83,10 +87,31 @@ public class VaultFileService {
      * @param order  目录相对路径 → 该目录下的子项有序数组；根目录用空串
      * @param hidden 隐藏规则；精确路径或 glob，命中即不进入目录树、搜索与计数
      */
-    private record KbConfig(Map<String, List<String>> order, List<String> hidden) {
+    /**
+     * 库级配置：排序、隐藏规则、展示偏好。
+     *
+     * <p>三个分区各自独立，但<b>每次写都必须带上另外两个</b> —— 排序会在重命名 / 移动 /
+     * 拖拽时被动重写，隐藏规则会在设置面板里整份覆盖。任何一条写入路径只带自己那一份，
+     * 就会把作者写在仓库里、跟着 Git 走的另两份悄悄抹掉且无法找回。</p>
+     */
+    private record KbConfig(Map<String, List<String>> order, List<String> hidden, Display display) {
 
         static KbConfig empty() {
-            return new KbConfig(new LinkedHashMap<>(), new ArrayList<>());
+            return new KbConfig(new LinkedHashMap<>(), new ArrayList<>(), Display.defaults());
+        }
+    }
+
+    /**
+     * 展示偏好。
+     *
+     * <p>目前只有「目录树是否显示 {@code .md} 后缀」一项。字段用原始 {@code boolean} 而不是
+     * {@code Boolean}：缺省必须是「显示」，若用包装类型就得在每个读取处判 null，
+     * 而这份配置是要跟着 Git 走的、老仓库里根本没有这个键。</p>
+     */
+    private record Display(boolean showMdSuffix) {
+
+        static Display defaults() {
+            return new Display(true);
         }
     }
 
@@ -408,10 +433,42 @@ public class VaultFileService {
      * 排序部分原样带回（见 {@link #writeConfig}）。</p>
      */
     public void saveHiddenRules(Path root, List<String> rules) {
-        writeConfig(root, readConfig(root).order(), rules);
+        KbConfig old = readConfig(root);
+        writeConfig(root, new KbConfig(old.order(), rules, old.display()));
         // 两棵树（过滤 / 未过滤）的缓存键都含配置 mtime，这里失效是兜底：
         // 某些文件系统上 mtime 精度只到秒，同一秒内的两次改动会撞键
         invalidateTree(root);
+    }
+
+    /** 目录树是否显示 {@code .md} 后缀。缺省 true —— 老仓库里没有这个键。 */
+    public boolean showMdSuffix(Path root) {
+        return readConfig(root).display().showMdSuffix();
+    }
+
+    /**
+     * 覆盖写展示偏好。
+     *
+     * <p>与 {@link #saveHiddenRules} 同样只动自己那一个分区：排序会在重命名 / 移动时被
+     * 被动重写，作者的隐藏清单是自己写在仓库里、跟着 Git 走的，抹掉就没法找回。</p>
+     *
+     * <p>同样要失效缓存：目录树的缓存键含配置 mtime，但展示偏好是<b>前端</b>在渲染时读的，
+     * 它一变，前端拿到的是新字段而后端树是旧的，两边会短暂不一致（表现为后缀闪一下）。
+     * 失效后重新取一次即可。</p>
+     */
+    public void saveDisplay(Path root, boolean showMdSuffix) {
+        KbConfig old = readConfig(root);
+        writeConfig(root, new KbConfig(old.order(), old.hidden(), new Display(showMdSuffix)));
+        invalidateTree(root);
+    }
+
+    /** 库级配置的展示分区，供设置面板回填。 */
+    public DisplayVO displaySettings(Path root) {
+        Display display = readConfig(root).display();
+        return new DisplayVO(display.showMdSuffix());
+    }
+
+    /** 展示偏好的对外形状（{@link Display} 是私有的）。 */
+    public record DisplayVO(boolean showMdSuffix) {
     }
 
     /** 文档总数（含子目录，不含 assets 等系统目录与被隐藏的内容）。 */
@@ -638,6 +695,7 @@ public class VaultFileService {
             }
             Map<String, List<String>> order = new LinkedHashMap<>();
             List<String> hidden = new ArrayList<>();
+            Display display = Display.defaults();
             for (Map.Entry<String, Object> entry : raw.entrySet()) {
                 String key = entry.getKey();
                 if (CONFIG_KEY_ORDER.equals(key)) {
@@ -646,16 +704,39 @@ public class VaultFileService {
                     }
                 } else if (CONFIG_KEY_HIDDEN.equals(key)) {
                     hidden.addAll(asStringList(entry.getValue()));
+                } else if (CONFIG_KEY_DISPLAY.equals(key)) {
+                    display = parseDisplay(entry.getValue());
                 } else if (entry.getValue() instanceof List) {
                     // 旧格式：顶层其余的数组键是「目录相对路径 → 子项有序数组」
                     order.put(key, asStringList(entry.getValue()));
                 }
             }
-            return new KbConfig(order, hidden);
+            return new KbConfig(order, hidden, display);
         } catch (Exception e) {
             log.warn("库级配置解析失败，按默认展示：{} - {}", file, e.getMessage());
             return KbConfig.empty();
         }
+    }
+
+    /**
+     * 解析展示偏好分区。
+     *
+     * <p>只有<b>显式的 false</b> 才算关掉：老仓库里没有这个键，或者值类型被手改坏了，
+     * 一律按「显示后缀」处理。反过来（任何非 false 都当成关掉）会让一份损坏的配置
+     * 静默把所有文档的后缀藏起来，而用户完全不知道为什么。</p>
+     */
+    private static Display parseDisplay(Object value) {
+        if (!(value instanceof Map<?, ?> map)) {
+            return Display.defaults();
+        }
+        Object flag = map.get(CONFIG_KEY_SHOW_MD_SUFFIX);
+        if (flag == null) {
+            return Display.defaults();
+        }
+        if (flag instanceof Boolean b) {
+            return new Display(b);
+        }
+        return new Display(!"false".equalsIgnoreCase(String.valueOf(flag).trim()));
     }
 
     private static List<String> asStringList(Object value) {
@@ -721,13 +802,23 @@ public class VaultFileService {
      *
      * <p>顺序与隐藏分区写；两者都空时删文件，免得留下一份没有内容的配置。</p>
      */
-    private void writeConfig(Path root, Map<String, List<String>> order, List<String> hidden) {
+    /**
+     * 整份写回。
+     *
+     * <p>签名只收一个 {@link KbConfig}，不给「顺手带上别的分区」留位置：三个写入路径
+     * （排序 /隐藏 / 重命名后同步）各有各的触发时机，任何一个只写自己那份都会把另两份抹掉。
+     * 让调用方必须先 {@code readConfig} 再整体构造，忘记保留就在编译期暴露。</p>
+     */
+    private void writeConfig(Path root, KbConfig config) {
+        // 复制一份再清理：原实现直接 removeIf 调用方传进来的 map，
+        // 而那是 readConfig 刚返回的对象，改它会连带影响同一事务里后续的读
+        Map<String, List<String>> order = new LinkedHashMap<>(config.order());
         order.entrySet().removeIf(entry -> entry.getValue() == null || entry.getValue().isEmpty());
-        List<String> rules = new ArrayList<>(hidden);
+        List<String> rules = new ArrayList<>(config.hidden());
         rules.removeIf(item -> item == null || item.isBlank());
         Path file = root.resolve(ORDER_FILE);
         try {
-            if (order.isEmpty() && rules.isEmpty()) {
+            if (order.isEmpty() && rules.isEmpty() && config.display().showMdSuffix()) {
                 Files.deleteIfExists(file);
                 return;
             }
@@ -737,6 +828,11 @@ public class VaultFileService {
             }
             if (!rules.isEmpty()) {
                 out.put(CONFIG_KEY_HIDDEN, rules);
+            }
+            // 只在关掉时才写这一段：默认值落进文件会让每个仓库都多出与行为无关的配置，
+            // 别人 clone 下来第一次看到的是「原来这开关是关的」，而不是「作者什么都没配」
+            if (!config.display().showMdSuffix()) {
+                out.put(CONFIG_KEY_DISPLAY, Map.of(CONFIG_KEY_SHOW_MD_SUFFIX, false));
             }
             Files.writeString(file, JSON.writerWithDefaultPrettyPrinter().writeValueAsString(out),
                     StandardCharsets.UTF_8);
@@ -757,7 +853,8 @@ public class VaultFileService {
      * 作者的隐藏清单就会被抹掉 —— 而配置是他自己写在仓库里、还跟着 Git 走的，丢了没法找回。</p>
      */
     private void writeOrder(Path root, Map<String, List<String>> order) {
-        writeConfig(root, order, readConfig(root).hidden());
+        KbConfig old = readConfig(root);
+        writeConfig(root, new KbConfig(order, old.hidden(), old.display()));
     }
 
     /**
@@ -816,7 +913,7 @@ public class VaultFileService {
                 }
             }
         }
-        writeConfig(root, order, hidden);
+        writeConfig(root, new KbConfig(order, hidden, readConfig(root).display()));
     }
 
     /** 目录改名 / 移动：把清单里以旧路径为前缀的 key 整体换成新路径（含目录自身那份）。 */

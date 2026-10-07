@@ -227,8 +227,8 @@ public class KnowledgeBaseServiceImpl extends ServiceImpl<KnowledgeBaseMapper, K
         // 详情给的是磁盘实况而不是缓存计数：先校准内存对象，再让 from 统一出参
         kb.setDocCount((int) countDocsSafely(kb));
         // 与列表同一口径：详情页的「发布状态」和列表那一列必须一致，否则两处会各说各话
-        return withPublication(KbVO.from(kb, isFavorited(viewer, id), ownerName(kb.getOwnerId()), tenantOf(kb),
-                accessService.permissionsOf(kb, viewer)), publicationSupport.find(kb.getId()));
+        return withDisplay(withPublication(KbVO.from(kb, isFavorited(viewer, id), ownerName(kb.getOwnerId()),
+                tenantOf(kb), accessService.permissionsOf(kb, viewer)), publicationSupport.find(kb.getId())), kb);
     }
 
     @Override
@@ -401,6 +401,20 @@ public class KnowledgeBaseServiceImpl extends ServiceImpl<KnowledgeBaseMapper, K
     private static KbVO withPublication(KbVO vo, Share share) {
         return vo.withPublication(SharePublicationSupport.publishStatusOf(share),
                 share == null ? null : share.getToken());
+    }
+
+    /**
+     * 把库级配置里的展示偏好填进 VO。
+     *
+     * <p>只有控制台详情走这里：它与 {@link #page} 的区别在于，<b>只有详情会渲染目录树</b>。
+     * 列表页每行不读一次配置文件是刻意的 —— 一页20 行就是 20 次小文件读，
+     * 而列表里根本没有树要渲染，这个开销换不到任何东西。</p>
+     *
+     * <p>门户那几条链路同理不填：它们的卡片不显示文件名，不需要这个标志，
+     * 硬填反而给人「这个字段在所有链路都有值」的错觉。</p>
+     */
+    private KbVO withDisplay(KbVO vo, KnowledgeBase kb) {
+        return vo.withDisplay(vaultFileService.showMdSuffix(vaultFileService.rootOf(kb.getStorageKey())));
     }
 
     /**

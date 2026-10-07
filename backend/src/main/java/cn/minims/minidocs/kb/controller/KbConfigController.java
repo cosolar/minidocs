@@ -47,26 +47,34 @@ public class KbConfigController {
      *
      * <p>两者必须同源：树要能看到已隐藏项（否则没法取消），规则要能看到当前值（否则没法回填勾选）。</p>
      */
-    @Operation(summary = "读取库级配置（隐藏规则 + 未过滤目录树）")
+    @Operation(summary = "读取库级配置（隐藏规则 + 未过滤目录树 + 展示偏好）")
     @GetMapping("/api/console/{org}/kbs/{slug}/config")
     public ApiResponse<ConfigVO> config(@PathVariable String org, @PathVariable String slug) {
         KnowledgeBase kb = locate(slug);
-        return ApiResponse.ok(new ConfigVO(vaultFileService.hiddenRules(root(kb)),
-                vaultFileService.treeIncludingHidden(root(kb))));
+        Path root = root(kb);
+        return ApiResponse.ok(new ConfigVO(vaultFileService.hiddenRules(root),
+                vaultFileService.treeIncludingHidden(root), vaultFileService.displaySettings(root)));
     }
 
-    @Operation(summary = "保存隐藏规则（整份覆盖）")
+    @Operation(summary = "保存库级配置（隐藏规则整份覆盖 + 展示偏好）")
     @PutMapping("/api/console/{org}/kbs/{slug}/config")
     public ApiResponse<List<String>> saveConfig(@PathVariable String org, @PathVariable String slug,
                                                 @Valid @RequestBody ConfigRequest request) {
         KnowledgeBase kb = accessService.requireKb(
                 knowledgeBaseService.requireBySlug(TenantContext.requireId(), slug).getId(),
                 KbAction.KB_EDIT_META, UserContext.get());
-        vaultFileService.saveHiddenRules(root(kb), request.hidden());
+        Path root = root(kb);
+        vaultFileService.saveHiddenRules(root, request.hidden());
+        // display 为 null 表示「这次没带」。与 hidden 不同，它允许缺省：
+        // 旧客户端（以及重命名 / 移动那些内部写入路径）只关心隐藏规则，
+        // 若把缺省当成 false，一份不带 display 的请求就会把作者的展示偏好静默关掉。
+        if (request.display() != null) {
+            vaultFileService.saveDisplay(root, request.display().showMdSuffix());
+        }
         // 规则一改，库级元信息里的文档数就变了（被隐藏的不再计入）。
         // 详情接口会实时校准，但列表与门户读的是这一列，所以要在这里落一次。
         knowledgeBaseService.touch(kb.getId());
-        return ApiResponse.ok(vaultFileService.hiddenRules(root(kb)));
+        return ApiResponse.ok(vaultFileService.hiddenRules(root));
     }
 
     private KnowledgeBase locate(String slug) {
@@ -84,8 +92,17 @@ public class KbConfigController {
      *
      * <p>{@code hidden} 允许为空数组（等于「全部显示」），但不允许 null —— 那是「没传」，
      * 与「清空」在语义上必须区分，否则一次漏传就会把作者的规则全清掉。</p>
+     *
+     * <p>{@code display} 相反：<b>允许为 null</b>，含义是「这次不碰展示偏好」。
+     * 两个分区的缺省方向相反不是疏忽 —— 隐藏规则少传一次会清空作者的成果，必须报错；
+     * 展示偏好少传一次按「不动」处理，才让只改隐藏规则的旧客户端能继续用。</p>
      */
-    public record ConfigRequest(@NotNull(message = "hidden 不能为 null；清空请传空数组") List<String> hidden) {
+    public record ConfigRequest(@NotNull(message = "hidden 不能为 null；清空请传空数组") List<String> hidden,
+                                DisplayRequest display) {
+    }
+
+    /** 展示偏好。字段用原始 boolean：缺省不是「关」而是「保持原样」，由上层判null。 */
+    public record DisplayRequest(boolean showMdSuffix) {
     }
 
     /**
@@ -93,7 +110,11 @@ public class KbConfigController {
      *
      * <p>{@code tree} 是<b>未过滤</b>的完整树（见类注释）；{@code hidden} 是当前的规则原文，
      * 前端据此回填勾选 —— 注意规则里可能是目录也可能是文件，勾选状态要按类型分别处理。</p>
+     *
+     * <p>{@code display} 独立于隐藏规则：它管的是「名字怎么显示」，而 hidden 管「哪些东西出现」。
+     * 两者合成一个「配置」概念是对的（都在 .minidocs.json 里），但UI 上必须分开摆，
+     * 否则「取消隐藏」会被读成「恢复默认显示」。</p>
      */
-    public record ConfigVO(List<String> hidden, List<DocNode> tree) {
+    public record ConfigVO(List<String> hidden, List<DocNode> tree, VaultFileService.DisplayVO display) {
     }
 }

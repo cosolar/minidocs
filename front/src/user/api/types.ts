@@ -52,6 +52,13 @@ export interface ReadView {
   assetPrefix?: string
   docCount: number
   tagCount: number
+  /**
+   * 目录树是否显示 {@code .md} 后缀（库级配置）。缺省按显示处理。
+   *
+   * <p>前端在渲染时剥，不在后端剥 {@code DocNode.name} —— 那个字段同时是文件名，
+   * 管理端的重命名对话框要拿它回填。</p>
+   */
+  showMdSuffix?: boolean
 
   tree: DocNode[]
   showTree: boolean

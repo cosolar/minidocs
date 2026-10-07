@@ -50,6 +50,28 @@ const loadingConfig = ref(false)
 const savingConfig = ref(false)
 /** 勾选中的路径。语义是「勾 = 隐藏」，所以面板文案必须反着说，否则用户会点反 */
 const checked = ref<string[]>([])
+/**
+ * 目录树是否显示 {@code .md} 后缀。
+ *
+ * <p>单独一个 ref 而不是塞进 {@link #config}：它是「待保存的编辑态」，
+ * 而 config 是服务端读回来的那份。两者混在一起就没法判断「改没改」（保存按钮的禁用
+ * 依赖这个判断），也没法在取消时干净地丢掉未保存的改动。</p>
+ */
+const showMdSuffix = ref(true)
+
+/** 开关的说明。默认值是「显示」，所以关掉它是一次明确的取舍，值得写清楚代价。 */
+const showMdSuffixHint = computed(() => (showMdSuffix.value
+  ? '目录树里显示「记忆碎片.md」这样的完整文件名。下载与重命名仍按磁盘上的真名走。'
+  : '目录树里只显示「记忆碎片」，文件名补 .md。下载、搜索与重命名仍按磁盘上的真名走，不会丢扩展名。'))
+
+/**
+ * 「基础信息」页签里的后缀开关有没有待保存的改动。
+ *
+ * <p>两个开关在同一份配置上、却分属两个页签，所以「在另一个页签改了」这件事本身
+ * 就是需要被看见的状态 —— 否则用户只能靠点一次保存、看完提示才知道自己漏了。</p>
+ */
+const displayDirty = computed(() => !!config.value
+  && showMdSuffix.value !== (config.value.display?.showMdSuffix !== false))
 
 const treeData = computed(() => (config.value?.tree || []).map(toTreeNode))
 
@@ -93,6 +115,7 @@ async function loadConfig() {
   try {
     config.value = await kbApi.config(props.kb.slug)
     checked.value = [...(config.value.hidden || [])]
+    showMdSuffix.value = config.value.display?.showMdSuffix !== false
   } catch {
     ElMessage.error('读取库配置失败')
   } finally {
@@ -132,15 +155,21 @@ async function saveMeta() {
 async function saveHidden() {
   if (!props.kb || !config.value) return
   const next = [...checked.value]
-  const same = JSON.stringify([...next].sort()) === JSON.stringify([...(config.value.hidden || [])].sort())
-  if (same) {
-    ElMessage.info('隐藏配置没有变化')
+  const sameHidden = JSON.stringify([...next].sort())
+    === JSON.stringify([...(config.value.hidden || [])].sort())
+  const sameDisplay = showMdSuffix.value === (config.value.display?.showMdSuffix !== false)
+  if (sameHidden && sameDisplay) {
+    ElMessage.info('配置没有变化')
     return
   }
   savingConfig.value = true
   try {
-    await kbApi.saveConfig(props.kb.slug, next)
-    ElMessage.success(next.length ? `已隐藏 ${next.length} 项` : '已取消全部隐藏')
+    await kbApi.saveConfig(props.kb.slug, next, { showMdSuffix: showMdSuffix.value })
+    // 两个分区都提交，所以文案不能再只报隐藏那一条，否则改了后缀却说「已取消全部隐藏」
+    const parts: string[] = []
+    if (!sameHidden) parts.push(next.length ? `已隐藏 ${next.length} 项` : '已取消全部隐藏')
+    if (!sameDisplay) parts.push(showMdSuffix.value ? '已恢复显示 .md 后缀' : '已隐藏 .md 后缀')
+    ElMessage.success(parts.join('；'))
     // 规则一改，左栏与文档计数都会变；让工作区自己重取，面板不替它算
     emit('saved', {})
   } finally {
@@ -181,12 +210,46 @@ async function saveHidden() {
           <div class="md-form-hint">
             这一层只在<b>平台内</b>生效。库要出现在门户上、让不登录的人也能访问，需要另行创建整库分享链接。
           </div>
+
+          <!--
+            展示偏好。与上面的可见范围是两件不相干的事，所以单独一个 form-item：
+            塞进同一块会让人以为「隐藏了目录」顺带也改了显示方式。
+          -->
+          <el-form-item label="目录树里的文件名">
+            <div class="md-settings__switch">
+              <el-switch
+                v-model="showMdSuffix"
+                :disabled="!canEditConfig"
+                active-text="显示 .md"
+                inactive-text="不显示"
+              />
+              <span class="md-form-hint">{{ showMdSuffixHint }}</span>
+            </div>
+          </el-form-item>
+          <div class="md-form-hint">
+            保存在库根的 <code>.minidocs.json</code>，跟着 Git 一起走 —— 团队共用一套显示方式。
+          </div>
         </el-form>
         <div class="md-settings__actions">
-          <el-button type="primary" :loading="savingMeta" :disabled="!canEditMeta" @click="saveMeta">
-            保存基本信息
-          </el-button>
-        </div>
+               <el-button type="primary" :loading="savingMeta" :disabled="!canEditMeta" @click="saveMeta">
+                    保存基本信息
+                  </el-button>
+         <!--
+           基本信息与库级配置是两次不同的保存（前者写数据库、后者写库根文件），
+           所以按钮也分开。但后缀开关是本页新加的，只给一个「保存基本信息」，
+           用户会理所当然以为它一起生效了 —— 那就会去找「后缀怎么关不掉」。
+         -->
+            <el-button
+              v-if="displayDirty"
+              type="primary"
+              plain
+              :loading="savingConfig"
+           :disabled="!canEditConfig"
+              @click="saveHidden"
+            >
+                      保存后缀设置
+               </el-button>
+          </div>
       </el-tab-pane>
 
       <!-- ------------------------------------------------------ 隐藏配置 -->
@@ -238,17 +301,36 @@ async function saveHidden() {
         </div>
 
         <div class="md-settings__actions">
-          <el-button type="primary" :loading="savingConfig" :disabled="!canEditConfig" @click="saveHidden">
-            保存隐藏配置
-          </el-button>
-          <el-button :disabled="loadingConfig" @click="loadConfig">重新载入</el-button>
-        </div>
+                  <el-button type="primary" :loading="savingConfig" :disabled="!canEditConfig" @click="saveHidden">
+                    保存隐藏配置
+                  </el-button>
+                  <el-button :disabled="loadingConfig" @click="loadConfig">重新载入</el-button>
+                  <!--
+                    另一页签也有待保存的改动时不静默带过：saveHidden 会把两个分区一起提交，
+                    所以这里必须说出来，否则用户在「基础信息」改了后缀却以为要点这个按钮。
+                  -->
+                  <span v-if="displayDirty" class="md-settings__crosshint">
+                    「基础信息」里的文件名后缀设置也已改动，点这里会一并保存
+                  </span>
+                </div>
       </el-tab-pane>
     </el-tabs>
   </el-dialog>
 </template>
 
 <style scoped>
+/* 开关与说明同排：说明较长，竖排会把弹窗撑得很高 */
+.md-settings__switch {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.md-settings__switch .md-form-hint { margin: 0; }
+.md-settings__crosshint {
+  align-self: center;
+  color: var(--md-text-3);
+  font-size: 12px;
+}
 .md-settings__tip {
   margin: 0 0 10px;
   color: var(--md-text-3);

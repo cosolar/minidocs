@@ -3,6 +3,7 @@ import { computed, ref, watch } from 'vue'
 import MdIcon from '@/admin/components/MdIcon.vue'
 import { draggingPath } from '@/admin/components/docDrag'
 import { can } from '@/shared/api/caps'
+import { displayName } from '@/shared/docName'
 import type { DocNode, KbActionName } from '@/shared/api/types'
 
 const props = defineProps<{
@@ -29,6 +30,13 @@ const props = defineProps<{
    * 让前端自己猜它们同不同轴。省略或给空数组按「本次没算」处理，菜单照常给，真判定在后端。</p>
    */
   perms?: KbActionName[]
+  /**
+   * 目录树是否显示 {@code .md} 后缀（库级配置）。缺省按显示处理。
+   *
+   * <p>逐层往下传而不是各自去读配置：递归组件的每一节都只持有自己直接渲染的那一节，
+   * 在叶子节点里发请求既做不到也毫无意义。</p>
+   */
+  showMdSuffix?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -83,6 +91,15 @@ const isAncestor = computed(
 
 /** 图片用单独的图标：跟文档混在一起时，一眼能分出「这个点开是看图还是读文」 */
 const typeIcon = computed(() => (props.node.type === 'dir' ? 'folder' : props.node.type === 'image' ? 'image' : 'file'))
+
+/**
+ * 这一行显示的名字。
+ *
+ * <p>{@code name} 是磁盘上的真名（含 {@code .md}），重命名对话框要用它回填，所以树上显示的
+ * 不能是它 —— 走 {@link displayName} 按库级偏好剥一次。这样「重命名」看到的输入框
+ * 与树上看到的名字可能不一致，但各自都对：前者是文件名，后者是展示名。</p>
+ */
+const displayText = computed(() => displayName(props.node.name, props.node.type, props.showMdSuffix))
 
 /**
  * 目录右侧的篇数：整棵子树里的文档数，不是直接子项数。
@@ -288,7 +305,7 @@ function onDrop(event: DragEvent) {
 
       <MdIcon class="md-ad-tree__type" :name="typeIcon" :size="15" />
 
-      <span class="md-ad-tree__name" :class="{ 'is-asset': node.type === 'image' }" :title="node.path" @click="onSelect">{{ node.name }}</span>
+      <span class="md-ad-tree__name" :class="{ 'is-asset': node.type === 'image' }" :title="node.path" @click="onSelect">{{ displayText }}</span>
 
       <!--
         篇数排在「更多」左边而不是行的最右：最右那一列平时是透明的（opacity:0），
@@ -340,6 +357,7 @@ function onDrop(event: DragEvent) {
         :depth="depth + 1"
         :collapse-all="collapseAll"
         :perms="perms"
+        :show-md-suffix="showMdSuffix"
         @select="emit('select', $event)"
         @action="emit('action', $event)"
         @move="emit('move', $event)"

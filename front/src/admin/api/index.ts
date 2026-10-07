@@ -2,7 +2,7 @@ import { request } from './http'
 import { kbPath, kbUrl, orgPath } from './context'
 import type {
   AdminUserVO, AuditVO, DiscoverOrgVO, DocContentVO, DocNode, GitStatusVO, GitSyncVO, ImportResult,
-  KbConfigVO, KbRosterVO, KbVO, LockVO,
+  KbConfigVO, KbDisplay, KbRosterVO, KbVO, LockVO,
   LoginResponse, MeVO, OrgMemberVO, OrgVO, PageResult, PathChangeVO, JoinRequestVO, RenderVO,
   ShareVO, SiteConfig, StatsVO, UserVO
 } from '@/shared/api/types'
@@ -80,9 +80,14 @@ export const kbApi = {
    * 这边给「作者该配置的」（未过滤）。合成一个就会出现「已隐藏的项无法取消隐藏」。</p>
    */
   config: (kbSlug: string) => request<KbConfigVO>({ url: `${kbPath(kbSlug)}/config` }),
-  /** 保存隐藏规则（整份覆盖，不是增量） */
-  saveConfig: (kbSlug: string, hidden: string[]) =>
-    request<string[]>({ url: `${kbPath(kbSlug)}/config`, method: 'put', data: { hidden } }),
+  /**
+   * 保存库级配置（整份覆盖，不是增量）。
+   *
+   * <p>{@code display} 省略或传 undefined 时后端不动那一分区，所以只改隐藏规则的旧调用
+   * 不会被当成「把后缀关掉」—— 后者与前者缺省方向相反，不是疏忽。</p>
+   */
+  saveConfig: (kbSlug: string, hidden: string[], display?: KbDisplay) =>
+    request<string[]>({ url: `${kbPath(kbSlug)}/config`, method: 'put', data: { hidden, display } }),
   remove: (kbSlug: string) => request<void>({ url: `${kbPath(kbSlug)}`, method: 'delete' }),
   favorite: (kbSlug: string, favored: boolean) =>
     request<{ favored: boolean }>({ url: `${kbPath(kbSlug)}/favorite`, method: favored ? 'delete' : 'post' }),

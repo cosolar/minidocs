@@ -88,7 +88,9 @@ public class ReaderService {
         // 阅读页左栏那颗「共享 / 加密」胶囊的数据源。与 visibility 正交，别混用。
         view.setShareStatus(SharePublicationSupport.publishStatusOf(publicationSupport.find(kb.getId())));
         view.setDocCount(docPaths.size());
-        view.setTagCount(splitTags(kb.getTags()).size());
+          view.setTagCount(splitTags(kb.getTags()).size());
+                // 目录树要不要显示 .md 后缀。缺省 true，老仓库的 .minidocs.json 里没有这一项。
+                view.setShowMdSuffix(vaultFileService.showMdSuffix(root));
         view.setShowTree(request.includeTree());
         view.setSingleDoc(request.singleDoc());
         view.setShareToken(request.shareToken());

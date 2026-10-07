@@ -83,11 +83,11 @@ public final class KbDtos {
      * 秘密——看得到这个库的人本来就能看到自己的写权限结论。</p>
      */
     public record KbVO(Long id, Long ownerId, String ownerName, String name, String slug, String description,
-                      String visibility, String maintainScope, String coverUrl, String coverSrc, List<String> tags,
-                      Integer docCount, boolean favored, String shareStatus, String shareToken, String directoryPath,
-                      LocalDateTime createdAt, LocalDateTime updatedAt, String updatedText,
-                      String tenantSlug, String tenantName, List<String> myPermissions,
-                      String sourceType, GitBindingVO git) {
+                          String visibility, String maintainScope, String coverUrl, String coverSrc, List<String> tags,
+                          Integer docCount, boolean favored, String shareStatus, String shareToken, String directoryPath,
+                          LocalDateTime createdAt, LocalDateTime updatedAt, String updatedText,
+                          String tenantSlug, String tenantName, List<String> myPermissions,
+                          String sourceType, GitBindingVO git, boolean showMdSuffix) {
 
         public static KbVO from(KnowledgeBase kb, boolean favored, String ownerName) {
             return from(kb, favored, ownerName, null);
@@ -119,8 +119,25 @@ public final class KbDtos {
                     kb.getCreatedAt(), kb.getUpdatedAt(), TimeUtil.display(kb.getUpdatedAt()),
                     tenantSlug, tenant == null ? null : tenant.getName(), granted,
                     kb.getSourceType() == null ? KnowledgeBase.SOURCE_LOCAL : kb.getSourceType(),
-                    GitBindingVO.of(kb));
-        }
+                      GitBindingVO.of(kb),
+                           // 默认「显示 .md 后缀」：真正的值来自库根的 .minidocs.json，要读文件才知道，
+                              // 而 from() 只拿着实体。渲染目录树的两条链路各自用 withDisplay() 补上。
+                               true);
+                            }
+
+                            /**
+                             * 补上展示偏好（目录树是否显示 {@code .md} 后缀）。
+                             *
+                        * <p>与 {@link #withShareStatus} 同理：这一项要读库根的配置文件才能知道，
+                        * 而 {@link #from} 只拿到实体。放在 wither 上而不是给 from 加参数，是为了让
+                             * 「不关心这个字段的调用方」（门户那几条链路）不必假装自己知道答案。</p>
+                             */
+                            public KbVO withDisplay(boolean showMdSuffix) {
+                                return new KbVO(id, ownerId, ownerName, name, slug, description, visibility, maintainScope,
+                            coverUrl, coverSrc, tags, docCount, favored, shareStatus, shareToken, directoryPath,
+                              createdAt, updatedAt, updatedText, tenantSlug, tenantName, myPermissions,
+                     sourceType, git, showMdSuffix);
+                            }
 
         /**
          * 补上发布态与分享短链。
@@ -142,10 +159,10 @@ public final class KbDtos {
          * @param shareToken 有效整库分享的 token；未发布时为 null
          */
         public KbVO withPublication(String shareStatus, String shareToken) {
-            return new KbVO(id, ownerId, ownerName, name, slug, description, visibility, maintainScope, coverUrl,
-                    coverSrc, tags, docCount, favored, shareStatus, shareToken, directoryPath, createdAt, updatedAt,
-                    updatedText, tenantSlug, tenantName, myPermissions, sourceType, git);
-        }
+                    return new KbVO(id, ownerId, ownerName, name, slug, description, visibility, maintainScope, coverUrl,
+               coverSrc, tags, docCount, favored, shareStatus, shareToken, directoryPath, createdAt, updatedAt,
+           updatedText, tenantSlug, tenantName, myPermissions, sourceType, git, showMdSuffix);
+                }
     }
 
     /**

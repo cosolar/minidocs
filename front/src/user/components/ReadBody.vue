@@ -294,11 +294,12 @@ function routerTo(link?: string) {
         <nav v-if="view.showTree && treeNodes.length" ref="treeEl" class="md-aside__tree">
           <DocTree
             :nodes="treeNodes"
-            :current-path="view.currentPath"
-            :link-prefix="view.docLinkPrefix || ''"
-            :keyword="keyword"
+                      :current-path="view.currentPath"
+             :link-prefix="view.docLinkPrefix || ''"
+             :keyword="keyword"
+             :show-md-suffix="view.showMdSuffix"
             @select="onTreeSelect"
-          />
+                    />
         </nav>
       </div>
     </aside>

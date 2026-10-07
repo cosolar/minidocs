@@ -77,6 +77,14 @@ export interface KbVO {
   sourceType?: 'local' | 'git'
   /** 云端库的绑定信息；本地库后端不下发这一块 */
   git?: GitBindingVO
+  /**
+   * 目录树是否显示 {@code .md} 后缀（库级配置 display 分区）。
+   *
+   * <p><b>只有控制台详情接口会填</b>：只有详情会渲染目录树，列表页每行读一次配置文件
+   * 换不到任何东西（列表里没有树）。所以这个字段在列表 / 门户的 KbVO 上恒为默认值
+   * {@code true} —— 别在列表卡片上拿它做判断。</p>
+   */
+  showMdSuffix?: boolean
 }
 
 /**
@@ -89,6 +97,18 @@ export interface KbConfigVO {
   /** 当前的隐藏规则原文；元素是相对库根的路径，可能是目录也可能是文件 */
   hidden: string[]
   tree: DocNode[]
+  /**
+   * 展示偏好。与 {@link hidden} 分区独立：它管「名字怎么显示」，hidden 管「哪些东西出现」。
+   *
+   * <p>缺省不传就表示「不动它」，所以保存时也要能区分「没带」与「false」——
+   * 前端提交 {@code display: undefined} 才是前者。</p>
+   */
+  display?: KbDisplay
+}
+
+/** 库级展示偏好。目前只有「目录树是否显示 .md 后缀」一项。 */
+export interface KbDisplay {
+  showMdSuffix: boolean
 }
 
 /** 云端知识库的绑定信息（令牌只以 tokenSet 回传，明文不出后端）。 */

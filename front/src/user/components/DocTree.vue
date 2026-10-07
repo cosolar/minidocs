@@ -2,6 +2,7 @@
 import { computed, reactive, watch } from 'vue'
 import Icon from './Icon.vue'
 import { stripAppBase } from '@/shared/appBase'
+import { displayName } from '@/shared/docName'
 import type { DocNode } from '@/shared/api/types'
 
 const props = defineProps<{
@@ -17,6 +18,13 @@ const props = defineProps<{
   linkPrefix: string
   /** 目录过滤关键字 */
   keyword?: string
+  /**
+   * 目录树是否显示 {@code .md} 后缀（库级配置）。缺省按显示处理。
+   *
+   * <p>逐层往下传，不在叶子节点里读配置 —— {@code DocTree} 是递归组件，
+   * 每一节只持有自己直接渲染的那一节。</p>
+   */
+  showMdSuffix?: boolean
 }>()
 
 /** 图片节点点开：交给外层切到预览。目录仍是目录，展开行为不变。 */
@@ -104,6 +112,11 @@ function countOf(node: DocNode): number {
   return total
 }
 
+/** 树上显示的名字：按库级偏好决定要不要留 {@code .md} 后缀（只对文档生效）。 */
+function textOf(node: DocNode): string {
+  return displayName(node.name, node.type, props.showMdSuffix)
+}
+
 /**
  * 目录项的站内地址。
  *
@@ -140,8 +153,8 @@ function linkTo(node: DocNode) {
         >
           <Icon class="md-tree__chevron" name="chevronDown" :size="14" />
           <Icon class="md-tree__type" name="folder" :size="15" />
-          <span class="md-tree__name">{{ node.name }}</span>
-          <em class="md-tree__count">{{ countOf(node) }}</em>
+          <span class="md-tree__name">{{ textOf(node) }}</span>
+                    <em class="md-tree__count">{{ countOf(node) }}</em>
         </button>
         <!--
           图片节点：不能跳路由（没有对应页面），改为上抛给外层切预览。
@@ -157,7 +170,7 @@ function linkTo(node: DocNode) {
         >
           <span class="md-tree__chevron md-tree__chevron--spacer" />
           <Icon class="md-tree__type" name="image" :size="15" />
-          <span class="md-tree__name">{{ node.name }}</span>
+          <span class="md-tree__name">{{ textOf(node) }}</span>
         </button>
         <router-link
           v-else
@@ -172,7 +185,7 @@ function linkTo(node: DocNode) {
           -->
           <span class="md-tree__chevron md-tree__chevron--spacer" />
           <Icon class="md-tree__type" name="file" :size="15" />
-          <span class="md-tree__name">{{ node.name }}</span>
+          <span class="md-tree__name">{{ textOf(node) }}</span>
         </router-link>
       </div>
       <!--
@@ -185,7 +198,8 @@ function linkTo(node: DocNode) {
         :nodes="node.children"
         :current-path="currentPath"
         :link-prefix="linkPrefix"
-        :keyword="keyword"
+  :keyword="keyword"
+        :show-md-suffix="showMdSuffix"
         @select="(n) => emit('select', n)"
       />
     </li>
