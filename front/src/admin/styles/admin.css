@@ -856,6 +856,7 @@ body.is-col-resizing .md-ws__bytemd-resizer::after { background: var(--md-primar
 
 /* ------------------------------------------------ 文档树 */
 .md-ad-tree { list-style: none; margin: 0; padding: 0; }
+/* 层级导线用虚线：工作区的树是可以拖着改层级的，实线会被误读成「这条线本身能点」 */
 .md-ad-tree .md-ad-tree { padding-left: 13px; margin-left: 8px; border-left: 1px dashed var(--md-border); }
 .md-ad-tree__row {
   position: relative;
@@ -891,14 +892,26 @@ body.is-col-resizing .md-ws__bytemd-resizer::after { background: var(--md-primar
 .md-ad-tree__toggle:hover { background: var(--md-surface); color: var(--md-text); }
 .md-ad-tree__toggle--spacer { cursor: default; }
 .md-ad-tree__toggle--spacer:hover { background: none; }
+/* 文档 / 图片压到最淡的灰 */
 .md-ad-tree__type { flex-shrink: 0; color: var(--md-text-3); }
-.md-ad-tree__row.is-dir .md-ad-tree__type { color: var(--md-text-2); }
+/* 目录给品牌蓝：一眼分出「这一层还有下级」，与文章行区分开 */
+.md-ad-tree__row.is-dir .md-ad-tree__type { color: var(--md-primary); }
 .md-ad-tree__name {
   flex: 1; min-width: 0; padding: 5px 2px; font-size: 13px; cursor: pointer;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--md-text-2);
 }
 /* 图片节点：图标已经能区分，再把名字压暗一档，双重保险（很多人不看图标只扫字） */
 .md-ad-tree__name.is-asset { color: var(--md-text-3); }
+/*
+ * 目录的篇数。右对齐 + 定宽min-width，否则个位数（2）与两位数（17）宽度不同，
+ * 右边缘的竖线会随数字跳动；hover 时提一档亮度，扫视时不抢注意力。
+ */
+.md-ad-tree__count {
+  flex-shrink: 0; min-width: 20px; padding: 0 4px 0 0;
+  color: var(--md-text-3); font-size: 11px; line-height: 20px; font-style: normal;
+  text-align: right; transition: color .14s ease;
+}
+.md-ad-tree__row:hover .md-ad-tree__count { color: var(--md-text-2); }
 .md-ad-tree__more {
   display: inline-grid; place-items: center; width: 22px; height: 22px; margin-right: 2px;
   border: 0; border-radius: 6px; background: none; color: var(--md-text-3); cursor: pointer;

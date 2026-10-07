@@ -89,6 +89,22 @@ function isHidden(node: DocNode) {
 }
 
 /**
+ * 目录右侧的数字：整棵子树里的文档篇数。
+ *
+ * <p>不是直接子项数 —— 直接子项数在设计稿那个例子上会给出「docs: 7」（7 个子目录）
+ * 而实际有 17 篇，读者会以为这个目录比看起来小。图片不计入：它们不是文章，
+ * 混进篇数里会让人对不上「全库 174 篇」这个总数。</p>
+ */
+function countOf(node: DocNode): number {
+  if (node.type !== 'dir') return 0
+  let total = 0
+  for (const child of node.children || []) {
+    total += child.type === 'doc' ? 1 : countOf(child)
+  }
+  return total
+}
+
+/**
  * 目录项的站内地址。
  *
  * <p>后端的 {@code docLinkPrefix} 已经带上了上下文路径（{@code AppPaths.of("/share/{token}?path=")}
@@ -123,8 +139,9 @@ function linkTo(node: DocNode) {
           @click="toggle(node.path)"
         >
           <Icon class="md-tree__chevron" name="chevronDown" :size="14" />
+          <Icon class="md-tree__type" name="folder" :size="15" />
           <span class="md-tree__name">{{ node.name }}</span>
-          <em class="md-tree__count">{{ node.children.length }}</em>
+          <em class="md-tree__count">{{ countOf(node) }}</em>
         </button>
         <!--
           图片节点：不能跳路由（没有对应页面），改为上抛给外层切预览。
@@ -138,7 +155,8 @@ function linkTo(node: DocNode) {
           :title="`预览图片：${node.name}`"
           @click="emit('select', node)"
         >
-          <Icon class="md-tree__dot" name="image" :size="12" />
+          <span class="md-tree__chevron md-tree__chevron--spacer" />
+          <Icon class="md-tree__type" name="image" :size="15" />
           <span class="md-tree__name">{{ node.name }}</span>
         </button>
         <router-link
@@ -147,7 +165,13 @@ function linkTo(node: DocNode) {
           :class="{ 'is-active': node.path === currentPath }"
           :to="linkTo(node)"
         >
-          <span class="md-tree__dot" />
+          <!--
+            箭头槽留空：目录行前面有一个 14px 的箭头，文档行补一个同宽的空槽，
+            两种节点的名称才会落在同一条竖线上。原先文档行只放一个 6px 的圆点，
+            于是目录名比文档名靠右一格，整棵树看上去是歪的。
+          -->
+          <span class="md-tree__chevron md-tree__chevron--spacer" />
+          <Icon class="md-tree__type" name="file" :size="15" />
           <span class="md-tree__name">{{ node.name }}</span>
         </router-link>
       </div>

@@ -85,6 +85,32 @@ const isAncestor = computed(
 const typeIcon = computed(() => (props.node.type === 'dir' ? 'folder' : props.node.type === 'image' ? 'image' : 'file'))
 
 /**
+ * 目录右侧的篇数：整棵子树里的文档数，不是直接子项数。
+ *
+ * <p>工作区里这个数字尤其有用 —— 目录多起来之后，「哪个目录是主库」只能靠这个数判断，
+ * 直接子项数在「docs 下面 7 个子目录」时会给出 7，与实际 17 篇对不上。</p>
+ *
+ * <p>递归统计的是纯数据（不带权限过滤），所以只算「体量」不算「你能读到多少」，
+ * 与树上真正渲染出来的行数可能不一致 —— 宁可给一个稳定的上界，也不要让数字随权限跳。</p>
+ */
+const docCount = computed(() => {
+  if (props.node.type !== 'dir') return 0
+  let total = 0
+  for (const child of props.node.children || []) {
+    total += child.type === 'doc' ? 1 : countDocs(child)
+  }
+  return total
+})
+
+function countDocs(node: DocNode): number {
+  let total = 0
+  for (const child of node.children || []) {
+    total += child.type === 'doc' ? 1 : countDocs(child)
+  }
+  return total
+}
+
+/**
  * 图片不该有「⋯」菜单。
  *
  * <p>菜单里那些动作（重命名 / 移动 / 下载 markdown / 删除）要么对图片没有意义，
@@ -263,6 +289,12 @@ function onDrop(event: DragEvent) {
       <MdIcon class="md-ad-tree__type" :name="typeIcon" :size="15" />
 
       <span class="md-ad-tree__name" :class="{ 'is-asset': node.type === 'image' }" :title="node.path" @click="onSelect">{{ node.name }}</span>
+
+      <!--
+        篇数排在「更多」左边而不是行的最右：最右那一列平时是透明的（opacity:0），
+        计数若占了它的位置，鼠标一移开数字就跟着消失，看着像闪了一下。
+      -->
+      <em v-if="node.type === 'dir' && docCount" class="md-ad-tree__count">{{ docCount }}</em>
 
       <el-dropdown v-if="showMenu" trigger="click" placement="bottom-end" @command="onAction">
         <button type="button" class="md-ad-tree__more" title="更多操作" @click.stop>

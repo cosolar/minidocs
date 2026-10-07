@@ -381,8 +381,8 @@ button { font-family: inherit; }
 
 .md-tree__label,
 .md-tree__link {
-  display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0;
-  padding: 6px 8px; border-radius: 8px;
+  display: flex; align-items: center; gap: 7px; flex: 1; min-width: 0;
+  padding: 5px 8px; border-radius: 8px;
   color: var(--md-text-2); font-size: 13px; text-align: left;
   transition: background 0.15s, color 0.15s;
 }
@@ -393,13 +393,26 @@ button { font-family: inherit; }
 .md-tree__link:hover { background: var(--md-surface-2); color: var(--md-text); }
 
 .md-tree__name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.md-tree__chevron { color: var(--md-text-3); transition: transform 0.18s ease, color 0.15s; }
+.md-tree__chevron { flex-shrink: 0; color: var(--md-text-3); transition: transform 0.18s ease, color 0.15s; }
 .md-tree__item.is-collapsed > .md-tree__row .md-tree__chevron { transform: rotate(-90deg); }
+/*
+ * 箭头槽占位：目录行前面有一个 14px 的箭头，文档行补一个同宽的空槽，
+ * 两种节点的名称才落在同一条竖线上。
+ */
+.md-tree__chevron--spacer { visibility: hidden; }
+
+/*
+ * 节点类型图标。目录是品牌蓝，文档与图片压到最淡的灰 —— 一眼能分清「这一层
+ * 还有下级」和「这是一篇文章」，又不至于让上百个蓝图标把整栏吵醒。
+ */
+.md-tree__type { flex-shrink: 0; color: var(--md-text-3); }
+.md-tree__label .md-tree__type { color: var(--md-primary); }
+
 /* 图片节点：用 button 承载（不能跳路由），把浏览器默认的按钮态抹平 */
 .md-tree__link--asset {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 7px;
   flex: 1;
   min-width: 0;
   width: 100%;
@@ -413,24 +426,22 @@ button { font-family: inherit; }
 }
 .md-tree__link--asset:hover { color: var(--md-text-1); }
 .md-tree__label:hover .md-tree__chevron { color: var(--md-text-2); }
+
+/*
+ * 篇数。设计稿上是纯粹一个灰数字：胶囊底色在这里是噪声 —— 目录一多，
+ * 几十个灰胶囊连成一条带子，反而把名称挤窄了。
+ */
 .md-tree__count {
   margin-left: auto; flex-shrink: 0; font-style: normal;
-  min-width: 20px; padding: 1px 6px; border-radius: 999px;
-  background: var(--md-surface-2); color: var(--md-text-3);
-  font-size: 11px; line-height: 1.5; text-align: center;
+  min-width: 18px; padding: 0 2px;
+  color: var(--md-text-3);
+  font-size: 11px; line-height: 20px; text-align: right;
 }
 
-/* 文档行首的小圆点：激活时点亮并套一圈光环，比原来的「▪」方点安静得多 */
-.md-tree__dot {
-  width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0;
-  background: var(--md-border-strong);
-  transition: background 0.15s, box-shadow 0.15s;
-}
 .md-tree__link.is-active { background: var(--md-primary-soft); color: var(--md-primary); font-weight: 600; }
-.md-tree__link.is-active .md-tree__dot {
-  background: var(--md-primary);
-  box-shadow: 0 0 0 3px var(--md-primary-soft);
-}
+/* 激活行整行着色（原来只给圆点加光环）：行高只有 20 多 px，一个 6px 的点太轻，
+   扫视时抓不到「我在这篇」。 */
+.md-tree__link.is-active .md-tree__type { color: var(--md-primary); }
 
 .md-reading__bar {
   position: sticky; top: 0; z-index: 10;
@@ -1157,7 +1168,7 @@ button { font-family: inherit; }
 }
 
 /*
- * 目录条目（分享页）：行高比门户那版宽一档，激活项用「浅蓝底 + 左侧色条 + 点亮圆点」三重提示。
+ * 目录条目（分享页）：行高比门户那版宽一档，激活项用「浅蓝底 + 左侧色条」两重提示。
  * 悬停只换底色、不换字色 —— 侧栏里条目密集，字色一跳会让人以为内容变了。
  */
 .md-reading[data-mode='share'] .md-tree__link,
@@ -1171,14 +1182,6 @@ button { font-family: inherit; }
   background: var(--md-primary-soft);
   box-shadow: inset 2px 0 0 var(--md-primary);
 }
-.md-reading[data-mode='share'] .md-tree__link.is-active .md-tree__dot { box-shadow: 0 0 0 3px var(--md-primary-soft); }
-/* 目录的篇数徽标：数字是这行的次要信息，压到最淡，hover 才稍微提上来 */
-.md-reading[data-mode='share'] .md-tree__count {
-  background: transparent; color: var(--md-text-3);
-  border: 1px solid var(--md-border);
-  transition: color .14s ease, border-color .14s ease;
-}
-.md-reading[data-mode='share'] .md-tree__label:hover .md-tree__count { color: var(--md-text-2); border-color: var(--md-border-strong); }
 
 /* 右栏：目录卡 */
 .md-outline__head {
