@@ -184,7 +184,8 @@ function linkTo(node: DocNode) {
             于是目录名比文档名靠右一格，整棵树看上去是歪的。
           -->
           <span class="md-tree__chevron md-tree__chevron--spacer" />
-          <Icon class="md-tree__type" name="file" :size="15" />
+          <!-- Markdown 用 GitHub 标记（填充型），与目录的线条 folder 区分开 -->
+          <Icon class="md-tree__type" name="markdown" :size="15" />
           <span class="md-tree__name">{{ textOf(node) }}</span>
         </router-link>
       </div>

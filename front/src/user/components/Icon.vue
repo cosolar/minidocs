@@ -4,7 +4,14 @@
  *
  * <p>用户侧刻意不引入 UI 组件库，图标统一在此维护：每个图标是若干条 path 的 `d`
  * 字符串数组，由父级 svg 统一描边；颜色继承 `currentColor`，尺寸由 `size` 控制。</p>
+ *
+ * <p>少数图标是<b>填充型</b>（自带 1024 viewBox、靠 fill 上色，如 markdown）。
+ * 形态由 {@link resolveIcon} 判定后分别给属性，不在模板里靠 path 数量去猜。</p>
  */
+import { computed } from 'vue'
+import { resolveIcon } from '@/shared/iconDef'
+
+/** 线条图标表 */
 const PATHS = {
   /** 放大镜 */
   search: ['M11 3a8 8 0 1 0 0 16 8 8 0 0 0 0-16', 'm21 21-4.3-4.3'],
@@ -135,7 +142,14 @@ const PATHS = {
 
 type IconName = keyof typeof PATHS
 
-withDefaults(defineProps<{ name: IconName; size?: number | string }>(), { size: 18 })
+const props = withDefaults(defineProps<{ name: IconName; size?: number | string }>(), { size: 18 })
+/**
+ * 图标定义。填充型自带 viewBox 与 fill 方式，与线条型不能共用同一组 svg 属性。
+ *
+ * <p>线条表里查不到时退回 {@code file}（一个折角纸页）：原先是 {@code PATHS[name]} 直接渲染，
+ * 名字打错会得到一个 0×0 的空 svg —— 表现为「图标位置空着」，比fallback 难排查得多。</p>
+ */
+const icon = computed(() => resolveIcon(PATHS, props.name, 'file'))
 </script>
 
 <template>
@@ -143,16 +157,16 @@ withDefaults(defineProps<{ name: IconName; size?: number | string }>(), { size: 
     class="md-icon"
     :width="size"
     :height="size"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    stroke-width="1.8"
+    :viewBox="icon.viewBox"
+    :fill="icon.filled ? 'currentColor' : 'none'"
+    :stroke="icon.filled ? 'none' : 'currentColor'"
+    :stroke-width="icon.filled ? undefined : 1.8"
     stroke-linecap="round"
     stroke-linejoin="round"
     aria-hidden="true"
     focusable="false"
   >
-    <path v-for="(d, i) in PATHS[name]" :key="i" :d="d" />
+    <path v-for="(d, i) in icon.paths" :key="i" :d="d" />
   </svg>
 </template>
 

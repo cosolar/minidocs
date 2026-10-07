@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { resolveIcon } from '@/shared/iconDef'
 
 /**
  * 管理端轻量图标组件。
@@ -146,24 +147,28 @@ const ICONS: Record<string, string[]> = {
   ]
 }
 
-const paths = computed(() => ICONS[props.name] || ICONS.file)
 const px = computed(() => `${props.size ?? 16}px`)
+/**
+ * 图标定义。填充型（如 markdown）自带1024 的 viewBox 且靠 fill 上色，
+ * 与线条型不能共用同一组 svg 属性，所以形态由 {@link resolveIcon} 判定而不是在这里猜。
+ */
+const icon = computed(() => resolveIcon(ICONS, props.name))
 </script>
 
 <template>
   <svg
     class="md-icon"
     :style="{ width: px, height: px }"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    stroke-width="1.8"
+    :viewBox="icon.viewBox"
+    :fill="icon.filled ? 'currentColor' : 'none'"
+    :stroke="icon.filled ? 'none' : 'currentColor'"
+    :stroke-width="icon.filled ? undefined : 1.8"
     stroke-linecap="round"
     stroke-linejoin="round"
     aria-hidden="true"
     focusable="false"
   >
-    <path v-for="(d, index) in paths" :key="index" :d="d" />
+    <path v-for="(d, index) in icon.paths" :key="index" :d="d" />
   </svg>
 </template>
 

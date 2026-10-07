@@ -89,8 +89,13 @@ const isAncestor = computed(
   () => props.node.type === 'dir' && !!props.activePath && props.activePath.startsWith(`${props.node.path}/`)
 )
 
-/** 图片用单独的图标：跟文档混在一起时，一眼能分出「这个点开是看图还是读文」 */
-const typeIcon = computed(() => (props.node.type === 'dir' ? 'folder' : props.node.type === 'image' ? 'image' : 'file'))
+/**
+ * 节点类型图标。文档用 GitHub 标记 —— Markdown 在 UI 上没有专属抽象图形，
+ * 行业惯例就是这个（代码托管平台与渲染器都用它），用户不用学就知道点开是什么。
+ * 它是填充型图标，与 folder / image 的线条风格不同，但靠 currentColor 取色，
+ * 在灰蓝色的文档行上不会显得突兀。
+ */
+const typeIcon = computed(() => (props.node.type === 'dir' ? 'folder' : props.node.type === 'image' ? 'image' : 'markdown'))
 
 /**
  * 这一行显示的名字。
