@@ -576,34 +576,36 @@
   padding: 0 16px; background: var(--md-surface); border-bottom: 1px solid var(--md-border);
 }
 /*
- * 返回键：一颗纯图标色块，不带文字。
+ * 返回键：纯图标、无底色。
  *
- * <p>去掉「返回」两个字后，按钮从「图标 + 文字」变成一个纯图形控件 —— 这时它需要
- * 自己的形状来站住：一个带边框的小白块在顶栏上太轻，读者扫过去只会当成一段
- * 面包屑的尾巴。所以给它品牌渐变 + 白色图标，与右侧的知识库图标块共用同一对色，
- * 两块相邻就成了「一组导航件」而不是两个互不相干的装饰。</p>
+ * <p>先后试过两种做法，都不对：
+ * 带边框的小白块太轻，扫过去像一段面包屑的尾巴；改成品牌渐变色块之后又太重 ——
+ * 它和右侧的知识库图标块同尺寸、同渐变、同投影，两块并排就成了「一对一样的
+ * 按钮」，眼睛分不出哪个是库、哪个是返回，而且投影让一个次要动作浮起来，
+ * 抢了身份标识的视觉重心。</p>
  *
- * <p>无障碍不能跟着文字一起丢：{@code aria-label} 保留在模板上，读屏仍读得出
- * 「返回知识库列表」，悬停也有 title 提示。</p>
+ * <p>最终：<b>识别度交给图标颜色，不靠底色</b>。主色图标在浅色顶栏上本身就是
+ * 一个明确的控件信号，悬停时浮出淡底确认热区，两者都不与邻居撞脸。
+ * 次要动作在视觉上必须轻于身份标识，这是排序问题不是好看问题。</p>
  *
- * <p>line-height: 0 是必须的 —— 图标是 inline-block，基线会在下方留出约 3px 空隙，
- * 色块看起来就比 30px 高、底部多一道缝。{@code place-items: center} 让它在格子里
- * 居中，不受行高影响。</p>
+ * <p>line-height: 0 是必须的 —— 图标是 inline-block，基线会在下方留约 3px 空隙。
+ * {@code place-items: center} 让它在格子里居中，不受行高影响。</p>
  */
 .md-ws__back {
   display: grid; place-items: center;
   width: 30px; height: 30px; flex-shrink: 0;
   padding: 0; line-height: 0;
-  border: 0; border-radius: 9px;
-  background: var(--md-brand-gradient);
-  color: #fff; cursor: pointer;
-  box-shadow: var(--md-brand-shadow);
-  transition: filter .16s ease, transform .16s ease;
+  border: 0; border-radius: 8px;
+  background: transparent;
+  color: var(--md-primary);
+  cursor: pointer;
+  transition: background-color .16s ease, color .16s ease, transform .16s ease;
 }
-.md-ws__back:hover { filter: brightness(1.08); }
+.md-ws__back:hover { background: var(--md-primary-soft); color: var(--md-primary-hover); }
 .md-ws__back:active { transform: translateX(-2px); }
 .md-ws__back:focus-visible { outline: 2px solid var(--md-primary); outline-offset: 2px; }
 .md-ws__identity { display: flex; align-items: center; gap: 10px; min-width: 0; }
+/* 库标识是顶栏里唯一的品牌色块 —— 返回键刻意不用同款（两块同色并排会看成一对控件） */
 .md-ws__logo {
   width: 34px; height: 34px; border-radius: 10px; flex-shrink: 0;
   background: var(--md-brand-gradient);
