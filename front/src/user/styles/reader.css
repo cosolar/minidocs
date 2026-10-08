@@ -312,17 +312,66 @@ button { font-family: inherit; }
 .md-aside__back .md-icon { transition: transform 0.15s; }
 .md-aside__back:hover .md-icon { transform: translateX(-2px); }
 
+/*
+ * 库信息卡片：浅蓝渐变垫底，插画从右侧渐隐进来，图标 / 标题 / 简介压在其上。
+ * 配色全走 color-mix 混主色与表面色 —— 暗色主题下自动变深，不必另写一套色值。
+ */
+.md-aside__kb {
+  position: relative;
+  overflow: hidden;
+  margin: 0 0 14px;
+  padding: 12px 12px 11px;
+  border: 1px solid color-mix(in srgb, var(--md-primary) 14%, var(--md-border));
+  border-radius: 14px;
+  background: linear-gradient(118deg,
+    color-mix(in srgb, var(--md-primary) 9%, var(--md-surface)),
+    var(--md-surface) 58%);
+}
+/*
+ * 插画：贴右下、按高度等比缩放（auto 100%）再锚定右缘，正好露出成沓的文档与绿植；
+ * 左侧用 mask 渐隐，让插画融进卡片的浅蓝底而不是拿一条硬边怼在文字上。
+ * pointer-events 关掉 —— 它只是垫底，不该挡住下面胶囊的点击。
+ */
+.md-aside__kb-art {
+  position: absolute;
+  right: -16px; bottom: -12px;
+  width: 62%; height: 96px;
+  background: url('../assets/docs_backimg.png') right bottom / auto 100% no-repeat;
+  opacity: .92;
+  -webkit-mask-image: linear-gradient(to left, #000 52%, transparent 96%);
+  mask-image: linear-gradient(to left, #000 52%, transparent 96%);
+  pointer-events: none;
+}
+.md-aside__kb-head {
+  position: relative;
+  display: flex; gap: 10px; align-items: flex-start;
+}
+/* 图标：圆角方块 + 白色书本，主色渐变让它从浅蓝卡片里浮出来 */
+.md-aside__kb-glyph {
+  flex-shrink: 0;
+  display: grid; place-items: center;
+  width: 40px; height: 40px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, var(--md-primary), color-mix(in srgb, var(--md-primary) 74%, #fff));
+  color: #fff;
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--md-primary) 32%, transparent);
+}
+.md-aside__kb-text { flex: 1; min-width: 0; }
 .md-aside__kb h2 {
-  margin: 0 0 8px; color: var(--md-text);
+  margin: 0 0 3px; color: var(--md-text);
   font-size: 16px; font-weight: 650; line-height: 1.35; letter-spacing: -0.01em;
   overflow-wrap: anywhere;
 }
 .md-aside__desc {
-  margin: 0 0 10px; color: var(--md-text-2); font-size: 12.5px; line-height: 1.6;
+  margin: 0; color: var(--md-text-2); font-size: 12.5px; line-height: 1.6;
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
 }
 /* 篇数 / 标签数 / 可见性：一排小胶囊，可见性三档各按 --md-vis-* 上色，与门户卡片徽标同源 */
-.md-aside__meta { display: flex; flex-wrap: wrap; gap: 6px; }
+.md-aside__meta {
+  position: relative;
+  display: flex; flex-wrap: wrap; gap: 6px;
+  margin-top: 10px;
+}
 .md-aside__pill {
   display: inline-flex; align-items: center; gap: 4px;
   height: 22px; padding: 0 8px; border-radius: 999px;
@@ -334,6 +383,17 @@ button { font-family: inherit; }
 .md-aside__pill.is-private {
   background: color-mix(in srgb, var(--md-warning) 15%, transparent);
   color: var(--md-warning);
+}
+/* 暗色下插画压到两成半：它是亮色调的，全亮度会在深色卡片上亮成一块补丁 */
+[data-theme='dark'] .md-aside__kb-art { opacity: .25; }
+[data-theme='dark'] .md-aside__kb {
+  border-color: color-mix(in srgb, var(--md-primary) 22%, var(--md-border));
+  background: linear-gradient(118deg,
+    color-mix(in srgb, var(--md-primary) 15%, var(--md-surface)),
+    var(--md-surface) 58%);
+}
+[data-theme='dark'] .md-aside__kb-glyph {
+  box-shadow: 0 4px 14px color-mix(in srgb, var(--md-primary) 45%, transparent);
 }
 
 /* 搜索：整块填充式输入框，放大镜嵌在左侧；聚焦时描主色边 + 一圈柔光 */

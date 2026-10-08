@@ -2,6 +2,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import DocTree from './DocTree.vue'
+import KbGlyph from '@/shared/components/KbGlyph.vue'
 import Icon from './Icon.vue'
 import OutlineTree from './OutlineTree.vue'
 import { enhanceMarkdown } from '@/shared/enhanceMarkdown'
@@ -270,8 +271,19 @@ function routerTo(link?: string) {
             </router-link>
           </div>
           <div class="md-aside__kb">
-            <h2>{{ view.kbName }}</h2>
-            <p v-if="view.kbDescription" class="md-aside__desc">{{ view.kbDescription }}</p>
+            <!--
+              插画只做装饰垫底（pointer-events 关掉，不挡胶囊点击），右侧渐隐进来。
+              图标 + 标题 + 简介压在其上：绝对定位的兄弟元素会盖过普通流内容，
+              所以文字区必须带 position:relative 才不会被垫图压住。
+            -->
+            <div class="md-aside__kb-art" aria-hidden="true" />
+            <div class="md-aside__kb-head">
+              <span class="md-aside__kb-glyph" aria-hidden="true"><KbGlyph :size="22" /></span>
+              <div class="md-aside__kb-text">
+                <h2>{{ view.kbName }}</h2>
+                <p v-if="view.kbDescription" class="md-aside__desc">{{ view.kbDescription }}</p>
+              </div>
+            </div>
             <!-- 篇数 / 标签数 / 可见性收成一排小胶囊：比「7 篇文章 · 0 个标签 · 公开」一行灰字好扫 -->
             <div class="md-aside__meta">
               <span class="md-aside__pill">
