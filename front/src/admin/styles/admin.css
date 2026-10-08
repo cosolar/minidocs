@@ -576,32 +576,25 @@
   padding: 0 16px; background: var(--md-surface); border-bottom: 1px solid var(--md-border);
 }
 /*
- * 返回键：托盘图形 + 浅色圆角底。
+ * 返回键：托盘图形 + 浅蓝圆角底 + 「返回」文字。
  *
- * <p>底色用 {@code --md-primary-soft}（主色的 8% 淡蓝）而不是品牌渐变：托盘图形本身
- * 是一条很细的线稿，浅底上需要一点对比才看得清；但用渐变就会和右侧标识块变成
- * 「两块同色方块」，那是上一版试过并被否掉的方案。</p>
+ * <p>规格与旁边那组 .md-ws__btn 完全一致（30px 高、12px 圆角、12.5px 字、
+ * gap 6px / padding 0 12px），只有底色不同：那里都是描边白底，返回键留一层淡蓝 ——
+ * 一眼能认出「这是导航回去，不是对当前库做操作」。</p>
  *
- * <p>line-height: 0 是必须的 —— 图标是 inline-block，基线会在下方留约 3px 空隙，
- * 色块看起来会比 30px 高、底部多一道缝。{@code place-items: center} 让图标在格子里
- * 居中，不受行高影响。</p>
- */
-/*
- * 返回键现在在右侧操作区里，与设置 / 分享并排。那里其余按钮都是描边白底，
- * 它保留浅蓝底 —— 一是托盘图形是细线稿、白底上辨识度不够，二是留一点色
- * 差异提醒读者「这是导航回去，不是对当前库做操作」。
- * 右边多留 6px：与「设置」拉开一点，不至于看成同一组按钮。
+ * <p>line-height 刻意不给 0：文字加入后那行会连带压扁字形。图标本身是
+ * {@code .md-icon { display: block }}，配合 flex 居中不会有基线空隙问题。</p>
  */
 .md-ws__back { margin-right: 6px; }
 .md-ws__back {
-  display: grid; place-items: center;
-  width: 30px; height: 30px; flex-shrink: 0;
-  padding: 0; line-height: 0;
-  border: 0; border-radius: 8px;
+  display: inline-flex; align-items: center; gap: 6px;
+  height: 30px; padding: 0 12px; flex-shrink: 0;
+  border: 1px solid transparent; border-radius: 8px;
   background: var(--md-primary-soft);
   color: var(--md-primary);
+  font-family: inherit; font-size: 12.5px; white-space: nowrap;
   cursor: pointer;
-  transition: background-color .16s ease, color .16s ease, transform .16s ease;
+  transition: background-color .16s ease, color .16s ease, transform .1s ease;
 }
 .md-ws__back:hover { background: color-mix(in srgb, var(--md-primary) 16%, transparent); color: var(--md-primary-hover); }
 .md-ws__back:active { transform: translateX(-2px); }

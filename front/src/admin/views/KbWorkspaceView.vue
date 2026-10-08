@@ -1701,7 +1701,8 @@ onBeforeUnmount(() => {
           aria-label="返回知识库列表"
           @click="backToList"
         >
-          <MdIcon name="back" :size="15" />
+          <MdIcon name="back" :size="14" />
+          <span>返回</span>
         </button>
 
         <!--
