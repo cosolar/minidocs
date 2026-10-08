@@ -31,6 +31,16 @@ public final class ShareDtos {
             @Size(max = 64, message = "密码长度不能超过 64") String password,
             Boolean encrypted,
             String expiresIn,
+
+            /*
+             * 门户曝光范围：anonymous（所有人）/ member（登录用户）/ maintainer（维护者）。
+             * null = 不动现有值（更新时）。
+             *
+             * <p>用 @Pattern 而不是 @Enum：非法值若静默落回 anonymous，作者会以为设了某档、
+             * 实际却是最宽的一档 —— 那比直接报错危险得多。</p>
+             */
+            @Pattern(regexp = "anonymous|member|maintainer",
+                    message = "门户可见范围只能是 anonymous / member / maintainer") String portalScope,
             /**
              * 导航菜单：null = 不动现有配置，空数组 = 清掉菜单。
              *
@@ -50,14 +60,22 @@ public final class ShareDtos {
         /** 不带菜单与短链的便捷构造（组织隔离等旧调用点用）。 */
         public CreateRequest(String kbSlug, String scope, String docPath, String password,
                              Boolean encrypted, String expiresIn) {
-            this(kbSlug, scope, docPath, password, encrypted, expiresIn, null, null);
+            this(kbSlug, scope, docPath, password, encrypted, expiresIn, null, null, null);
         }
     }
 
     public record UpdateRequest(
             @Size(max = 64, message = "密码长度不能超过 64") String password,
             Boolean encrypted,
-            String expiresIn) {
+            String expiresIn,
+            /** 门户曝光范围；null = 不动现有值 */
+            @Pattern(regexp = "anonymous|member|maintainer",
+                    message = "门户可见范围只能是 anonymous / member / maintainer") String portalScope) {
+
+        /** 只改口令与有效期的旧调用点：门户曝光范围不动。 */
+        public UpdateRequest(String password, Boolean encrypted, String expiresIn) {
+            this(password, encrypted, expiresIn, null);
+        }
     }
 
     /**
@@ -71,7 +89,7 @@ public final class ShareDtos {
                           String scope, String docPath, String docName, boolean encrypted, String expiresIn,
                           LocalDateTime expiresAt, int views, long uv, String status,
                           LocalDateTime createdAt, LocalDateTime updatedAt, boolean canGovern,
-                          List<NavMenuItem> menu) {
+                          String portalScope, List<NavMenuItem> menu) {
 
         public static ShareVO of(Share share, String url, KnowledgeBase kb, String docName,
                                  long uv, String expiresIn, boolean canGovern, List<NavMenuItem> menu) {
@@ -79,7 +97,10 @@ public final class ShareDtos {
                     kb == null ? null : kb.getSlug(), kb == null ? null : kb.getName(),
                     share.getScope(), share.getDocPath(), docName, share.encrypted(), expiresIn,
                     share.getExpiresAt(), share.getViews() == null ? 0 : share.getViews(), uv,
-                    share.status(), share.getCreatedAt(), share.getUpdatedAt(), canGovern, menu);
+                    share.status(), share.getCreatedAt(), share.getUpdatedAt(), canGovern,
+                    // null 归一为 anonymous：迁移前的老行没这一列，前端拿到 null 会显示成空档位
+                    share.getPortalScope() == null ? Share.PORTAL_ALL : share.getPortalScope(),
+                    menu);
         }
     }
 }

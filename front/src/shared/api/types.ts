@@ -387,6 +387,13 @@ export interface ShareVO {
   docPath?: string
   docName?: string
   encrypted: boolean
+  /**
+   * 门户可见范围：anonymous 所有人 / member 仅登录用户 / maintainer 仅维护者。
+   *
+   * <p>与 visibleScope（平台内权限）无关：这一项决定「谁在门户里看得到这个库」，
+   * 而库自己的可见范围决定「谁在控制台里能读能管」。两者正交，改一个不连带另一个。</p>
+   */
+  portalScope?: 'anonymous' | 'member' | 'maintainer',
   expiresIn: string
   expiresAt?: string
   views: number

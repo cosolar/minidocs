@@ -142,15 +142,21 @@ public class KnowledgeBaseServiceImpl extends ServiceImpl<KnowledgeBaseMapper, K
     }
 
     @Override
-    public PageResult<KbVO> pagePublished(String keyword, String sort, String access, long page, long size) {
+    public PageResult<KbVO> pagePublished(String keyword, String sort, String access, Long viewerId, long page, long size) {
         long current = Math.max(1, page);
         long pageSize = Math.min(Math.max(1, size), 100);
 
         LambdaQueryWrapper<KnowledgeBase> wrapper = Wrappers.lambdaQuery();
-        // 门户可见集只剩两道闸：组织未停用 + 已发布。可见性（public/org/private）在这里不参与 ——
-        // 它决定的是「谁能读」，而「是否出现在门户」自分享即发布起由分享决定。
+        // 门户可见集三道闸：组织未停用 + 已发布 + 对当前访客可见。
+        // 可见性（public/org/private）仍然不参与 —— 它决定的是「谁能读」，与「是否出现在门户」正交。
         accessService.applyTenantActiveScope(wrapper);
         wrapper.apply(SharePublicationSupport.publishedExists(access), TimeUtil.now());
+        // 参数个数必须与 SQL 里的占位符一一对应，匿名分支只用到 {0}（当前时刻）
+        if (viewerId == null) {
+            wrapper.apply(SharePublicationSupport.portalScopeAllows(null), TimeUtil.now());
+        } else {
+            wrapper.apply(SharePublicationSupport.portalScopeAllows(viewerId), viewerId, TimeUtil.now());
+        }
         if (keyword != null && !keyword.isBlank()) {
             String kw = keyword.trim();
             wrapper.and(w -> w.like(KnowledgeBase::getName, kw)

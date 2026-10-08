@@ -71,6 +71,58 @@ public class SharePublicationSupport {
         return base + ")";
     }
 
+    /**
+     * 门户曝光范围的 SQL 片段，供门户列表把「已发布」收窄到「对我可见」。
+     *
+     * <p>与 {@link #publishedExists} 分开而不是合并进去：统计卡与链接消歧问的是「发布了吗」，
+     * 列表问的是「发布了且对我可见吗」。两个问题混进一个条件后，加发布态的判断会被顺手
+     * 绑上当前用户，于是「库数统计」这种与访客无关的口径也会开始漏数。</p>
+     *
+     * <p>另起一个别名 {@code ps} 而不是复用外层的 {@code s}：两次 {@code apply} 叠出来的
+     * 括号层级本来就已经难读，共用别名更让人怀疑条件被合并了。</p>
+     *
+     * <p><b>userId 必须走 {@code {0}} 占位符，不能拼进 SQL</b>：拼接时 null 会变成字面量
+     * {@code owner_id = null}，那是个恒假条件，表现为「所有人都看不到」而且不报错 ——
+     * 是最难查的一类问题。调用方按顺序传 {@code (userId, now)}。</p>
+     *
+     * <p>maintainer 档的三个粗筛（库创建者 / 在维护名单里 / {@code maintain_scope=org_all}
+     * 且是本组织活跃成员）是 {@code AccessServiceImpl#can(..., KB_EDIT_META)} 的<b>超集</b>
+     * 而非复制：真正的裁决仍在权限服务，这里只把明显不可能的库先排除掉。已知偏差 ——
+     * 组织管理员对 {@code owner_only} / {@code members} 档的库，门户上可能看不到
+     * （他们在控制台里照常能管）。取舍是「门户少露一条」优于「在 AccessService 之外
+     * 复制一份权限裁决」，后者违反规范 §2.6，且会随规则演进悄悄失效。</p>
+     *
+     * @param userId 当前用户 id；null 表示未登录访客
+     */
+    public static String portalScopeAllows(Long userId) {
+        if (userId == null) {
+            // 匿名访客只看得见 anonymous。member 与 maintainer 都需要一个身份。
+            // 注意这里只用一个占位符 —— MyBatis-Plus 会校验「SQL 里的 {n} 个数 == 传入的参数个数」，
+            // 多传一个会直接抛 Please check the syntax correctness。
+            return "EXISTS (SELECT 1 FROM shares ps WHERE ps.kb_id = knowledge_base.id"
+                    + " AND ps.scope = 'kb' AND ps.revoked = 0 AND ps.invalid = 0"
+                    + " AND (ps.expires_at IS NULL OR ps.expires_at > {0})"
+                    + " AND COALESCE(ps.portal_scope, 'anonymous') = 'anonymous')";
+        }
+        return "EXISTS (SELECT 1 FROM shares ps WHERE ps.kb_id = knowledge_base.id"
+                + " AND ps.scope = 'kb' AND ps.revoked = 0 AND ps.invalid = 0"
+                + " AND (ps.expires_at IS NULL OR ps.expires_at > {1})"
+                // null 视为 anonymous：迁移前的老行没有这一列的值，读出来是 null
+                + " AND (COALESCE(ps.portal_scope, 'anonymous') IN ('anonymous', 'member')"
+                + "   OR (COALESCE(ps.portal_scope, 'anonymous') = 'maintainer' AND ("
+                + "     knowledge_base.owner_id = {0}"
+                + "     OR EXISTS (SELECT 1 FROM kb_member km WHERE km.kb_id = knowledge_base.id"
+                + "       AND km.user_id = {0}"
+                // 名单授权只在组织内生效（规范 §9）：必须带组织成员这一层，
+                // 否则被移出组织后 kb_member 的行仍在库里，会成为静默的权限残留
+                + "       AND EXISTS (SELECT 1 FROM tenant_member tm JOIN tenant t ON t.id = tm.tenant_id"
+                + "            WHERE t.id = knowledge_base.tenant_id AND tm.user_id = {0} AND t.status = 'active'))"
+                + "     OR (knowledge_base.maintain_scope = 'org_all'"
+                + "       AND EXISTS (SELECT 1 FROM tenant_member tm2 JOIN tenant t2 ON t2.id = tm2.tenant_id"
+                + "            WHERE t2.id = knowledge_base.tenant_id AND tm2.user_id = {0} AND t2.status = 'active'))"
+                + "   )))";
+    }
+
     /** 某个库的发布分享；没有（未分享 / 已撤销 / 已过期 / 只有单篇分享）返回 null。 */
     public Share find(Long kbId) {
         if (kbId == null) {

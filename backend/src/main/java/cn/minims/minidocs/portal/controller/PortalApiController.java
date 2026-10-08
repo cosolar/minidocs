@@ -108,7 +108,9 @@ public class PortalApiController {
                                              @RequestParam(required = false) String access,
                                              @RequestParam(defaultValue = "1") long page,
                                              @RequestParam(defaultValue = "20") long size) {
-        return ApiResponse.ok(knowledgeBaseService.pagePublished(keyword, sort, access, page, size));
+        LoginUser viewer = currentUserResolver.resolve();
+        return ApiResponse.ok(knowledgeBaseService.pagePublished(keyword, sort, access,
+                viewer == null ? null : viewer.id(), page, size));
     }
 
     /**

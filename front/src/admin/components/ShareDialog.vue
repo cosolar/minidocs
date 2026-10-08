@@ -34,6 +34,7 @@ const loading = ref(false)
 const saving = ref(false)
 const form = reactive({
   encrypted: false,
+  portalScope: 'anonymous' as const,
   password: '',
   expiresIn: 'forever',
   /** 自定义短链：留空 = 自动生成。仅首次创建时生效，已有链接时这一项禁用 */
@@ -71,7 +72,7 @@ watch(
   async (open) => {
     if (!open) return
     info.value = null
-    Object.assign(form, { encrypted: false, password: '', expiresIn: 'forever', token: '', menu: [] })
+    Object.assign(form, { encrypted: false, password: '', expiresIn: 'forever', token: '', menu: [], portalScope: 'anonymous' })
     loading.value = true
     try {
       // 读不到现有链接就当作没有：这条查询按目标键要 SHARE_CREATE，刚失去写权的人会 404
@@ -79,6 +80,7 @@ watch(
       info.value = existing || null
       if (existing) {
         form.encrypted = existing.encrypted
+        form.portalScope = (existing.portalScope || 'anonymous') as PortalScope
         form.expiresIn = existing.expiresIn || 'forever'
         // 回填当前短链：改不改是用户的决定，看到自己填的是什么才谈得上改
         form.token = existing.token || ''
@@ -133,6 +135,7 @@ async function submit() {
       scope: props.docPath ? 'doc' : 'kb',
       docPath: props.docPath || undefined,
       encrypted: form.encrypted,
+      portalScope: form.portalScope,
       // 空串在这里一律不发：后端把 null 当「沿用原密码」，而清空密码是另一个动作
       password: form.password || undefined,
       expiresIn: form.expiresIn,
@@ -182,6 +185,26 @@ function openUrl() {
     window.open(info.value.url, '_blank')
   }
 }
+
+/** 门户可见范围三档。label 说清「谁」，hint 补一句「不选会怎样」，避免作者凭字面猜。 */
+type PortalScope = 'anonymous' | 'member' | 'maintainer'
+
+const PORTAL_SCOPES = [
+  { value: 'anonymous', label: '所有人（含未登录访客）' },
+  { value: 'member', label: '仅登录用户（任何组织）' },
+  { value: 'maintainer', label: '仅本库维护者' }
+] as const
+
+const portalScopeHint = computed(() => {
+  switch (form.portalScope) {
+    case 'member':
+      return '门户列表里只有登录用户看得到；未登录的人即使拿到链接也会被引导去登录'
+    case 'maintainer':
+      return '只有本库的维护者能在门户里看到它 —— 相当于「发布给自己看」'
+    default:
+      return '任何人访问门户都能看到这个库'
+  }
+})
 </script>
 
 <template>
@@ -264,6 +287,27 @@ function openUrl() {
             <el-option label="1 天" value="1d" />
             <el-option label="7 天" value="7d" />
             <el-option label="30 天" value="30d" />
+          </el-select>
+        </div>
+
+        <!--
+          门户可见范围：这一栏决定「谁能在门户里看到并点进这个库」。
+          它与上面的访问密码是两层 —— 密码是「你知道的那串字符」，这里是「你有没有身份」，
+          两者可以任意组合（登录用户 + 免密 = 任何注册过的人点链接即读）。
+          只对整库分享有意义：单篇分享不进门户列表。
+        -->
+        <div v-if="kbScope" class="md-share-field md-share-field--stack">
+          <div class="md-share-field__text">
+            <span class="md-share-field__label"><MdIcon name="globe" :size="14" />门户可见范围</span>
+            <span class="md-share-field__hint">{{ portalScopeHint }}</span>
+          </div>
+          <el-select v-model="form.portalScope" style="width: 100%">
+            <el-option
+              v-for="opt in PORTAL_SCOPES"
+              :key="opt.value"
+              :label="opt.label"
+              :value="opt.value"
+            />
           </el-select>
         </div>
       </section>

@@ -108,6 +108,7 @@ public class ShareServiceImpl implements ShareService {
             applyPassword(share, request.password(), request.encrypted(), null);
             share.setExpiresAt(resolveExpiresAt(request.expiresIn()));
             share.setMenuConfig(buildMenuConfig(kb, request.menu()));
+            applyPortalScope(share, request.portalScope(), null);
             try {
                 shareMapper.insert(share);
             } catch (DuplicateKeyException e) {
@@ -133,6 +134,7 @@ public class ShareServiceImpl implements ShareService {
             applyPassword(share, request.password(), request.encrypted(), existing.getPasswordHash());
             share.setExpiresAt(resolveExpiresAt(request.expiresIn()));
             // null = 本次不动菜单（只改口令 / 有效期的入口不发这个字段），空数组 = 清掉菜单
+            applyPortalScope(share, request.portalScope(), existing.getPortalScope());
             if (request.menu() != null) {
                 share.setMenuConfig(buildMenuConfig(kb, request.menu()));
             }
@@ -210,6 +212,7 @@ public class ShareServiceImpl implements ShareService {
         if (request.expiresIn() != null) {
             share.setExpiresAt(resolveExpiresAt(request.expiresIn()));
         }
+            applyPortalScope(share, request.portalScope(), share.getPortalScope());
         persistEditable(share);
         return toVO(share, baseUrl, kb, actor);
     }
@@ -459,7 +462,28 @@ public class ShareServiceImpl implements ShareService {
                 .set(Share::getRevoked, share.getRevoked())
                 .set(Share::getInvalid, share.getInvalid())
                 .set(Share::getMenuConfig, share.getMenuConfig())
+                // 门户曝光范围：与 menu / token 同一个持久化出口，创建与更新两条路径一次覆盖
+                .set(Share::getPortalScope, share.getPortalScope() == null ? Share.PORTAL_ALL : share.getPortalScope())
                 .set(Share::getUpdatedAt, TimeUtil.now()));
+    }
+
+    /**
+     * 门户曝光范围。
+     *
+     * <p>null = 不动现有值：更新时作者没碰这一项就保持原样，与 menu / token 的处理同口径。
+     * 创建时传 null 落 anonymous，与迁移默认值一致，所以老前端不带这个字段也不会出错。</p>
+     *
+     * <p>只接受三个已知值。DTO 上已有 @Pattern 兜着，这里再挡一层是为了将来新增调用点
+     * 绕过 DTO 时不至于把脏值写进库 —— 而脏值会被 COALESCE 悄悄当成 anonymous，
+     * 也就是「作者以为收窄了、实际是最宽的一档」。</p>
+     */
+    private void applyPortalScope(Share share, String value, String current) {
+        if (Share.PORTAL_ALL.equals(value) || Share.PORTAL_MEMBER.equals(value)
+                || Share.PORTAL_MAINTAINER.equals(value)) {
+            share.setPortalScope(value);
+            return;
+        }
+        share.setPortalScope(current == null ? Share.PORTAL_ALL : current);
     }
 
     private void applyPassword(Share share, String password, Boolean encrypted, String currentHash) {

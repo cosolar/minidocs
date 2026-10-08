@@ -1,0 +1,19 @@
+-- MiniDocs 开发环境 DDL（SQLite 3）：V8 · 分享的门户曝光范围
+--
+-- 为什么落在 shares 表而不是 knowledge_base：
+-- 曝光是「分享出去」这个动作的属性，而一条整库分享就是一次发布。
+-- 撤销分享、收窄或放宽范围，都只动这一行，不必碰库本身 ——
+-- 也因此「已发布」与「门户给谁看」是同一处事实，不会出现两处不一致。
+--
+-- 为什么不复用 knowledge_base.visibility：
+-- 那是平台内权限（谁能读、谁能管），与对外曝光是正交的两件事。
+-- 一个库完全可以「平台内仅维护名单」而「门户公开给所有人」，
+-- 反过来也可以「平台内所有登录用户」而「门户只给内部同事看」。
+-- 合成一列会让这两个意图互相覆盖 —— 用户改一个却连带改了另一个。
+--
+-- 三档：anonymous 所有人（含未登录访客）/ member 任何登录用户 / maintainer 仅维护者。
+-- DEFAULT 'anonymous' 与历史数据等价 —— 迁移前所有分享都是所有人可见，
+-- 所以升级后行为不变，不会把谁的库突然从门户上摘掉。
+--
+-- SQLite 的 ADD COLUMN 一次只支持一列。
+ALTER TABLE shares ADD COLUMN portal_scope TEXT NOT NULL DEFAULT 'anonymous';

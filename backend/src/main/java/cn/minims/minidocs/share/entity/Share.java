@@ -30,6 +30,15 @@ public class Share {
     public static final String STATUS_REVOKED = "revoked";
     public static final String STATUS_INVALID = "invalid";
 
+    /* 门户曝光范围：这条分享在门户里对谁可见。与库的 visibility 无关 —— 那是平台内权限，这一列管的是对外。 */
+
+    /** 所有人（含未登录访客）。历史数据都落这一档，DEFAULT 与之相同 */
+    public static final String PORTAL_ALL = "anonymous";
+    /** 任何登录用户（不限组织） */
+    public static final String PORTAL_MEMBER = "member";
+    /** 仅该库的维护者 */
+    public static final String PORTAL_MAINTAINER = "maintainer";
+
     @TableId(type = IdType.AUTO)
     private Long id;
 
@@ -54,6 +63,9 @@ public class Share {
     private String menuConfig;
 
     private String passwordHash;
+
+    /** 门户曝光范围，取值见 {@link #PORTAL_ALL} 等常量；null 视为 {@link #PORTAL_ALL} */
+    private String portalScope;
 
     /** null = 永久有效 */
     private LocalDateTime expiresAt;

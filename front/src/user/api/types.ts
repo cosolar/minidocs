@@ -129,7 +129,7 @@ export interface PortalHomeVO {
  * {@code POST /api/portal/kb/{org}/{slug}/verify}。</p>
  */
 export interface PortalReadVO {
-  state: 'ok' | 'password'
+  state: 'ok' | 'password' | 'login'
   kbName?: string
   view?: ReadView | null
 }
@@ -137,7 +137,7 @@ export interface PortalReadVO {
 /** GET /api/share/{token} */
 export interface ShareReadVO {
   /** ok = 可直接阅读；password = 需要先校验口令 */
-  state: 'ok' | 'password'
+  state: 'ok' | 'password' | 'login'
   token: string
   kbName?: string
   view?: ReadView | null

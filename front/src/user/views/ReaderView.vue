@@ -10,7 +10,7 @@ import { toApiErrorInfo } from '@/shared/api/http'
 import { useBodyClasses } from '@/user/composables/useBodyClasses'
 import type { ReadView } from '@/user/api/types'
 
-type State = 'loading' | 'password' | 'ok' | 'notfound'
+type State = 'loading' | 'password' | 'login' | 'ok' | 'notfound'
 
 const route = useRoute()
 
@@ -58,6 +58,12 @@ async function load() {
   try {
     const data = await portalApi.kb(orgSlug.value, slug.value, docPath.value)
     kbName.value = data.kbName || ''
+    if (data.state === 'login') {
+      // 门户曝光范围收窄到「登录用户」或「维护者」：匿名访客连正文都拿不到
+      state.value = 'login'
+      return
+    }
+
     if (data.state === 'password') {
       // 分享已加密：正文不下发，先过口令门
       state.value = 'password'
@@ -103,6 +109,13 @@ async function verify(password: string) {
     :error="verifyError"
     :submitting="submitting"
     @submit="verify"
+  />
+
+  <StatusView
+    v-else-if="state === 'login'"
+    code="401"
+    title="需要登录后访问"
+    message="这个知识库只对已登录的用户开放，登录后即可继续阅读。"
   />
 
   <StatusView

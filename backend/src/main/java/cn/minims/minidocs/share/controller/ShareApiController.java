@@ -1,6 +1,11 @@
 package cn.minims.minidocs.share.controller;
 
 import cn.minims.minidocs.common.api.ApiResponse;
+import cn.minims.minidocs.common.context.LoginUser;
+import cn.minims.minidocs.permission.AccessService;
+import cn.minims.minidocs.permission.KbAction;
+import cn.minims.minidocs.reader.support.CurrentUserResolver;
+import cn.minims.minidocs.common.api.ApiResponse;
 import cn.minims.minidocs.common.api.ErrorCode;
 import cn.minims.minidocs.common.exception.BizException;
 import cn.minims.minidocs.common.support.RateLimiter;
@@ -73,6 +78,8 @@ public class ShareApiController {
     private final KnowledgeBaseService knowledgeBaseService;
     private final VaultFileService vaultFileService;
     private final AssetService assetService;
+    private final AccessService accessService;
+    private final CurrentUserResolver currentUserResolver;
     private final ReaderService readerService;
     private final ShareAccessSupport accessSupport;
     private final RateLimiter rateLimiter;
@@ -89,9 +96,29 @@ public class ShareApiController {
         if (kb == null) {
             throw BizException.notFound("分享不存在或已被撤销");
         }
+        /*
+         * 门户曝光范围收窄到「登录用户」或「维护者」时，匿名访客即使拿到链接也读不到。
+         *
+         * <p>不静默跳登录、也不报 403：返回 login 状态让前端引导，理由与「口令」那行相同 ——
+         * 读者需要知道下一步做什么，而 403 在浏览器里表现为一句英文报错。</p>
+         *
+         * <p>校验放在口令判定之前：受众是更外层的闸，先过它再问密码。反过来会让一个不该知道
+         * 这个库存在的访客，先看到「需要口令」—— 那本身就泄露了库里有东西。</p>
+         */
+        String portalScope = share.getPortalScope() == null ? Share.PORTAL_ALL : share.getPortalScope();
+        if (!Share.PORTAL_ALL.equals(portalScope)) {
+            LoginUser viewer = currentUserResolver.resolve();
+            boolean allowed = viewer != null && (Share.PORTAL_MEMBER.equals(portalScope)
+                    || accessService.can(kb, viewer, KbAction.KB_EDIT_META));
+            if (!allowed) {
+                return ApiResponse.ok(ShareReadVO.needLogin(token, kb.getName()));
+            }
+        }
+
         if (!accessSupport.isVerified(share, request)) {
             return ApiResponse.ok(ShareReadVO.needPassword(token, kb.getName()));
         }
+
 
         boolean singleDoc = !share.kbScope();
         if (singleDoc) {
@@ -248,6 +275,17 @@ public class ShareApiController {
 
     /** 分享阅读响应：{@code state} 为 {@code ok} 时 {@code view} 有值，为 {@code password} 时仅返回库名。 */
     public record ShareReadVO(String state, String token, String kbName, ReadView view) {
+
+        /**
+         * 需要登录才能读。
+         *
+         * <p>与 {@code password} 分开而不是合并：口令是「你知道的那串字符」，登录是「你在这个平台
+         * 有账号」。两者的引导去处不同（输密码 vs 跳登录页），合成一个状态前端就得自己猜
+         * 该弹框还是该跳转。</p>
+         */
+        static ShareReadVO needLogin(String token, String kbName) {
+            return new ShareReadVO("login", token, kbName, null);
+        }
 
         static ShareReadVO needPassword(String token, String kbName) {
             return new ShareReadVO("password", token, kbName, null);
