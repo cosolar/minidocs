@@ -135,7 +135,7 @@ watch(
       :title="item.path"
       @click="emit('pick', item)"
     >
-      <Icon :name="item.type === 'dir' ? 'books' : 'file'" :size="14" />
+      <Icon :name="item.type === 'dir' ? 'bookshelf' : 'file'" :size="15" />
       <!-- 别名优先：作者取了别名就显示别名，否则用目录名。悬停的 title 仍是真实路径 -->
       <span>{{ item.alias || item.name || item.path }}</span>
     </button>
