@@ -1363,6 +1363,10 @@ body.is-col-resizing .md-ws__bytemd-resizer::after { background: var(--md-primar
 }
 .md-menu-pick__alias::placeholder { color: var(--md-text-3); }
 .md-menu-pick__alias:focus {
+  outline: none; border-color: var(--md-primary);
+  box-shadow: 0 0 0 3px var(--md-primary-soft);
+}
+
 
 /* 图标选择：参考色块与别名输入框并排，两者都是「这一项的呈现」而不是操作 */
 .md-menu-pick__icon-btn {
@@ -1376,51 +1380,96 @@ body.is-col-resizing .md-ws__bytemd-resizer::after { background: var(--md-primar
 .md-menu-pick__icon-btn:hover { border-color: var(--md-primary); color: var(--md-primary); background: var(--md-primary-soft); }
 .md-menu-pick__icon-btn:focus-visible { outline: 2px solid var(--md-primary); outline-offset: 1px; }
 
-/* 19 个格子排 6 列 —— 单��太宽会把弹窗推到面板边缘以外 */
-.md-icon-grid {
-
-/* 图标选择器：240 个 Tabler 图标，带搜索。分节浏览用于「不知道叫什么」，
- * 搜索用于「知道大概意思」—— 两种找法都得有，只有分节的话 240 项要滚到手酸 */
+/*
+ * 图标选择器：240 个 Tabler 图标，带搜索。
+ *
+ * 分节浏览用于「不知道那图标叫什么」，搜索用于「知道大概意思」——
+ * 两种找法都得有：只有分节的话 240 项要滚到手酸；只有搜索的话，
+ * 不知道官方英文名的人（大多数人）根本搜不出来。
+ */
 .md-icon-pick { display: flex; flex-direction: column; gap: 8px; }
+
+/* 搜索框不参与滚动：滚到第 8 组时想换个关键词，得先滚回顶部才改得到 */
 .md-icon-pick__search {
-  height: 28px; padding: 0 9px;
-  border: 1px solid var(--md-border); border-radius: 7px;
+  height: 30px; padding: 0 10px;
+  border: 1px solid var(--md-border); border-radius: 8px;
   background: var(--md-surface-2); color: var(--md-text);
   font: inherit; font-size: 12.5px;
 }
+.md-icon-pick__search::placeholder { color: var(--md-text-3); }
 .md-icon-pick__search:focus {
   outline: none; border-color: var(--md-primary); background: var(--md-surface);
   box-shadow: 0 0 0 3px var(--md-primary-soft);
 }
-.md-icon-pick__body { max-height: 264px; overflow-y: auto; }
+
+/*
+ * 整个面板只有这一个滚动区。
+ *
+ * 之前 .md-icon-grid 与 .md-icon-pick__body 各设了一次 max-height + overflow，
+ * 于是形成嵌套滚动区：鼠标停在列表里滚一下，外层先跟着动一点、停下再滚又不动了，
+ * 是最难用的一种滚动。
+ *
+ * overscroll-behavior: contain —— 滚到列表底部时不要把滚动继续传给底下的弹窗，
+ * 否则在列表里滚到底会连带把分享弹窗也往下带。
+ *
+ * 负外边距让格子贴住面板边缘，避免最外列看起来比里列窄一截。
+ */
+.md-icon-pick__body {
+  max-height: 288px; overflow-y: auto; overscroll-behavior: contain;
+  margin: 0 -4px; padding: 0 4px;
+}
+
+/* 分组标题吸顶：滚到一半时仍知道自己在哪一组，不必滚回顶部确认 */
 .md-icon-pick__label {
-  margin: 10px 0 5px; color: var(--md-text-3); font-size: 11px; font-weight: 600;
+  position: sticky; top: 0; z-index: 1;
+  margin: 0; padding: 9px 0 6px;
+  background: var(--md-surface);
+  color: var(--md-text-3); font-size: 11px; font-weight: 600;
 }
-.md-icon-pick__section:first-child .md-icon-pick__label { margin-top: 2px; }
-.md-icon-pick__hint { margin: 4px 0 8px; color: var(--md-text-3); font-size: 11.5px; }
-.md-icon-pick__default { padding-bottom: 4px; }
-  display: grid; grid-template-columns: repeat(6, 1fr); gap: 4px;
-  max-height: 232px; overflow-y: auto;
+.md-icon-pick__section:first-child .md-icon-pick__label { padding-top: 2px; }
+.md-icon-pick__hint { margin: 2px 0 8px; color: var(--md-text-3); font-size: 11.5px; }
+.md-icon-pick__default { padding-bottom: 6px; }
+
+/* 7 列 × 约 40px：比 6 列少一行，比 8 列不容易点错相邻项 */
+.md-icon-grid {
+  display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px;
 }
+
+/*
+ * 格子不画边框。
+ *
+ * 之前用 border: 1px solid transparent —— 视觉上等于没有，但 button 元素自带的
+ * appearance 在部分浏览器下仍会画出灰底灰边，240 个格子连成一片就成了表格，
+ * 而图标选择器该有的样子是「一片图标」，分隔靠留白不靠线。
+ *
+ * appearance: none 一并去掉，避免默认按钮 chrome 透过 class 规则漏出来。
+ */
 .md-icon-grid__cell {
-  display: flex; flex-direction: column; align-items: center; gap: 3px;
-  padding: 7px 2px;
-  border: 1px solid transparent; border-radius: 7px;
-  background: none; color: var(--md-text-2);
-  font-family: inherit; font-size: 10.5px; line-height: 1.2; cursor: pointer;
-  transition: background-color .14s ease, color .14s ease, border-color .14s ease;
-}
-.md-icon-grid__cell span {
-  max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  display: grid; place-items: center;
+  height: 38px; padding: 0;
+  border: 0; border-radius: 8px;
+  appearance: none; -webkit-appearance: none;
+  background: transparent; color: var(--md-text-2);
+  font-family: inherit; cursor: pointer;
+  transition: background-color .12s ease, color .12s ease, box-shadow .12s ease;
 }
 .md-icon-grid__cell:hover { background: var(--md-surface-2); color: var(--md-text); }
+
+/* 选中态用「浅蓝底 + 主色描边」而不是加粗：13px 的图形靠字重区分不出来 */
 .md-icon-grid__cell.is-on {
-  border-color: var(--md-primary); background: var(--md-primary-soft); color: var(--md-primary);
-  font-weight: 600;
+  background: var(--md-primary-soft); color: var(--md-primary);
+  box-shadow: inset 0 0 0 1.5px var(--md-primary);
 }
-  outline: none; border-color: var(--md-primary);
-  box-shadow: 0 0 0 2px var(--md-primary-soft);
+.md-icon-grid__cell:focus-visible { outline: 2px solid var(--md-primary); outline-offset: -2px; }
+
+/* 「按类型用默认」那一格是唯一带文字的，所以布局与其他格不同 */
+.md-icon-grid__cell.is-wide {
+  display: flex; align-items: center; justify-content: flex-start; gap: 8px;
+  height: 34px; padding: 0 10px;
+  grid-column: span 7;
+  font-size: 12px;
 }
+.md-icon-grid__cell.is-wide span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .md-menu-pick__ops { display: flex; align-items: center; gap: 2px; flex-shrink: 0; }
 .md-menu-pick__ops button {
   width: 24px; height: 24px; border: 0; border-radius: 6px;

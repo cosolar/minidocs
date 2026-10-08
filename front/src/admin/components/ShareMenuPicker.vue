@@ -159,7 +159,7 @@ const iconSections = NAV_ICON_SECTIONS
           分不出这几个入口分别通向哪里 —— 顶栏导航条那排小图标就是入口辨识的唯一线索。
           留空表示「按类型用默认」（目录书架 / 文档单篇）。
         -->
-        <el-popover placement="bottom-start" :width="300" trigger="click">
+        <el-popover placement="bottom-start" :width="340" trigger="click">
           <template #reference>
             <button type="button" class="md-menu-pick__icon-btn" title="选择图标">
               <NavGlyph :name="item.icon" :fallback="navIconOf(undefined, item.type)" :size="14" />
