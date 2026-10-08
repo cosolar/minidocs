@@ -1,29 +1,43 @@
-/* MiniDocs 设计变量（管理后台与阅读前台共用） */
+/* MiniDocs 设计变量（管理后台与阅读前台共用）
+   色板：MiniDocs Glass Blue —— 浅雾蓝底、#2563EB 主交互、#14B8A6 品牌辅助，
+   文字三级（标题 #172033 / 正文 #43526A / 次要 #7B879B），玻璃容器在页面层叠成。 */
 :root {
-  --md-primary: #3b6cf6;
-  --md-primary-hover: #2f5cd9;
-  --md-primary-soft: rgba(59, 108, 246, 0.12);
+  --md-primary: #2563eb;
+  --md-primary-hover: #1d4ed8;
+  /* 选中底 #EAF2FF 的可缩放写法：压在白卡上是淡蓝，压在玻璃上也不突兀 */
+  --md-primary-soft: rgba(37, 99, 235, 0.08);
+  /* 品牌辅助色：少量用于 Logo、状态点与装饰光晕，不做大面积铺色 */
+  --md-accent: #14b8a6;
   --md-success: #16a34a;
   --md-warning: #d97706;
   --md-danger: #dc2626;
 
-  --md-bg: #f6f7fb;
+  --md-bg: #f4f7fb;
   --md-surface: #ffffff;
-  --md-surface-2: #f1f3f9;
+  /* hover 面 #F5F8FC：比 surface-2 更浅一档，目录树与列表的悬停都用它 */
+  --md-surface-2: #f5f8fc;
   --md-sidebar: #fbfbfd;
-  --md-text: #1f2333;
-  --md-text-2: #5b617a;
-  --md-text-3: #8b90a6;
-  --md-border: #e5e7f0;
-  --md-border-strong: #d3d7e4;
+  --md-text: #172033;
+  --md-text-2: #43526a;
+  --md-text-3: #7b879b;
+  --md-border: #e5eaf2;
+  --md-border-strong: #d5deec;
   --md-shadow: 0 1px 2px rgba(24, 29, 51, 0.05), 0 8px 24px rgba(24, 29, 51, 0.06);
   --md-shadow-sm: 0 1px 2px rgba(24, 29, 51, 0.06);
 
+  /* 玻璃容器：轻磨玻璃而不是强透明，空间容器才用，按钮不加 */
+  --md-glass: rgba(255, 255, 255, 0.68);
+  --md-glass-border: rgba(255, 255, 255, 0.72);
+  --md-glass-blur: blur(18px) saturate(140%);
+  --md-glass-shadow: 0 8px 30px rgba(30, 60, 100, 0.06);
+  --md-glass-radius: 14px;
+
   --md-radius: 12px;
   --md-radius-sm: 8px;
-  --md-content-width: 900px;
-  --md-aside-width: 260px;
-  --md-outline-width: 240px;
+  --md-content-width: 940px;
+  /* 方案给的区间：侧栏 300-320、大纲 250-280；拖过的值仍优先于这两个默认 */
+  --md-aside-width: 300px;
+  --md-outline-width: 260px;
   --md-topbar-height: 62px;
 
   /* 正文字体：默认值与 reader.css 的 body 字体栈保持一致，分享页换字体时被 readerFont.ts 覆写 */
@@ -58,6 +72,7 @@
   --md-primary: #6c8cff;
   --md-primary-hover: #8ba4ff;
   --md-primary-soft: rgba(108, 140, 255, 0.18);
+  --md-accent: #2dd4bf;
 
   --md-bg: #0f1117;
   --md-surface: #161922;
@@ -70,6 +85,11 @@
   --md-border-strong: #333a4d;
   --md-shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 12px 32px rgba(0, 0, 0, 0.35);
   --md-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+
+  /* 暗玻璃：白玻璃压深底会整块发灰发亮，透明度与色调都得换 */
+  --md-glass: rgba(22, 25, 34, 0.62);
+  --md-glass-border: rgba(255, 255, 255, 0.08);
+  --md-glass-shadow: 0 8px 30px rgba(0, 0, 0, 0.35);
 
   --md-code-bg: #1b1f2b;
   --md-code-text: #e7e9f2;

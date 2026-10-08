@@ -230,6 +230,36 @@ button { font-family: inherit; }
 .md-reading__outline { border-right: 0; border-left: 1px solid var(--md-border); }
 .md-reading__main { min-width: 0; padding: 0 28px 80px; }
 
+/*
+ * Glass Blue 的氛围层：右上蓝紫、左下青两团光晕，透明度压在 5-8%（方案 §10）。
+ * 直接画在 .md-reading 的 background-image 上 —— 两种模式下它都铺满视口，
+ * 玻璃侧栏的 backdrop-filter 会把这层光晕一起采进去，磨玻璃才真的「磨」得出内容。
+ * 只用 background-image 而不是 shorthand：不覆盖任何可能存在的底色。
+ */
+.md-reading {
+  background-image:
+    radial-gradient(640px 460px at 88% 6%, rgba(37, 99, 235, 0.07), transparent 70%),
+    radial-gradient(560px 420px at 4% 94%, rgba(20, 184, 166, 0.06), transparent 70%);
+}
+
+/*
+ * 玻璃面板：侧栏与大纲升级成浮起的轻磨玻璃 —— 但只给门户阅读页。
+ * 分享页宽屏是刻意的全出血贴死布局（见下方宽屏段的注释），飘着的圆角卡片
+ * 会破坏它的无缝语言，那边只吃新色板与顶栏轻玻璃。
+ * 面板自带描边与投影，原来朝内的两条发丝线就此退役。
+ */
+.md-reading[data-mode='portal'] .md-reading__aside,
+.md-reading[data-mode='portal'] .md-reading__outline {
+  margin: 12px;
+  border: 1px solid var(--md-glass-border);
+  border-radius: var(--md-glass-radius);
+  background: var(--md-glass);
+  backdrop-filter: var(--md-glass-blur);
+  -webkit-backdrop-filter: var(--md-glass-blur);
+  box-shadow: var(--md-glass-shadow);
+}
+/* 玻璃面板压在光晕上：blur 会把光晕采进去，正文栏保持透明让光晕直達页面底色 */
+
 /* ------------------------------------------------------------------ 门户阅读页骨架 */
 /*
  * 阅读页不要页面级滚动条：正文一长，底部状态栏就被推到几屏之外，想看一眼字数、行数
@@ -498,7 +528,7 @@ button { font-family: inherit; }
   font-size: 11px; line-height: 20px; text-align: right;
 }
 
-.md-tree__link.is-active { background: var(--md-primary-soft); color: var(--md-primary); font-weight: 600; }
+.md-tree__link.is-active { background: var(--md-primary-soft); color: var(--md-primary); font-weight: 600; box-shadow: inset 3px 0 0 var(--md-primary); }
 /* 激活行整行着色（原来只给圆点加光环）：行高只有 20 多 px，一个 6px 的点太轻，
    扫视时抓不到「我在这篇」。 */
 .md-tree__link.is-active .md-tree__type { color: var(--md-primary); }
@@ -801,8 +831,8 @@ button { font-family: inherit; }
   display: flex; align-items: center; gap: 10px;
   height: var(--md-share-top); padding: 0 16px;
   color: var(--share-fg);
-  background: color-mix(in srgb, var(--md-surface) 92%, transparent);
-  backdrop-filter: blur(10px);
+  background: color-mix(in srgb, var(--md-surface) 78%, transparent);
+  backdrop-filter: var(--md-glass-blur);
   border-bottom: 1px solid var(--share-line);
 }
 /* 品牌：站名与副标题压到次要层级，「谁家的站」不该与库名争眼 */
@@ -1240,7 +1270,7 @@ button { font-family: inherit; }
 .md-reading[data-mode='share'] .md-tree__label:hover { background: var(--md-surface-2); }
 .md-reading[data-mode='share'] .md-tree__link.is-active {
   background: var(--md-primary-soft);
-  box-shadow: inset 2px 0 0 var(--md-primary);
+  box-shadow: inset 3px 0 0 var(--md-primary);
 }
 
 /* 右栏：目录卡 */
