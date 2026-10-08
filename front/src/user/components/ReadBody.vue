@@ -143,7 +143,7 @@ const accessIcon = computed(() => (needsPassword.value ? 'lock' : 'globe'))
 const previewAsset = ref<DocNode | null>(null)
 
 /** 换了文档就退出预览：否则上一篇的图片会盖在新一篇的正文上。 */
-watch(() => props.view.path, () => { previewAsset.value = null })
+watch(() => props.view.currentPath, () => { previewAsset.value = null })
 
 function onTreeSelect(node: DocNode) {
   previewAsset.value = node.type === 'image' ? node : null
