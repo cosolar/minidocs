@@ -576,35 +576,36 @@
   padding: 0 16px; background: var(--md-surface); border-bottom: 1px solid var(--md-border);
 }
 /*
- * 返回键：纯图标、无底色。
+ * 「返回 + 库标识」并成一组：顶栏的 gap 是全局 14px，若让返回键也吃这个间距，
+ * 它就孤零零飘在左边、与右侧身份块没有任何关系，看着像顶栏上多出来的一个控件。
+ * 这里把返回键的右边距压到 4px（等于贴着标识块），同时给标识块右边留 6px 形成分隔 ——
+ * 眼睛读到的于是是「一个导航组」加「一组元信息」两段，而不是三个等距的并列项。
+ */
+.md-ws__back { margin-right: -10px; }
+/*
+ * 返回键：托盘图形 + 浅色圆角底。
  *
- * <p>先后试过两种做法，都不对：
- * 带边框的小白块太轻，扫过去像一段面包屑的尾巴；改成品牌渐变色块之后又太重 ——
- * 它和右侧的知识库图标块同尺寸、同渐变、同投影，两块并排就成了「一对一样的
- * 按钮」，眼睛分不出哪个是库、哪个是返回，而且投影让一个次要动作浮起来，
- * 抢了身份标识的视觉重心。</p>
+ * <p>底色用 {@code --md-primary-soft}（主色的 8% 淡蓝）而不是品牌渐变：托盘图形本身
+ * 是一条很细的线稿，浅底上需要一点对比才看得清；但用渐变就会和右侧标识块变成
+ * 「两块同色方块」，那是上一版试过并被否掉的方案。</p>
  *
- * <p>最终：<b>识别度交给图标颜色，不靠底色</b>。主色图标在浅色顶栏上本身就是
- * 一个明确的控件信号，悬停时浮出淡底确认热区，两者都不与邻居撞脸。
- * 次要动作在视觉上必须轻于身份标识，这是排序问题不是好看问题。</p>
- *
- * <p>line-height: 0 是必须的 —— 图标是 inline-block，基线会在下方留约 3px 空隙。
- * {@code place-items: center} 让它在格子里居中，不受行高影响。</p>
+ * <p>line-height: 0 是必须的 —— 图标是 inline-block，基线会在下方留约 3px 空隙，
+ * 色块看起来会比 30px 高、底部多一道缝。{@code place-items: center} 让图标在格子里
+ * 居中，不受行高影响。</p>
  */
 .md-ws__back {
   display: grid; place-items: center;
   width: 30px; height: 30px; flex-shrink: 0;
   padding: 0; line-height: 0;
   border: 0; border-radius: 8px;
-  background: transparent;
+  background: var(--md-primary-soft);
   color: var(--md-primary);
   cursor: pointer;
   transition: background-color .16s ease, color .16s ease, transform .16s ease;
 }
-.md-ws__back:hover { background: var(--md-primary-soft); color: var(--md-primary-hover); }
+.md-ws__back:hover { background: color-mix(in srgb, var(--md-primary) 16%, transparent); color: var(--md-primary-hover); }
 .md-ws__back:active { transform: translateX(-2px); }
 .md-ws__back:focus-visible { outline: 2px solid var(--md-primary); outline-offset: 2px; }
-.md-ws__identity { display: flex; align-items: center; gap: 10px; min-width: 0; }
 /* 库标识是顶栏里唯一的品牌色块 —— 返回键刻意不用同款（两块同色并排会看成一对控件） */
 .md-ws__logo {
   width: 34px; height: 34px; border-radius: 10px; flex-shrink: 0;
@@ -612,6 +613,7 @@
   color: #fff; font-weight: 700; font-size: 15px; display: grid; place-items: center;
   box-shadow: var(--md-brand-shadow);
 }
+.md-ws__identity { display: flex; align-items: center; gap: 10px; min-width: 0; margin-right: 6px; }
 .md-ws__identity-text { min-width: 0; }
 .md-ws__name { display: flex; align-items: center; gap: 8px; font-size: 15px; font-weight: 650; }
 .md-ws__name-text { max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
