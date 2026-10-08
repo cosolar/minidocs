@@ -249,12 +249,18 @@ button { font-family: inherit; }
  * 面板自带描边与投影，原来朝内的两条发丝线就此退役。
  */
 /*
- * 侧栏与大纲：轻磨玻璃的**底色与质感**留着，但几何上贴死 —— 不留外边距、
- * 不圆角、不投影，三栏之间各出一条朝内的发丝线，与分享页同一套无缝语言。
+ * 侧栏与大纲：玻璃的**半透明底色**留着，但几何上贴死 —— 不留外边距、不圆角、
+ * 不投影，三栏之间各出一条朝内的发丝线，与分享页同一套无缝语言。
  *
  * <p>原先做成「浮起的圆角卡片」（外边距 12px + 圆角 + 投影），在 300px 的栏宽下
  * 四周都是缝，正文夹在两个浮块中间，反而像三张卡片拼在一起而不是一个阅读界面。
  * 侧栏与大纲是导航容器，不是可点击的卡片，贴死才符合它们的角色。</p>
+ *
+ * <p><b>这里不再有 backdrop-filter</b>：磨玻璃要有东西可磨，而面板贴死之后背后
+ * 是一片纯色底（最多叠着页面光晕），blur 出来的结果与不 blur 几乎一样。
+ * 与其留一个覆盖整屏高度的模糊层、在滚动时持续参与重绘，不如只留半透明底色 ——
+ * 观感一样，滚动轻一档。<code>--md-glass-blur</code> 仍在分享页顶栏用着，
+ * 那里的背后是正文，blur 有实际作用。</p>
  *
  * <p>发丝线用 {@code --md-border} 而非玻璃的白边：白边是给「浮在内容之上」设计的，
  * 贴死时它会让分栏看起来像没画完 —— 真正承担分隔作用的是这条 1px 线。</p>
@@ -264,8 +270,6 @@ button { font-family: inherit; }
   border: 0;
   border-radius: 0;
   background: var(--md-glass);
-  backdrop-filter: var(--md-glass-blur);
-  -webkit-backdrop-filter: var(--md-glass-blur);
   box-shadow: none;
 }
 .md-reading[data-mode='portal'] .md-reading__aside { border-right: 1px solid var(--md-border); }
