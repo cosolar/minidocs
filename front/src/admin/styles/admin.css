@@ -708,10 +708,10 @@
   scrollbar-width: thin;
 }
 .md-ws__tree::-webkit-scrollbar,
-.md-ws__toc-body::-webkit-scrollbar { width: 8px; }
+.md-ws__toc-body::-webkit-scrollbar { width: var(--md-scrollbar-size); }
 .md-ws__tree::-webkit-scrollbar-thumb,
 .md-ws__toc-body::-webkit-scrollbar-thumb {
-  background: var(--md-border-strong); border-radius: 8px;
+  background: var(--md-scrollbar-thumb); border-radius: 8px;
   border: 2px solid transparent; background-clip: padding-box;
 }
 .md-ws__tree-empty { padding: 26px 12px; color: var(--md-text-3); font-size: 12.5px; text-align: center; }
@@ -1145,12 +1145,12 @@ body.is-col-resizing .md-ws__bytemd-resizer::after { background: var(--md-primar
   padding: 18px 24px 6px;
   /* 细滚动条：内容不超长时根本不出现，超长时也只占窄窄一条 */
   scrollbar-width: thin;
-  scrollbar-color: var(--md-border-strong) transparent;
+  scrollbar-color: var(--md-scrollbar-thumb) transparent;
 }
-.md-kb-dialog .el-dialog__body::-webkit-scrollbar { width: 8px; }
+.md-kb-dialog .el-dialog__body::-webkit-scrollbar { width: var(--md-scrollbar-size); }
 .md-kb-dialog .el-dialog__body::-webkit-scrollbar-track { background: transparent; }
 .md-kb-dialog .el-dialog__body::-webkit-scrollbar-thumb {
-  background: var(--md-border-strong);
+  background: var(--md-scrollbar-thumb);
   border: 2px solid transparent;
   border-radius: 999px;
   background-clip: content-box;
@@ -1370,10 +1370,10 @@ body.is-col-resizing .md-ws__bytemd-resizer::after { background: var(--md-primar
   border: 1px solid var(--md-border); border-radius: 8px;
   background: var(--md-surface);
 }
-.md-menu-pick__tree::-webkit-scrollbar { width: 8px; }
+.md-menu-pick__tree::-webkit-scrollbar { width: var(--md-scrollbar-size); }
 .md-menu-pick__tree::-webkit-scrollbar-track { background: transparent; }
 .md-menu-pick__tree::-webkit-scrollbar-thumb {
-  background: var(--md-border-strong); border-radius: 8px; border: 2px solid transparent; background-clip: padding-box;
+  background: var(--md-scrollbar-thumb); border-radius: 8px; border: 2px solid transparent; background-clip: padding-box;
 }
 .md-menu-pick__node { display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
 /* 树里的名字没有别名输入框要避让，恢复占满剩余宽度 */

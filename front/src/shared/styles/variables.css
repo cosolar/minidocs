@@ -32,6 +32,13 @@
   --md-glass-shadow: 0 8px 30px rgba(30, 60, 100, 0.06);
   --md-glass-radius: 14px;
 
+  /* 滚动条：细、主题色但压到很淡，悬停才提上来。
+     视觉宽度 = 7px 减去两侧各 2px 透明边框（background-clip: content-box）≈ 3px，
+     比浏览器默认那条约 15px、带上下箭头的窄一大截 */
+  --md-scrollbar-size: 7px;
+  --md-scrollbar-thumb: color-mix(in srgb, var(--md-primary) 20%, transparent);
+  --md-scrollbar-thumb-hover: color-mix(in srgb, var(--md-primary) 45%, transparent);
+
   --md-radius: 12px;
   --md-radius-sm: 8px;
   --md-content-width: 940px;
@@ -91,6 +98,10 @@
   --md-glass-border: rgba(255, 255, 255, 0.08);
   --md-glass-shadow: 0 8px 30px rgba(0, 0, 0, 0.35);
 
+  /* 暗色主色是更亮的 #6c8cff，同样的百分比压在深底上几乎看不见，整体上调一档 */
+  --md-scrollbar-thumb: color-mix(in srgb, var(--md-primary) 28%, transparent);
+  --md-scrollbar-thumb-hover: color-mix(in srgb, var(--md-primary) 55%, transparent);
+
   --md-code-bg: #1b1f2b;
   --md-code-text: #e7e9f2;
   --md-code-border: #2b3143;
@@ -112,6 +123,35 @@
 
   color-scheme: dark;
 }
+
+/*
+ * 全局滚动条：一次定义覆盖所有可滚动元素。
+ *
+ * <p>此前只有 20 处按元素单独写样式，漏掉的那些就退回浏览器默认样式——Windows 上是
+ * 约 15px 宽、带上下箭头的灰条，落在 300px 的侧栏里非常扎眼（如图标树的滚动容器）。
+ * 用 {@code *} 兜住「漏写」这一类，比逐个补规则更不容易再犯。</p>
+ *
+ * <p>元素级规则特异性更高，仍会覆盖这里；所以那 20 处也已改成引用同一组令牌，
+ * 两边不会打架。刻意隐藏的三处（{@code scrollbar-width: none}）同样不受影响。</p>
+ */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--md-scrollbar-thumb) transparent;
+}
+*::-webkit-scrollbar { width: var(--md-scrollbar-size); height: var(--md-scrollbar-size); }
+*::-webkit-scrollbar-track { background: transparent; }
+*::-webkit-scrollbar-thumb {
+  background: var(--md-scrollbar-thumb);
+  border-radius: 999px;
+  /* 2px 透明边框 + content-box：把滑块再收窄 4px，视觉只有 3px */
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: var(--md-scrollbar-thumb-hover);
+  background-clip: content-box;
+}
+*::-webkit-scrollbar-corner { background: transparent; }
 
 /* 代码块主题（6 种，按 data-code-theme 切换） */
 [data-code-theme='github'] { --md-tk-keyword:#cf222e; --md-tk-string:#0a3069; --md-tk-comment:#6e7781; --md-tk-number:#0550ae; --md-tk-title:#8250df; --md-tk-attr:#953800; }

@@ -288,11 +288,11 @@ button { font-family: inherit; }
   overscroll-behavior: contain;
   scrollbar-width: thin;
 }
-.md-reading[data-mode='portal'] .md-reading__main::-webkit-scrollbar { width: 10px; }
+.md-reading[data-mode='portal'] .md-reading__main::-webkit-scrollbar { width: var(--md-scrollbar-size); }
 .md-reading[data-mode='portal'] .md-reading__main::-webkit-scrollbar-thumb {
-  background: var(--md-border-strong);
+  background: var(--md-scrollbar-thumb);
   border-radius: 10px;
-  border: 3px solid transparent;
+  border: 2px solid transparent;
   background-clip: padding-box;
 }
 /* 左栏自己滚，滚动条也收细一档，免得在 260px 宽的栏里占掉一条明显的槽 */
@@ -300,9 +300,9 @@ button { font-family: inherit; }
   padding: 18px 12px 40px;
   scrollbar-width: thin;
 }
-.md-reading[data-mode='portal'] .md-reading__aside::-webkit-scrollbar { width: 8px; }
+.md-reading[data-mode='portal'] .md-reading__aside::-webkit-scrollbar { width: var(--md-scrollbar-size); }
 .md-reading[data-mode='portal'] .md-reading__aside::-webkit-scrollbar-thumb {
-  background: var(--md-border-strong);
+  background: var(--md-scrollbar-thumb);
   border-radius: 10px;
   border: 2px solid transparent;
   background-clip: padding-box;
@@ -1395,11 +1395,11 @@ button { font-family: inherit; }
     overscroll-behavior: contain;
     scrollbar-width: thin;
   }
-  .md-reading[data-mode='share'] .md-reading__main::-webkit-scrollbar { width: 10px; }
+  .md-reading[data-mode='share'] .md-reading__main::-webkit-scrollbar { width: var(--md-scrollbar-size); }
   .md-reading[data-mode='share'] .md-reading__main::-webkit-scrollbar-thumb {
-    background: var(--md-border-strong);
+    background: var(--md-scrollbar-thumb);
     border-radius: 10px;
-    border: 3px solid transparent;
+    border: 2px solid transparent;
     background-clip: padding-box;
   }
 }

@@ -150,9 +150,9 @@
   align-content: start; scrollbar-width: thin;
   padding: 4px 8px; margin: -4px -8px;
 }
-.md-cards::-webkit-scrollbar { width: 8px; }
+.md-cards::-webkit-scrollbar { width: var(--md-scrollbar-size); }
 .md-cards::-webkit-scrollbar-thumb {
-  background: var(--md-border-strong); border-radius: 8px;
+  background: var(--md-scrollbar-thumb); border-radius: 8px;
   border: 2px solid transparent; background-clip: padding-box;
 }
 /* 卡片自己裁 overflow 收圆角；「更多」菜单是 Teleport 到 body 的，不会被一起裁掉 */

@@ -174,9 +174,9 @@
   tab-size: 4;
 }
 /* 代码横向溢出时给一条细滚动条，别用系统默认那条粗的 */
-:is(.md-markdown, .md-ws__editor .markdown-body) pre code::-webkit-scrollbar { height: 8px; }
+:is(.md-markdown, .md-ws__editor .markdown-body) pre code::-webkit-scrollbar { height: var(--md-scrollbar-size); }
 :is(.md-markdown, .md-ws__editor .markdown-body) pre code::-webkit-scrollbar-thumb {
-  background: var(--md-border-strong);
+  background: var(--md-scrollbar-thumb);
   border-radius: 4px;
 }
 
@@ -275,15 +275,15 @@
   overscroll-behavior-x: contain;
 }
 /* 横向滚动条收细，与代码块那套一致 */
-.md-table-wrap::-webkit-scrollbar { height: 9px; }
+.md-table-wrap::-webkit-scrollbar { height: var(--md-scrollbar-size); }
 .md-table-wrap::-webkit-scrollbar-track { background: transparent; }
 .md-table-wrap::-webkit-scrollbar-thumb {
-  border: 3px solid transparent;
+  border: 2px solid transparent;
   border-radius: 999px;
-  background: var(--md-border-strong);
+  background: var(--md-scrollbar-thumb);
   background-clip: content-box;
 }
-.md-table-wrap::-webkit-scrollbar-thumb:hover { background: var(--md-text-3); background-clip: content-box; }
+.md-table-wrap::-webkit-scrollbar-thumb:hover { background: var(--md-scrollbar-thumb-hover); background-clip: content-box; }
 
 /* 外壳里的表格：恢复 table 布局并满宽，外边距交给外壳（否则表头底色会漏到圆角外面） */
 :is(.md-markdown, .md-ws__editor .markdown-body) .md-table-wrap > table {
