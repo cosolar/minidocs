@@ -168,7 +168,13 @@ const icon = computed(() => resolveIcon(ICONS, props.name))
     aria-hidden="true"
     focusable="false"
   >
-    <path v-for="(d, index) in icon.paths" :key="index" :d="d" />
+    <!-- fills 存在时逐 path 上色（双色品牌标识）；否则全部继承 svg 上的 currentColor -->
+    <path
+      v-for="(d, index) in icon.paths"
+      :key="index"
+      :d="d"
+      :fill="icon.fills?.[index]"
+    />
   </svg>
 </template>
 

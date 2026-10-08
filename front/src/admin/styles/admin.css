@@ -575,13 +575,21 @@
   height: 58px; flex-shrink: 0; display: flex; align-items: center; gap: 14px;
   padding: 0 16px; background: var(--md-surface); border-bottom: 1px solid var(--md-border);
 }
+/*
+ * 返回键现在只是「点击热区 + 无障碍语义」，视觉由 brand-mark 图形自带
+ * （它有圆角底板与深色字形）。所以这里把边框、底色、内边距、圆角全部让掉，
+ * 只留悬停时的一层淡底 —— 图形是浅色的，hover 用 primary-soft 才看得出反馈。
+ */
 .md-ws__back {
-  display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 11px;
-  border: 1px solid var(--md-border); border-radius: 8px; background: var(--md-surface);
-  color: var(--md-text-2); font-size: 12.5px; cursor: pointer;
-  transition: color .16s ease, border-color .16s ease, background .16s ease;
+  display: inline-flex; align-items: center; justify-content: center;
+  height: 30px; padding: 0;
+  border: 0; border-radius: 8px; background: transparent;
+  cursor: pointer; line-height: 0;
+  transition: background-color .16s ease, transform .16s ease;
 }
-.md-ws__back:hover { color: var(--md-primary); border-color: var(--md-primary); background: var(--md-primary-soft); }
+.md-ws__back:hover { background: var(--md-primary-soft); }
+/* 位移而不是加投影：图形本身是深底浅字，投在它上面会显脏 */
+.md-ws__back:active { transform: translateX(-2px); }
 .md-ws__identity { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .md-ws__logo {
   width: 34px; height: 34px; border-radius: 10px; flex-shrink: 0;

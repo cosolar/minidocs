@@ -1625,9 +1625,15 @@ onBeforeUnmount(() => {
   <div v-loading="loading" class="md-ws">
     <!-- 顶部操作区 -->
     <header class="md-ws__top">
-      <button type="button" class="md-ws__back" @click="backToList">
-        <MdIcon name="back" :size="15" />
-        <span>返回</span>
+      <!--
+        返回键用品牌标识图形，不再是「箭头 + 返回文字」：
+        那个图形自带圆角底板，套在带边框的按钮里会变成胶囊套胶囊。
+        所以按钮只留语义与点击，视觉交给图形 —— aria-label 保证读屏仍知道这是返回。
+        按高度给尺寸（图形是 2798×1024 的宽扁形，宽度由 viewBox 自动按比例给出，
+        塞进固定宽高会被压扁）。
+      -->
+      <button type="button" class="md-ws__back" title="返回知识库列表" aria-label="返回知识库列表" @click="backToList">
+        <MdIcon name="brand-mark" :size="26" />
       </button>
 
       <div class="md-ws__identity">
