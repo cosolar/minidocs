@@ -11,7 +11,8 @@ import { resolveIcon } from '@/shared/iconDef'
 const props = defineProps<{ name: string; size?: number | string }>()
 
 const ICONS: Record<string, string[]> = {
-  back: ['M19 12H5', 'M11 18l-6-6 6-6'],
+  /* back 不在这里：它已由 shared/iconDef.ts 的 SOLID_ICONS 提供（带托盘轮廓的填充版），
+     线条版留着会被同名覆盖成死代码 */
   search: ['M10.8 17.6a6.8 6.8 0 1 1 0-13.6 6.8 6.8 0 0 1 0 13.6z', 'M20.5 20.5l-4.1-4.1'],
   plus: ['M12 5.5v13', 'M5.5 12h13'],
   file: ['M14 3.5H7.5a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h9a2 2 0 0 0 2-2V8.5z', 'M14 3.5V8.5h4.5'],

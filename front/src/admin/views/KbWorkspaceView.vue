@@ -1626,14 +1626,14 @@ onBeforeUnmount(() => {
     <!-- 顶部操作区 -->
     <header class="md-ws__top">
       <!--
-        返回键用品牌标识图形，不再是「箭头 + 返回文字」：
-        那个图形自带圆角底板，套在带边框的按钮里会变成胶囊套胶囊。
-        所以按钮只留语义与点击，视觉交给图形 —— aria-label 保证读屏仍知道这是返回。
-        按高度给尺寸（图形是 2798×1024 的宽扁形，宽度由 viewBox 自动按比例给出，
-        塞进固定宽高会被压扁）。
+        返回键：图形是裸字形（没有自带底板），所以按钮保留边框与「返回」文字 ——
+        一个孤零零的深色图形浮在顶栏上，用户既看不出可点也不知道它是什么。
+        图标继承 currentColor（单色填充），悬停时随文字一起变主色、暗色自动适配。
+        按高度给尺寸：画布 1460×1024 比常规图标宽，宽度由 viewBox 按比例得出。
       -->
-      <button type="button" class="md-ws__back" title="返回知识库列表" aria-label="返回知识库列表" @click="backToList">
-        <MdIcon name="brand-mark" :size="26" />
+      <button type="button" class="md-ws__back" title="返回知识库列表" @click="backToList">
+        <MdIcon name="back" :size="16" />
+        <span>返回</span>
       </button>
 
       <div class="md-ws__identity">
