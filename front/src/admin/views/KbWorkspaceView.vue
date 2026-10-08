@@ -1625,22 +1625,6 @@ onBeforeUnmount(() => {
   <div v-loading="loading" class="md-ws">
     <!-- 顶部操作区 -->
     <header class="md-ws__top">
-      <!--
-        返回键：纯图标色块，不带「返回」文字。
-        文字去掉后无障碍标签必须留着 —— 读屏否则只播报一个图形；
-        视觉上的可识别性由品牌渐变 + 白色图标承担（与右侧知识库图标块共用同一对色）。
-        图标是单色填充、继承 currentColor，所以按钮上的 color: #fff 决定它显示为白色。
-      -->
-      <button
-        type="button"
-        class="md-ws__back"
-        title="返回知识库列表"
-        aria-label="返回知识库列表"
-        @click="backToList"
-      >
-        <MdIcon name="back" :size="17" />
-      </button>
-
       <div class="md-ws__identity">
         <span class="md-ws__logo"><KbGlyph :size="19" /></span>
         <div class="md-ws__identity-text">
@@ -1704,6 +1688,21 @@ onBeforeUnmount(() => {
           />
           {{ saveStateText }}
         </span>
+
+        <!--
+          返回：放在右侧操作区而不是顶栏最左。左侧那一段是「库名 + 状态徽章」的
+          身份区，把导航控件塞进去会打断它；而返回与设置 / 分享这些动作同属「对
+          当前库的操作」，并排才读得出来。
+        -->
+        <button
+          type="button"
+          class="md-ws__back"
+          title="返回知识库列表"
+          aria-label="返回知识库列表"
+          @click="backToList"
+        >
+          <MdIcon name="back" :size="15" />
+        </button>
 
         <!--
           设置放在顶栏而不是左栏底部：它管的是「这个库是什么、哪些内容不给人看」，
