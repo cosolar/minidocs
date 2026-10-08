@@ -248,16 +248,28 @@ button { font-family: inherit; }
  * 会破坏它的无缝语言，那边只吃新色板与顶栏轻玻璃。
  * 面板自带描边与投影，原来朝内的两条发丝线就此退役。
  */
+/*
+ * 侧栏与大纲：轻磨玻璃的**底色与质感**留着，但几何上贴死 —— 不留外边距、
+ * 不圆角、不投影，三栏之间各出一条朝内的发丝线，与分享页同一套无缝语言。
+ *
+ * <p>原先做成「浮起的圆角卡片」（外边距 12px + 圆角 + 投影），在 300px 的栏宽下
+ * 四周都是缝，正文夹在两个浮块中间，反而像三张卡片拼在一起而不是一个阅读界面。
+ * 侧栏与大纲是导航容器，不是可点击的卡片，贴死才符合它们的角色。</p>
+ *
+ * <p>发丝线用 {@code --md-border} 而非玻璃的白边：白边是给「浮在内容之上」设计的，
+ * 贴死时它会让分栏看起来像没画完 —— 真正承担分隔作用的是这条 1px 线。</p>
+ */
 .md-reading[data-mode='portal'] .md-reading__aside,
 .md-reading[data-mode='portal'] .md-reading__outline {
-  margin: 12px;
-  border: 1px solid var(--md-glass-border);
-  border-radius: var(--md-glass-radius);
+  border: 0;
+  border-radius: 0;
   background: var(--md-glass);
   backdrop-filter: var(--md-glass-blur);
   -webkit-backdrop-filter: var(--md-glass-blur);
-  box-shadow: var(--md-glass-shadow);
+  box-shadow: none;
 }
+.md-reading[data-mode='portal'] .md-reading__aside { border-right: 1px solid var(--md-border); }
+.md-reading[data-mode='portal'] .md-reading__outline { border-left: 1px solid var(--md-border); }
 /* 玻璃面板压在光晕上：blur 会把光晕采进去，正文栏保持透明让光晕直達页面底色 */
 
 /* ------------------------------------------------------------------ 门户阅读页骨架 */
