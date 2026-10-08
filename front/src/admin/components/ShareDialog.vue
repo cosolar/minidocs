@@ -275,6 +275,10 @@ function openUrl() {
           勾选目录或文档作为分享页顶部的菜单项，再调整它们的先后顺序。点目录菜单会打开该目录下的第一篇文档。
           不选则分享页照旧展示完整目录树。
         </p>
+        <p class="md-share-panel__hint">
+          右边可以给每一项取一个<b>别名</b>：目录名是给你自己看的（{@code docs}、{@code notes}），
+          读者看到的是导航条上的文字，两者没有必然关系。别名留空就用目录名，改目录名也不会冲掉它。
+        </p>
         <ShareMenuPicker v-model="form.menu" :kb-slug="kbSlug" />
       </section>
 

@@ -329,7 +329,9 @@ public class ShareServiceImpl implements ShareService {
         }
 
         // 菜单里存的也是路径快照，同一条事件必须一起重写：否则文档改名后，分享页那条导航会
-        // 指向一个已经不存在的目录，读侧只能把它剔除，用户看到的就是菜单凭空少了一项。
+                // 指向一个已经不存在的目录，读侧只能把它剔除，用户看到的就是菜单凭空少了一项。
+                // 只改路径、其余字段原样带上：作者给菜单项取的别名是他自己写的，
+                // 目录改名不该把它冲掉（路径会变，那正是重写这一段的原因）。
         List<Share> withMenu = shareMapper.selectList(Wrappers.<Share>lambdaQuery()
                 .eq(Share::getKbId, event.kbId())
                 .isNotNull(Share::getMenuConfig));
@@ -349,7 +351,7 @@ public class ShareServiceImpl implements ShareService {
                 if (!next.equals(item.path())) {
                     changed = true;
                 }
-                remapped.add(NavMenuItem.of(item.type(), next));
+                remapped.add(item.withPath(next));
             }
             if (!changed) {
                 continue;
@@ -590,7 +592,7 @@ public class ShareServiceImpl implements ShareService {
             if (type == null) {
                 continue;
             }
-            unique.putIfAbsent(type + ":" + path, NavMenuItem.of(type, path));
+            unique.putIfAbsent(type + ":" + path, NavMenuItem.of(type, path, item.alias()));
             if (unique.size() >= MAX_MENU_ITEMS) {
                 break;
             }
@@ -610,10 +612,16 @@ public class ShareServiceImpl implements ShareService {
         return JsonUtil.readList(json, NavMenuItem.class);
     }
 
-    /** 补显示名：库里只存类型与路径，名字每次由路径末段推导，改名后不会留下一份旧名字。 */
+    /**
+     * 补显示名。
+     *
+     * <p>推导名每次由路径末段算，改名后不会留下一份旧名字；作者显式取过别名时以别名为准
+     * —— 两者都在出参里合成成一个 {@code name}，调用方只读一个字段。</p>
+     */
     private List<NavMenuItem> menuWithNames(List<NavMenuItem> items) {
         return items.stream()
-                .map(item -> item.withName(FileNameUtil.stripMarkdownExt(PathGuard.fileNameOf(item.path()))))
+                .map(item -> item.withName(item.effectiveName(
+                        FileNameUtil.stripMarkdownExt(PathGuard.fileNameOf(item.path())))))
                 .toList();
     }
 

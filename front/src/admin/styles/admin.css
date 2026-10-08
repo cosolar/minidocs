@@ -1326,9 +1326,27 @@ body.is-col-resizing .md-ws__bytemd-resizer::after { background: var(--md-primar
 }
 .md-menu-pick__icon { flex-shrink: 0; color: var(--md-text-3); }
 .md-menu-pick__label {
-  flex: 1; min-width: 0;
+  /* 目录名让位给别名输入框：宽度从 flex:1 收到 flex 0 1 auto，
+     否则 40 项的清单里每一行的名字都长到把输入框挤没 */
+  flex: 0 1 auto; max-width: 40%; min-width: 0;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   font-size: 12.5px; color: var(--md-text);
+}
+/*
+ * 别名输入框。占满剩余宽度，让「目录名 → 读者看到的名字」这层映射一眼能对上；
+ * placeholder 显示当前生效的名字，所以「留空是什么效果」不用猜。
+ */
+.md-menu-pick__alias {
+  flex: 1; min-width: 0; height: 22px;
+  padding: 0 8px;
+  border: 1px solid var(--md-border); border-radius: 6px;
+  background: var(--md-surface); color: var(--md-text);
+  font: inherit; font-size: 12.5px;
+}
+.md-menu-pick__alias::placeholder { color: var(--md-text-3); }
+.md-menu-pick__alias:focus {
+  outline: none; border-color: var(--md-primary);
+  box-shadow: 0 0 0 2px var(--md-primary-soft);
 }
 .md-menu-pick__ops { display: flex; align-items: center; gap: 2px; flex-shrink: 0; }
 .md-menu-pick__ops button {
@@ -1358,7 +1376,8 @@ body.is-col-resizing .md-ws__bytemd-resizer::after { background: var(--md-primar
   background: var(--md-border-strong); border-radius: 8px; border: 2px solid transparent; background-clip: padding-box;
 }
 .md-menu-pick__node { display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
-.md-menu-pick__node .md-menu-pick__label { font-size: 13px; }
+/* 树里的名字没有别名输入框要避让，恢复占满剩余宽度 */
+.md-menu-pick__node .md-menu-pick__label { flex: 1; max-width: none; font-size: 13px; }
 
 /* 底栏：撤销靠左、其余靠右——危险动作与主按钮拉开距离，才不会被顺手点到 */
 .md-share-foot { display: flex; align-items: center; gap: 10px; width: 100%; }

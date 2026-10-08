@@ -349,11 +349,22 @@ export interface ImportResult {
  * <p>存库的只有 {@code type} 与 {@code path}：{@code name} 由后端按路径末段推导后下发，
  * 目录改名后不会留下一份漂移的旧名字。{@code dir} 项点开的是该目录下的第一篇文档，
  * 并把左侧目录树收窄到这一支。</p>
+ *
+ * <p>{@code alias} 是作者给这一项取的别名，与 {@code name} 分工明确：
+ * {@code name} 跟着改名自动变，{@code alias} 是作者说了算、改名也不动。
+ * 目录叫 {@code docs} 而希望读者看到「文档」时需要的就是后者。
+ * 留空 / undefined = 用目录名。</p>
+ *
+ * <p><b>出参里 {@code name} 已经是「别名优先」的生效名</b>，所以渲染方（顶栏导航条）
+ * 只读 {@code name} 即可，不必自己判断有没有别名 —— 那种判断散在两处就会有一处漏。
+ * {@code alias} 一并下发是为了让配置器能把它回填进输入框。</p>
  */
 export interface NavMenuItem {
   type: 'dir' | 'doc'
   path: string
   name?: string
+  /** 作者自定义的显示名；留空则用 {@code name} */
+  alias?: string
 }
 
 export interface ShareVO {

@@ -101,6 +101,18 @@ function move(at: number, delta: number) {
 function removeAt(at: number) {
   emit('update:modelValue', props.modelValue.filter((_, i) => i !== at))
 }
+
+/**
+ * 改某一項的别名。
+ *
+ * <p>就地改而不是整体替换：40 项的清单里每敲一个键都重建数组，输入框会失焦。
+ * 存的是空串而不是 undefined，让「清空别名」与「从没取过别名」在界面上是同一个状态。</p>
+ */
+function setAlias(at: number, value: string) {
+  const next = [...props.modelValue]
+  next[at] = { ...next[at], alias: value.trim() || undefined }
+  emit('update:modelValue', next)
+}
 </script>
 
 <template>
@@ -110,7 +122,19 @@ function removeAt(at: number) {
       <li v-for="(item, i) in modelValue" :key="item.path" class="md-menu-pick__row">
         <span class="md-menu-pick__idx">{{ i + 1 }}</span>
         <MdIcon class="md-menu-pick__icon" :name="item.type === 'dir' ? 'folder' : 'file'" :size="13" />
-        <span class="md-menu-pick__label">{{ item.name || item.path }}</span>
+        <span class="md-menu-pick__label" :title="item.path">{{ item.name || item.path }}</span>
+        <!--
+          别名输入框。目录名是给作者看的（docs / notes），读者看到的是导航条上的文字，
+          两者没有必然关系 —— 作者把 docs 呈现给读者叫「文档」是常事，所以这一项要能改。
+        -->
+        <input
+          class="md-menu-pick__alias"
+          :value="item.alias || ''"
+          :placeholder="item.name || '显示名'"
+          maxlength="32"
+          :title="`分享页导航条上显示的名字（最多 32 字）；留空则显示「${item.name || item.path}」`"
+          @input="setAlias(i, ($event.target as HTMLInputElement).value)"
+        >
         <span class="md-menu-pick__ops">
           <button type="button" title="上移" :disabled="i === 0" @click="move(i, -1)">
             <MdIcon name="arrow-up" :size="13" />
