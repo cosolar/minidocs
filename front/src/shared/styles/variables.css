@@ -41,6 +41,14 @@
 
   --md-radius: 12px;
   --md-radius-sm: 8px;
+
+  /*
+   * 品牌渐变：工作区顶栏上「返回键」与「知识库图标」两块相邻的色块共用这一对色。
+   * 提成令牌而不是各处写死 —— 两块颜色一旦各自漂移，挨在一起就会看成两个不相关的
+   * 装饰件，而不是一组。
+   */
+  --md-brand-gradient: linear-gradient(135deg, var(--md-primary), #7c5cff);
+  --md-brand-shadow: 0 4px 12px color-mix(in srgb, var(--md-primary) 28%, transparent);
   --md-content-width: 940px;
   /* 方案给的区间：侧栏 300-320、大纲 250-280；拖过的值仍优先于这两个默认 */
   --md-aside-width: 300px;

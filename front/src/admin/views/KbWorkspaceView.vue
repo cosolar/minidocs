@@ -1626,14 +1626,19 @@ onBeforeUnmount(() => {
     <!-- 顶部操作区 -->
     <header class="md-ws__top">
       <!--
-        返回键：图形是裸字形（没有自带底板），所以按钮保留边框与「返回」文字 ——
-        一个孤零零的深色图形浮在顶栏上，用户既看不出可点也不知道它是什么。
-        图标继承 currentColor（单色填充），悬停时随文字一起变主色、暗色自动适配。
-        按高度给尺寸：画布 1460×1024 比常规图标宽，宽度由 viewBox 按比例得出。
+        返回键：纯图标色块，不带「返回」文字。
+        文字去掉后无障碍标签必须留着 —— 读屏否则只播报一个图形；
+        视觉上的可识别性由品牌渐变 + 白色图标承担（与右侧知识库图标块共用同一对色）。
+        图标是单色填充、继承 currentColor，所以按钮上的 color: #fff 决定它显示为白色。
       -->
-      <button type="button" class="md-ws__back" title="返回知识库列表" @click="backToList">
-        <MdIcon name="back" :size="16" />
-        <span>返回</span>
+      <button
+        type="button"
+        class="md-ws__back"
+        title="返回知识库列表"
+        aria-label="返回知识库列表"
+        @click="backToList"
+      >
+        <MdIcon name="back" :size="17" />
       </button>
 
       <div class="md-ws__identity">

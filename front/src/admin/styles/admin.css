@@ -576,24 +576,39 @@
   padding: 0 16px; background: var(--md-surface); border-bottom: 1px solid var(--md-border);
 }
 /*
- * 返回键：图形是裸字形（自带一个「托盘」轮廓但没有底板），所以按钮保留边框与底色 ——
- * 顶栏底色浅，没有边框的话一个深色图形浮在那儿既看不出可点也不知道是什么。
- * 图标是单色填充且继承 currentColor，悬停时随文字一起变主色。
+ * 返回键：一颗纯图标色块，不带文字。
+ *
+ * <p>去掉「返回」两个字后，按钮从「图标 + 文字」变成一个纯图形控件 —— 这时它需要
+ * 自己的形状来站住：一个带边框的小白块在顶栏上太轻，读者扫过去只会当成一段
+ * 面包屑的尾巴。所以给它品牌渐变 + 白色图标，与右侧的知识库图标块共用同一对色，
+ * 两块相邻就成了「一组导航件」而不是两个互不相干的装饰。</p>
+ *
+ * <p>无障碍不能跟着文字一起丢：{@code aria-label} 保留在模板上，读屏仍读得出
+ * 「返回知识库列表」，悬停也有 title 提示。</p>
+ *
+ * <p>line-height: 0 是必须的 —— 图标是 inline-block，基线会在下方留出约 3px 空隙，
+ * 色块看起来就比 30px 高、底部多一道缝。{@code place-items: center} 让它在格子里
+ * 居中，不受行高影响。</p>
  */
 .md-ws__back {
-  display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 11px 0 8px;
-  border: 1px solid var(--md-border); border-radius: 8px; background: var(--md-surface);
-  color: var(--md-text-2); font-size: 12.5px; cursor: pointer;
-  transition: color .16s ease, border-color .16s ease, background .16s ease;
+  display: grid; place-items: center;
+  width: 30px; height: 30px; flex-shrink: 0;
+  padding: 0; line-height: 0;
+  border: 0; border-radius: 9px;
+  background: var(--md-brand-gradient);
+  color: #fff; cursor: pointer;
+  box-shadow: var(--md-brand-shadow);
+  transition: filter .16s ease, transform .16s ease;
 }
-.md-ws__back:hover { color: var(--md-primary); border-color: var(--md-primary); background: var(--md-primary-soft); }
+.md-ws__back:hover { filter: brightness(1.08); }
 .md-ws__back:active { transform: translateX(-2px); }
+.md-ws__back:focus-visible { outline: 2px solid var(--md-primary); outline-offset: 2px; }
 .md-ws__identity { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .md-ws__logo {
   width: 34px; height: 34px; border-radius: 10px; flex-shrink: 0;
-  background: linear-gradient(135deg, var(--md-primary), #7c5cff);
+  background: var(--md-brand-gradient);
   color: #fff; font-weight: 700; font-size: 15px; display: grid; place-items: center;
-  box-shadow: 0 4px 12px rgba(59, 108, 246, .28);
+  box-shadow: var(--md-brand-shadow);
 }
 .md-ws__identity-text { min-width: 0; }
 .md-ws__name { display: flex; align-items: center; gap: 8px; font-size: 15px; font-weight: 650; }
