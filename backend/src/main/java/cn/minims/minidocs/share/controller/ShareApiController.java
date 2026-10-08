@@ -225,10 +225,9 @@ public class ShareApiController {
                 continue;
             }
             String type = "dir".equals(node.type()) ? NavMenuItem.TYPE_DIR : NavMenuItem.TYPE_DOC;
-                        // 别名优先：作者给这一项取过别名时，读者看到的就是别名而不是目录名。
-                        // 顶栏只渲染 name 一个字段，所以在这里合成好，下游不必再判断。
-                        String display = item.effectiveName(FileNameUtil.stripMarkdownExt(node.name()));
-                        menu.add(new NavMenuItem(type, item.path(), display, item.alias()));
+               // name 保持推导原名：顶栏渲染时用 alias || name 合成生效名。
+               // 在这里合并会让配置器丢失「原始名」这一列，作者就看不到自己在给哪一项取别名。
+             menu.add(new NavMenuItem(type, item.path(), FileNameUtil.stripMarkdownExt(node.name()), item.alias()));
                     }
         return menu;
     }

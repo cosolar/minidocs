@@ -615,13 +615,15 @@ public class ShareServiceImpl implements ShareService {
     /**
      * 补显示名。
      *
-     * <p>推导名每次由路径末段算，改名后不会留下一份旧名字；作者显式取过别名时以别名为准
-     * —— 两者都在出参里合成成一个 {@code name}，调用方只读一个字段。</p>
+     * <p>推导名每次由路径末段算，改名后不会留下一份旧名字。<b>别名不在这里合成</b>：
+     * {@code name} 必须保持「文件系统里叫什么」的原义，配置器靠它显示参考列 ——
+     * 若在这里就合并成生效名，作者打开配置器看到的是自己取的别名，
+     * 「原始名 → 别名」的对照就没了，等于别名把原名藏了起来。
+     * 生效名的合并放在顶栏渲染那一处（它只需要一个名字）。</p>
      */
     private List<NavMenuItem> menuWithNames(List<NavMenuItem> items) {
         return items.stream()
-                .map(item -> item.withName(item.effectiveName(
-                        FileNameUtil.stripMarkdownExt(PathGuard.fileNameOf(item.path())))))
+                .map(item -> item.withName(FileNameUtil.stripMarkdownExt(PathGuard.fileNameOf(item.path()))))
                 .toList();
     }
 

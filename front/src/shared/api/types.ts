@@ -351,13 +351,14 @@ export interface ImportResult {
  * 并把左侧目录树收窄到这一支。</p>
  *
  * <p>{@code alias} 是作者给这一项取的别名，与 {@code name} 分工明确：
- * {@code name} 跟着改名自动变，{@code alias} 是作者说了算、改名也不动。
- * 目录叫 {@code docs} 而希望读者看到「文档」时需要的就是后者。
- * 留空 / undefined = 用目录名。</p>
+ * {@code name} 回答「这个东西叫什么」（跟着改名自动变），{@code alias} 回答
+ * 「导航条上想让读者看到什么」（作者说了算，改名也不动）。
+ * 留空 / undefined = 用 {@code name}。</p>
  *
- * <p><b>出参里 {@code name} 已经是「别名优先」的生效名</b>，所以渲染方（顶栏导航条）
- * 只读 {@code name} 即可，不必自己判断有没有别名 —— 那种判断散在两处就会有一处漏。
- * {@code alias} 一并下发是为了让配置器能把它回填进输入框。</p>
+ * <p><b>生效名的合并在顶栏渲染那一处</b>（{@code alias || name}）：那里是唯一
+ * 只需要一个名字的地方。配置器要并排显示「原始名 → 别名」两列，
+ * 所以出参的 {@code name} 必须保持推导原名 —— 若后端就合并成生效名，
+ * 作者打开配置器看到的只有自己取的别名，反而不知道在给哪一项取别名。</p>
  */
 export interface NavMenuItem {
   type: 'dir' | 'doc'

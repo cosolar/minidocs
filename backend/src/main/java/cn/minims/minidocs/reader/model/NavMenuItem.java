@@ -10,13 +10,15 @@ package cn.minims.minidocs.reader.model;
  * 少一个会与路径漂移的显示名字段。</p>
  *
  * <p><b>{@code alias} 是作者显式取的别名</b>，与 {@code name} 相反：它<b>要存</b>。
- * 两者分工明确 —— {@code name} 回答「这个东西叫什么」（跟着改名自动变），
+ * 两者分工明确 —— {@code name} 回答「这个东西叫什么」（推导名，跟着改名自动变），
  * {@code alias} 回答「在导航条上想让人看到什么」（作者说了算，改名也不动）。
  * 目录叫 {@code docs} 而作者希望读者看到「文档」时，需要的就是后者；
  * 若把别名塞进 {@code name}，一次改名就会把作者取的名字冲掉。</p>
  *
- * <p>所以出参里 {@code name} 直接给<b>生效名</b>（别名优先，见 {@link #effectiveName}），
- * 渲染方只读一个字段，不必各自判断「有没有别名」—— 那种判断散在两处就会有一处漏。</p>
+ * <p><b>出参的 {@code name} 保持推导原名，不做合并</b>：配置器要并排显示
+ * 「原始名 → 别名」两列，合并掉原名作者就不知道自己在给哪一项取别名。
+ * 生效名的合并在顶栏渲染那一处（{@code alias || name}）—— 那里是唯一
+ * 只需要「一个名字」的地方，把判断放在使用现场而不是数据里。</p>
  */
 public record NavMenuItem(String type, String path, String name, String alias) {
 
@@ -71,16 +73,6 @@ public record NavMenuItem(String type, String path, String name, String alias) {
     /** 出参形态：只改路径（重命名 / 移动时用），其余字段一律保住。 */
     public NavMenuItem withPath(String value) {
         return new NavMenuItem(type, value, name, alias);
-    }
-
-    /**
-     * 生效的显示名：有别名用别名，否则用推导出来的名字。
-     *
-     * <p>渲染方只读这一个字段。两处渲染（顶栏导航条、后台配置器回填）各自判断
-     * 「alias 是不是空」的话，迟早有一处漏掉，于是别名时而生效时而不生效。</p>
-     */
-    public String effectiveName(String derived) {
-        return alias != null && !alias.isBlank() ? alias : derived;
     }
 
     public boolean dir() {
