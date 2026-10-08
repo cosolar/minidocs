@@ -16,6 +16,7 @@
  */
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import Icon from './Icon.vue'
+import { ensureReaderFontWebfonts } from '@/shared/readerFont'
 import type { NavMenuItem } from '@/shared/api/types'
 
 const props = defineProps<{
@@ -84,6 +85,13 @@ function placeThumb() {
 let resizeObserver: ResizeObserver | undefined
 
 onMounted(async () => {
+  /*
+   * 导航菜单固定用思源黑体（见 variables.css 的 --md-share-nav-font）。
+   * 光写 font-family 不够：绝大多数机器没本地装思源黑体，不注入 webfont 样式表
+   * 的话浏览器会安静地落到系统字体 —— 界面上看不出异常，只是「没生效」。
+   * 这里只挂字体，不改读者选的正文字体。
+   */
+  ensureReaderFontWebfonts('source-han')
   await nextTick()
   placeThumb()
   if (trackRef.value && typeof ResizeObserver !== 'undefined') {

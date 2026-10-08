@@ -36,8 +36,8 @@
      视觉宽度 = 7px 减去两侧各 2px 透明边框（background-clip: content-box）≈ 3px，
      比浏览器默认那条约 15px、带上下箭头的窄一大截 */
   --md-scrollbar-size: 7px;
-  --md-scrollbar-thumb: color-mix(in srgb, var(--md-primary) 20%, transparent);
-  --md-scrollbar-thumb-hover: color-mix(in srgb, var(--md-primary) 45%, transparent);
+  --md-scrollbar-thumb: color-mix(in srgb, var(--md-primary) 12%, transparent);
+  --md-scrollbar-thumb-hover: color-mix(in srgb, var(--md-primary) 30%, transparent);
 
   --md-radius: 12px;
   --md-radius-sm: 8px;
@@ -49,6 +49,20 @@
 
   /* 正文字体：默认值与 reader.css 的 body 字体栈保持一致，分享页换字体时被 readerFont.ts 覆写 */
   --md-read-font: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB',
+    'Microsoft YaHei', 'Helvetica Neue', Arial, sans-serif;
+
+  /*
+   * 分享页顶栏导航菜单字体：固定思源黑体，不跟读者的正文字体偏好走。
+   *
+   * <p>导航条是站点自己的外壳（品牌、入口、动作），不是文章内容 —— 让它随正文字体
+   * 一起变，会把「读者选了款正文宋体」这件事传染到导航上，而导航条上的字只有几个
+   * 入口名，字体变化在这里几乎无意义。固定下来反而让顶栏在��个库里长得一样。</p>
+   *
+   * <p>家族名在不同系统上有三种叫法，挨个兜住；后面接 readerFont 的系统字体栈，
+   * 万一 webfont 没加载上（CDN 不可达）也只是回退，不会掉到难看的默认字。</p>
+   */
+  --md-share-nav-font: 'Noto Sans SC', 'Source Han Sans SC', 'Source Han Sans CN', '思源黑体',
+    -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB',
     'Microsoft YaHei', 'Helvetica Neue', Arial, sans-serif;
 
   /* 可见性三档的配色（门户徽标、管理端小章、阅读页侧栏共用）。
@@ -99,8 +113,8 @@
   --md-glass-shadow: 0 8px 30px rgba(0, 0, 0, 0.35);
 
   /* 暗色主色是更亮的 #6c8cff，同样的百分比压在深底上几乎看不见，整体上调一档 */
-  --md-scrollbar-thumb: color-mix(in srgb, var(--md-primary) 28%, transparent);
-  --md-scrollbar-thumb-hover: color-mix(in srgb, var(--md-primary) 55%, transparent);
+  --md-scrollbar-thumb: color-mix(in srgb, var(--md-primary) 22%, transparent);
+  --md-scrollbar-thumb-hover: color-mix(in srgb, var(--md-primary) 45%, transparent);
 
   --md-code-bg: #1b1f2b;
   --md-code-text: #e7e9f2;

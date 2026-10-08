@@ -132,6 +132,23 @@ function mountWebfonts(hrefs: readonly string[]) {
 }
 
 /**
+ * 只把某款字体的在线样式表挂上，<b>不改</b>当前偏好、不写 localStorage。
+ *
+ * <p>给「固定用某款字体的界面元素」用：分享页顶栏的导航菜单就固定思源黑体，
+ * 不跟读者的正文字体偏好走，但它仍需要 webfont 真的加载上 ——
+ * 只写 {@code font-family} 而不注入样式表，浏览器找不到本地安装的思源黑体时
+ * 会安静地落到系统字体，界面上看不出任何异常，只是「没生效」。</p>
+ *
+ * <p>与 {@link applyReaderFont} 分开是刻意的：那个会改读者偏好，
+ * 这里只是让某个元素用上字体。共用一个函数的话，加载导航字体时会顺手
+ * 把读者选的正文��体也改掉。</p>
+ */
+export function ensureReaderFontWebfonts(id: string) {
+  const font = readerFontById(id);
+  if (font.hrefs?.length) mountWebfonts(font.hrefs);
+}
+
+/**
  * 应用字体偏好：写根元素上的 CSS 变量，必要时挂在线字体，并记进 localStorage。
  *
  * <p>写成变量而不是直接给正文加 class：一份 CSS 变量就能同时作用于分享页与门户阅读页的正文，

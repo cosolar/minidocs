@@ -1039,6 +1039,13 @@ button { font-family: inherit; }
   flex: 0 1 auto; min-width: 0; max-width: 100%; width: max-content;
   padding: 3px;
   border-radius: 999px;
+  /*
+   * 固定思源黑体，不继承正文字体偏好：导航条是站点外壳，读者换了正文宋体不该
+   * 传染到顶栏上（菜单项是 font-family: inherit，在这里声明一次就够）。
+   * webfont 由 ShareMenu.vue 挂载 —— 只写这一行而不注入样式表，浏览器找不到
+   * 本地安装的思源黑体时会安静地落到系统字体，看着「没生效」却查不出原因。
+   */
+  font-family: var(--md-share-nav-font);
   /* 药丸坞：浅槽 + 发丝边 + 顶部高光，做出浮在顶栏上的层次；滑块在槽内滑动 */
   background: var(--share-slot);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, .65), 0 1px 2px rgba(24, 29, 51, .05);
