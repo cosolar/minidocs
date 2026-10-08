@@ -23,14 +23,17 @@ export function stripMdSuffix(name: string): string {
  * 真有叫什么就显示什么，否则用户会点不到那个目录）。</p>
  *
  * @param showMdSuffix 库的偏好；{@code undefined} 按「显示」处理 —— 后端在列表与门户
- *                     链路上不下发这一项，那些地方不该因为缺字段而把后缀藏掉
+ *                     链路上不下发这一项，那些地方不该因为缺字段而把后缀藏掉。
+ *                     <b>只有显式 false 才剥</b>：这个字段的语义是「是否显示」，
+ *                     写成「非 false 就剥」会让默认状态（列表 / 门户拿到的 undefined）
+ *                     变成隐藏，全库的后缀凭空消失。
  */
 export function displayName(
   name: string,
   type: 'dir' | 'doc' | 'image',
   showMdSuffix?: boolean
 ): string {
-  if (type !== 'doc' || showMdSuffix === false) {
+  if (type !== 'doc' || showMdSuffix !== false) {
     return name
   }
   return stripMdSuffix(name)

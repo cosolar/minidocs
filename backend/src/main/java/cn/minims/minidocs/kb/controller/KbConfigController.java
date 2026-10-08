@@ -56,7 +56,7 @@ public class KbConfigController {
                 vaultFileService.treeIncludingHidden(root), vaultFileService.displaySettings(root)));
     }
 
-    @Operation(summary = "保存库级配置（隐藏规则整份覆盖 + 展示偏好）")
+    @Operation(summary = "保存隐藏规则（整份覆盖）")
     @PutMapping("/api/console/{org}/kbs/{slug}/config")
     public ApiResponse<List<String>> saveConfig(@PathVariable String org, @PathVariable String slug,
                                                 @Valid @RequestBody ConfigRequest request) {
@@ -65,16 +65,33 @@ public class KbConfigController {
                 KbAction.KB_EDIT_META, UserContext.get());
         Path root = root(kb);
         vaultFileService.saveHiddenRules(root, request.hidden());
-        // display 为 null 表示「这次没带」。与 hidden 不同，它允许缺省：
-        // 旧客户端（以及重命名 / 移动那些内部写入路径）只关心隐藏规则，
-        // 若把缺省当成 false，一份不带 display 的请求就会把作者的展示偏好静默关掉。
-        if (request.display() != null) {
-            vaultFileService.saveDisplay(root, request.display().showMdSuffix());
-        }
         // 规则一改，库级元信息里的文档数就变了（被隐藏的不再计入）。
         // 详情接口会实时校准，但列表与门户读的是这一列，所以要在这里落一次。
         knowledgeBaseService.touch(kb.getId());
         return ApiResponse.ok(vaultFileService.hiddenRules(root));
+    }
+
+    /**
+     * 展示偏好单独一个端点，而不是挂在上面的整份保存里。
+     *
+     * <p>开关是「拨一下就生效」的东西，没有「填完一整份再提交」的形态。若让它复用
+     * {@code saveConfig}，前端每次拨动都得把当前的隐藏规则一并发上来 —— 那会把用户
+     * 在另一页签里<b>还没保存</b>的勾选一起提交，拨一个开关顺手改掉了另一份配置。</p>
+     *
+     * <p>分端点之后两个动作互不牵连：隐藏规则仍走「整份覆盖 + 点按钮」，
+     * 展示偏好走「单项即时生效」。</p>
+     */
+    @Operation(summary = "保存展示偏好（即时生效，不影响隐藏规则）")
+    @PutMapping("/api/console/{org}/kbs/{slug}/config/display")
+    public ApiResponse<VaultFileService.DisplayVO> saveDisplay(@PathVariable String org,
+                                                               @PathVariable String slug,
+                                                               @RequestBody DisplayRequest request) {
+        KnowledgeBase kb = accessService.requireKb(
+                knowledgeBaseService.requireBySlug(TenantContext.requireId(), slug).getId(),
+                KbAction.KB_EDIT_META, UserContext.get());
+        Path root = root(kb);
+        vaultFileService.saveDisplay(root, request.showMdSuffix());
+        return ApiResponse.ok(vaultFileService.displaySettings(root));
     }
 
     private KnowledgeBase locate(String slug) {
@@ -92,16 +109,11 @@ public class KbConfigController {
      *
      * <p>{@code hidden} 允许为空数组（等于「全部显示」），但不允许 null —— 那是「没传」，
      * 与「清空」在语义上必须区分，否则一次漏传就会把作者的规则全清掉。</p>
-     *
-     * <p>{@code display} 相反：<b>允许为 null</b>，含义是「这次不碰展示偏好」。
-     * 两个分区的缺省方向相反不是疏忽 —— 隐藏规则少传一次会清空作者的成果，必须报错；
-     * 展示偏好少传一次按「不动」处理，才让只改隐藏规则的旧客户端能继续用。</p>
      */
-    public record ConfigRequest(@NotNull(message = "hidden 不能为 null；清空请传空数组") List<String> hidden,
-                                DisplayRequest display) {
+    public record ConfigRequest(@NotNull(message = "hidden 不能为 null；清空请传空数组") List<String> hidden) {
     }
 
-    /** 展示偏好。字段用原始 boolean：缺省不是「关」而是「保持原样」，由上层判null。 */
+    /** 展示偏好的保存请求（独立端点用）。 */
     public record DisplayRequest(boolean showMdSuffix) {
     }
 

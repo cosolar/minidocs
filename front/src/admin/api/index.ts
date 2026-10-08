@@ -80,14 +80,12 @@ export const kbApi = {
    * 这边给「作者该配置的」（未过滤）。合成一个就会出现「已隐藏的项无法取消隐藏」。</p>
    */
   config: (kbSlug: string) => request<KbConfigVO>({ url: `${kbPath(kbSlug)}/config` }),
-  /**
-   * 保存库级配置（整份覆盖，不是增量）。
-   *
-   * <p>{@code display} 省略或传 undefined 时后端不动那一分区，所以只改隐藏规则的旧调用
-   * 不会被当成「把后缀关掉」—— 后者与前者缺省方向相反，不是疏忽。</p>
-   */
-  saveConfig: (kbSlug: string, hidden: string[], display?: KbDisplay) =>
-    request<string[]>({ url: `${kbPath(kbSlug)}/config`, method: 'put', data: { hidden, display } }),
+  /** 保存隐藏规则（整份覆盖，不是增量）。展示偏好走独立的即时端点，两者互不牵连 */
+  saveConfig: (kbSlug: string, hidden: string[]) =>
+    request<string[]>({ url: `${kbPath(kbSlug)}/config`, method: 'put', data: { hidden } }),
+  /** 保存展示偏好（即时生效，不影响隐藏规则） */
+  saveDisplay: (kbSlug: string, showMdSuffix: boolean) =>
+    request<KbDisplay>({ url: `${kbPath(kbSlug)}/config/display`, method: 'put', data: { showMdSuffix } }),
   remove: (kbSlug: string) => request<void>({ url: `${kbPath(kbSlug)}`, method: 'delete' }),
   favorite: (kbSlug: string, favored: boolean) =>
     request<{ favored: boolean }>({ url: `${kbPath(kbSlug)}/favorite`, method: favored ? 'delete' : 'post' }),
