@@ -1,49 +1,81 @@
 /**
- * 分享页导航菜单可自选的图标。
+ * 导航菜单的图标检索。
  *
- * <p>选择器与渲染器共用这一份清单：清单写两遍的话，某天加了一个图标却忘了同步到
- * 另一处，菜单上就会出现一个点不亮的格子 —— 那类问题只有手动点一遍才发现得了。</p>
+ * <p>图标数据在 {@code navGlyphs.generated.ts}（由 {@code scripts/gen-nav-glyphs.mjs} 从
+ * Iconify的 Tabler 集生成，MIT）。这里只负责「挑出该展示哪些、怎么排序」。</p>
  *
- * <p><b>键必须取自用户侧 {@code Icon.vue} 已有的名字</b>（外加 shared/iconDef.ts 里注册的
- * {@code bookshelf} / {@code back}）。写错名字不会报错，只会安静地回退成文件图标 ——
- * 所以加新项时先确认那边有：{@code grep '^  [a-zA-Z]+:' Icon.vue}。</p>
- *
- * <p>挑的是「能表达一个入口类型」的词（书、单篇、清单、标签、时钟、链接……），
- * 而不是 dashboard / settings 这类界面自己的图标 —— 菜单项是内容入口，不是控件。</p>
+ * <p>为什么不用 Iconify 的运行时组件：图标是作者运行时挑的，阅读页要按存下来的名字渲染，
+ * 于是数据必须随应用一起走；而它的运行时方案要么从 CDN 取（CSP 的script-src 只认
+ * 'self'，断网也取不到），要么把整份图标库打进产物。对一个可私有部署的产品，
+ * 「构建期烤成TS 文件」是唯一同时满足离线、CSP 与产物体积的方案。</p>
  */
-export interface NavIcon {
-  /** 传给 Icon 的 name */
-  key: string
-  label: string
+import { GLYPHS, GLYPH_GROUP } from '@/shared/navGlyphs.generated'
+
+export interface NavIconDef {
+  /** 存的图标名，也是生成数据的键 */
+  name: string
+  /** 语义分组，选择器里按它分节 */
+  group: string
 }
 
-export const NAV_ICONS: readonly NavIcon[] = [
-  { key: 'bookshelf', label: '书架' },
-  { key: 'fileText', label: '单篇' },
-  { key: 'folder', label: '目录' },
-  { key: 'list', label: '清单' },
-  { key: 'grid', label: '网格' },
-  { key: 'link', label: '链接' },
-  { key: 'globe', label: '网站' },
-  { key: 'clock', label: '时间' },
-  { key: 'calendar', label: '日历' },
-  { key: 'users', label: '团队' },
-  { key: 'building', label: '机构' },
-  { key: 'image', label: '图集' },
-  { key: 'home', label: '首页' },
-  { key: 'monitor', label: '屏幕' },
-  { key: 'search', label: '搜索' },
-  { key: 'download', label: '下载' },
-  { key: 'eye', label: '可见' },
-  { key: 'check', label: '完成' }
-]
+/** 分组展示顺序（与生成脚本里的关键词表一致，从最常用到最冷门） */
+export const NAV_ICON_GROUPS = [
+  '文档', '分类', '时间', '媒体', '链接', '组织', '数据', '动作', '形态', '工具'
+] as const
 
-/** 菜单项未指定图标时按类型回退：目录用书架、文档用单篇。 */
+/** 全量清单，按分组顺序排列 */
+export const NAV_ICON_DEFS: NavIconDef[] = Object.keys(GLYPHS).map((name) => ({
+  name,
+  group: GLYPH_GROUP[name] || '其他'
+}))
+
+const byGroup = new Map<string, NavIconDef[]>()
+for (const def of NAV_ICON_DEFS) {
+  const arr = byGroup.get(def.group)
+  if (arr) arr.push(def)
+  else byGroup.set(def.group, [def])
+}
+
+/** 分组清单：没数据的分组直接不出现，避免留下空标题 */
+export const NAV_ICON_SECTIONS: { group: string; items: NavIconDef[] }[] =
+  NAV_ICON_GROUPS.map((group) => ({ group, items: byGroup.get(group) || [] })).filter(
+    (section) => section.items.length > 0
+  )
+
+/**
+ * 按关键字过滤。
+ *
+ * <p>匹配名称里的词片段（Tabler 的命名是 book-open、file-text 这类连字符组合），
+ * 所以按 - 切开逐段比对：「书」能命中 books / book-open / address-book。搜中文
+ * 也能中——分组名与关键词都在索引里。</p>
+ *
+ * <p>命中数量截断到 300：一次渲染 900 个 svg 会让弹窗卡住一瞬，
+ * 而导航图标没有「排在第 400 位才想到」的用法。</p>
+ */
+export function searchNavIcons(keyword: string, limit = 300): NavIconDef[] {
+  const kw = keyword.trim().toLowerCase()
+  if (!kw) return []
+  const out: NavIconDef[] = []
+  for (const def of NAV_ICON_DEFS) {
+    const group = def.group
+    if (group && group.includes(keyword.trim())) {
+      out.push(def)
+      continue
+    }
+    if (def.name.toLowerCase().includes(kw)) {
+      out.push(def)
+    }
+    if (out.length >= limit) break
+  }
+  return out
+}
+
+/** 菜单项未指定图标时按类型回退：目录用书架、文档用单篇 */
 export function navIconOf(icon: string | undefined, type: string | undefined): string {
   return icon || (type === 'dir' ? 'bookshelf' : 'fileText')
 }
 
-/** 清单里是否存在 —— 后端存下来的值可能是历史遗留或被手改过的。 */
+/** 图标名是否在清单里 —— 后端存下来的值可能是历史遗留或被手改过的 */
 export function isNavIcon(key: string | undefined): boolean {
-  return !!key && NAV_ICONS.some((item) => item.key === key)
+  return !!key && Object.prototype.hasOwnProperty.call(GLYPHS, key)
 }

@@ -1378,6 +1378,27 @@ body.is-col-resizing .md-ws__bytemd-resizer::after { background: var(--md-primar
 
 /* 19 个格子排 6 列 —— 单��太宽会把弹窗推到面板边缘以外 */
 .md-icon-grid {
+
+/* 图标选择器：240 个 Tabler 图标，带搜索。分节浏览用于「不知道叫什么」，
+ * 搜索用于「知道大概意思」—— 两种找法都得有，只有分节的话 240 项要滚到手酸 */
+.md-icon-pick { display: flex; flex-direction: column; gap: 8px; }
+.md-icon-pick__search {
+  height: 28px; padding: 0 9px;
+  border: 1px solid var(--md-border); border-radius: 7px;
+  background: var(--md-surface-2); color: var(--md-text);
+  font: inherit; font-size: 12.5px;
+}
+.md-icon-pick__search:focus {
+  outline: none; border-color: var(--md-primary); background: var(--md-surface);
+  box-shadow: 0 0 0 3px var(--md-primary-soft);
+}
+.md-icon-pick__body { max-height: 264px; overflow-y: auto; }
+.md-icon-pick__label {
+  margin: 10px 0 5px; color: var(--md-text-3); font-size: 11px; font-weight: 600;
+}
+.md-icon-pick__section:first-child .md-icon-pick__label { margin-top: 2px; }
+.md-icon-pick__hint { margin: 4px 0 8px; color: var(--md-text-3); font-size: 11.5px; }
+.md-icon-pick__default { padding-bottom: 4px; }
   display: grid; grid-template-columns: repeat(6, 1fr); gap: 4px;
   max-height: 232px; overflow-y: auto;
 }

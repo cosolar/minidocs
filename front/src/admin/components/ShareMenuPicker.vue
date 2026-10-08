@@ -8,11 +8,12 @@
  * <p>顺序以 modelValue 为准，而不是 el-tree 的勾选顺序：树只能给出「勾了哪些」，给不出
  * 「先看哪一篇」，所以新增项一律追加到末尾，再靠上下移调整。</p>
  */
-import { nextTick, ref, watch } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 import { docApi } from '@/admin/api'
 import MdIcon from '@/admin/components/MdIcon.vue'
 import type { DocNode, NavMenuItem } from '@/shared/api/types'
-import { NAV_ICONS, isNavIcon, navIconOf } from '@/shared/navIcons'
+import { isNavIcon, navIconOf, searchNavIcons, NAV_ICON_SECTIONS } from '@/shared/navIcons'
+import NavGlyph from '@/shared/NavGlyph.vue'
 
 const props = defineProps<{ kbSlug: string; modelValue: NavMenuItem[] }>()
 const emit = defineEmits<{ 'update:modelValue': [value: NavMenuItem[]] }>()
@@ -125,6 +126,12 @@ function setIcon(at: number, key: string | undefined) {
   next[at] = { ...next[at], icon: isNavIcon(key) ? key : undefined }
   emit('update:modelValue', next)
 }
+
+/** 图标弹层里的搜索词。放在组件级而不是每行一份：弹层一次只开一个，共用同一个词更顺手。 */
+const iconKeyword = ref('')
+/** 搜索结果；空词时返回空数组，模板据此切到「分节浏览」分支 */
+const searchedIcons = computed(() => searchNavIcons(iconKeyword.value))
+const iconSections = NAV_ICON_SECTIONS
 </script>
 
 <template>
@@ -152,35 +159,69 @@ function setIcon(at: number, key: string | undefined) {
           分不出这几个入口分别通向哪里 —— 顶栏导航条那排小图标就是入口辨识的唯一线索。
           留空表示「按类型用默认」（目录书架 / 文档单篇）。
         -->
-        <el-popover placement="bottom-start" :width="268" trigger="click">
+        <el-popover placement="bottom-start" :width="300" trigger="click">
           <template #reference>
             <button type="button" class="md-menu-pick__icon-btn" title="选择图标">
-              <MdIcon :name="navIconOf(item.icon, item.type)" :size="14" />
+              <NavGlyph :name="item.icon" :fallback="navIconOf(undefined, item.type)" :size="14" />
             </button>
           </template>
-          <div class="md-icon-grid">
-            <button
-              type="button"
-              class="md-icon-grid__cell"
-              :class="{ 'is-on': !item.icon }"
-              title="按类型用默认"
-              @click="setIcon(i, undefined)"
+          <div class="md-icon-pick">
+            <input
+              v-model="iconKeyword"
+              class="md-icon-pick__search"
+              type="search"
+              placeholder="搜图标，如 book / 时间 / image"
+              clearable
             >
-              <MdIcon name="refresh" :size="13" />
-              <span>默认</span>
-            </button>
-            <button
-              v-for="opt in NAV_ICONS"
-              :key="opt.key"
-              type="button"
-              class="md-icon-grid__cell"
-              :class="{ 'is-on': item.icon === opt.key }"
-              :title="opt.label"
-              @click="setIcon(i, opt.key)"
-            >
-              <MdIcon :name="opt.key" :size="13" />
-              <span>{{ opt.label }}</span>
-            </button>
+            <div class="md-icon-pick__body">
+              <template v-if="iconKeyword.trim()">
+                <p class="md-icon-pick__hint">
+                  {{ searchedIcons.length ? `找到 ${searchedIcons.length} 个` : '没有匹配的图标' }}
+                </p>
+                <div class="md-icon-grid">
+                  <button
+                    v-for="opt in searchedIcons"
+                    :key="opt.name"
+                    type="button"
+                    class="md-icon-grid__cell"
+                    :class="{ 'is-on': item.icon === opt.name }"
+                    :title="opt.name"
+                    @click="setIcon(i, opt.name)"
+                  >
+                    <NavGlyph :name="opt.name" :size="15" />
+                  </button>
+                </div>
+              </template>
+              <template v-else>
+                <div class="md-icon-pick__default">
+                  <button
+                    type="button"
+                    class="md-icon-grid__cell is-wide"
+                    :class="{ 'is-on': !item.icon }"
+                    @click="setIcon(i, undefined)"
+                  >
+                    <NavGlyph :name="navIconOf(undefined, item.type)" :size="15" />
+                    <span>按类型用默认（{{ navIconOf(undefined, item.type) }}）</span>
+                  </button>
+                </div>
+                <div v-for="section in iconSections" :key="section.group" class="md-icon-pick__section">
+                  <p class="md-icon-pick__label">{{ section.group }}</p>
+                  <div class="md-icon-grid">
+                    <button
+                      v-for="opt in section.items"
+                      :key="opt.name"
+                      type="button"
+                      class="md-icon-grid__cell"
+                      :class="{ 'is-on': item.icon === opt.name }"
+                      :title="opt.name"
+                      @click="setIcon(i, opt.name)"
+                    >
+                      <NavGlyph :name="opt.name" :size="15" />
+                    </button>
+                  </div>
+                </div>
+              </template>
+            </div>
           </div>
         </el-popover>
         <span class="md-menu-pick__ops">
