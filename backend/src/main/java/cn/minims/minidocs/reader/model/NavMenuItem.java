@@ -15,12 +15,17 @@ package cn.minims.minidocs.reader.model;
  * 目录叫 {@code docs} 而作者希望读者看到「文档」时，需要的就是后者；
  * 若把别名塞进 {@code name}，一次改名就会把作者取的名字冲掉。</p>
  *
+ * <p><b>{@code icon} 是作者给这一项挑的图标名</b>，留空则按类型用默认（目录书架、
+ * 文档单篇）。它与 {@code alias} 一样要存：菜单里那个小图标是入口辨识的一部分，
+ * 而目录名千篇一律（「文档」「笔记」），没有图标就分不出入口。合法字符见
+ * {@link #normalizeIcon}。</p>
+ *
  * <p><b>出参的 {@code name} 保持推导原名，不做合并</b>：配置器要并排显示
  * 「原始名 → 别名」两列，合并掉原名作者就不知道自己在给哪一项取别名。
  * 生效名的合并在顶栏渲染那一处（{@code alias || name}）—— 那里是唯一
  * 只需要「一个名字」的地方，把判断放在使用现场而不是数据里。</p>
  */
-public record NavMenuItem(String type, String path, String name, String alias) {
+public record NavMenuItem(String type, String path, String name, String alias, String icon) {
 
     public static final String TYPE_DIR = "dir";
     public static final String TYPE_DOC = "doc";
@@ -35,17 +40,17 @@ public record NavMenuItem(String type, String path, String name, String alias) {
 
     /** 入库形态：只有类型与路径，无别名。 */
     public static NavMenuItem of(String type, String path) {
-        return new NavMenuItem(type, path, null, null);
+        return new NavMenuItem(type, path, null, null, null);
     }
 
     /**
-     * 入库形态：带别名。
+     * 入库形态：带别名与图标。
      *
      * <p>别名在此归一（去空白、过长度），因为它一路存进 JSON 而读侧不再校验 ——
      * 校验放在唯一的写入口，才不会出现「读侧兜底、放行了超长值」。</p>
      */
-    public static NavMenuItem of(String type, String path, String alias) {
-        return new NavMenuItem(type, path, null, normalizeAlias(alias));
+    public static NavMenuItem of(String type, String path, String alias, String icon) {
+        return new NavMenuItem(type, path, null, normalizeAlias(alias), normalizeIcon(icon));
     }
 
     /**
@@ -65,14 +70,29 @@ public record NavMenuItem(String type, String path, String name, String alias) {
         return trimmed.length() > ALIAS_MAX ? trimmed.substring(0, ALIAS_MAX) : trimmed;
     }
 
-    /** 出参形态：补上显示名。别名原样带过去。 */
+    /**
+     * 图标名归一：只放行「小写字母 + 数字 + 连字符」，其余一律当作没设。
+     *
+     * <p>不校验「这个图标名是否真的存在」：那份清单在前端（{@code shared/navIcons.ts}），
+     * 后端拿不到也不该复制一份 —— 两份清单必然漂移。写坏的名字在前端会回退成默认图标，
+     * 是一张图点不亮，而不是报错或白屏。</p>
+     */
+    public static String normalizeIcon(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        String trimmed = value.trim();
+        return trimmed.matches("[a-z0-9-]{1,24}") ? trimmed : null;
+    }
+
+    /** 出参形态：补上显示名。别名与图标原样带过去。 */
     public NavMenuItem withName(String value) {
-        return new NavMenuItem(type, path, value, alias);
+        return new NavMenuItem(type, path, value, alias, icon);
     }
 
     /** 出参形态：只改路径（重命名 / 移动时用），其余字段一律保住。 */
     public NavMenuItem withPath(String value) {
-        return new NavMenuItem(type, value, name, alias);
+        return new NavMenuItem(type, value, name, alias, icon);
     }
 
     public boolean dir() {

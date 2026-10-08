@@ -592,7 +592,7 @@ public class ShareServiceImpl implements ShareService {
             if (type == null) {
                 continue;
             }
-            unique.putIfAbsent(type + ":" + path, NavMenuItem.of(type, path, item.alias()));
+            unique.putIfAbsent(type + ":" + path, NavMenuItem.of(type, path, item.alias(), item.icon()));
             if (unique.size() >= MAX_MENU_ITEMS) {
                 break;
             }

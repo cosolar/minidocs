@@ -366,6 +366,13 @@ export interface NavMenuItem {
   name?: string
   /** 作者自定义的显示名；留空则用 {@code name} */
   alias?: string
+  /**
+   * 作者挑的图标名（取自 {@code shared/navIcons.ts} 的清单）；留空则按类型用默认。
+   *
+   * <p>与 {@code alias} 同理要存：目录名常是「文档」「笔记」这类通用词，
+   * 没有图标就分不出入口。</p>
+   */
+  icon?: string
 }
 
 export interface ShareVO {

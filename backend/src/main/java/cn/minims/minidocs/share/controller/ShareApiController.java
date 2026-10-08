@@ -227,7 +227,8 @@ public class ShareApiController {
             String type = "dir".equals(node.type()) ? NavMenuItem.TYPE_DIR : NavMenuItem.TYPE_DOC;
                // name 保持推导原名：顶栏渲染时用 alias || name 合成生效名。
                // 在这里合并会让配置器丢失「原始名」这一列，作者就看不到自己在给哪一项取别名。
-             menu.add(new NavMenuItem(type, item.path(), FileNameUtil.stripMarkdownExt(node.name()), item.alias()));
+             menu.add(new NavMenuItem(type, item.path(), FileNameUtil.stripMarkdownExt(node.name()),
+                    item.alias(), item.icon()));
                     }
         return menu;
     }

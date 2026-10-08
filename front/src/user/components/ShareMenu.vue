@@ -18,6 +18,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import Icon from './Icon.vue'
 import { ensureReaderFontWebfonts } from '@/shared/readerFont'
 import type { NavMenuItem } from '@/shared/api/types'
+import { navIconOf } from '@/shared/navIcons'
 
 const props = defineProps<{
   items: NavMenuItem[]
@@ -135,7 +136,7 @@ watch(
       :title="item.path"
       @click="emit('pick', item)"
     >
-      <Icon :name="item.type === 'dir' ? 'bookshelf' : 'file'" :size="15" />
+      <Icon :name="navIconOf(item.icon, item.type)" :size="15" />
       <!-- 别名优先：作者取了别名就显示别名，否则用目录名。悬停的 title 仍是真实路径 -->
       <span>{{ item.alias || item.name || item.path }}</span>
     </button>

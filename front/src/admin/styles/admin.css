@@ -1363,6 +1363,40 @@ body.is-col-resizing .md-ws__bytemd-resizer::after { background: var(--md-primar
 }
 .md-menu-pick__alias::placeholder { color: var(--md-text-3); }
 .md-menu-pick__alias:focus {
+
+/* 图标选择：参考色块与别名输入框并排，两者都是「这一项的呈现」而不是操作 */
+.md-menu-pick__icon-btn {
+  display: grid; place-items: center;
+  width: 26px; height: 26px; flex-shrink: 0;
+  padding: 0;
+  border: 1px solid var(--md-border); border-radius: 7px;
+  background: var(--md-surface); color: var(--md-text-2); cursor: pointer;
+  transition: border-color .14s ease, color .14s ease, background-color .14s ease;
+}
+.md-menu-pick__icon-btn:hover { border-color: var(--md-primary); color: var(--md-primary); background: var(--md-primary-soft); }
+.md-menu-pick__icon-btn:focus-visible { outline: 2px solid var(--md-primary); outline-offset: 1px; }
+
+/* 19 个格子排 6 列 —— 单��太宽会把弹窗推到面板边缘以外 */
+.md-icon-grid {
+  display: grid; grid-template-columns: repeat(6, 1fr); gap: 4px;
+  max-height: 232px; overflow-y: auto;
+}
+.md-icon-grid__cell {
+  display: flex; flex-direction: column; align-items: center; gap: 3px;
+  padding: 7px 2px;
+  border: 1px solid transparent; border-radius: 7px;
+  background: none; color: var(--md-text-2);
+  font-family: inherit; font-size: 10.5px; line-height: 1.2; cursor: pointer;
+  transition: background-color .14s ease, color .14s ease, border-color .14s ease;
+}
+.md-icon-grid__cell span {
+  max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.md-icon-grid__cell:hover { background: var(--md-surface-2); color: var(--md-text); }
+.md-icon-grid__cell.is-on {
+  border-color: var(--md-primary); background: var(--md-primary-soft); color: var(--md-primary);
+  font-weight: 600;
+}
   outline: none; border-color: var(--md-primary);
   box-shadow: 0 0 0 2px var(--md-primary-soft);
 }

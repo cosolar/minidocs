@@ -12,6 +12,7 @@ import { nextTick, ref, watch } from 'vue'
 import { docApi } from '@/admin/api'
 import MdIcon from '@/admin/components/MdIcon.vue'
 import type { DocNode, NavMenuItem } from '@/shared/api/types'
+import { NAV_ICONS, isNavIcon, navIconOf } from '@/shared/navIcons'
 
 const props = defineProps<{ kbSlug: string; modelValue: NavMenuItem[] }>()
 const emit = defineEmits<{ 'update:modelValue': [value: NavMenuItem[]] }>()
@@ -113,6 +114,17 @@ function setAlias(at: number, value: string) {
   next[at] = { ...next[at], alias: value.trim() || undefined }
   emit('update:modelValue', next)
 }
+
+/**
+ * 改某一项的图标。undefined = 交给类型默认（目录书架 / 文档单篇）。
+ *
+ * <p>同样不就地改对象而是换新数组：清单里有别名输入框，重渲染会让输入焦点跑掉。</p>
+ */
+function setIcon(at: number, key: string | undefined) {
+  const next = [...props.modelValue]
+  next[at] = { ...next[at], icon: isNavIcon(key) ? key : undefined }
+  emit('update:modelValue', next)
+}
 </script>
 
 <template>
@@ -135,6 +147,42 @@ function setAlias(at: number, value: string) {
           :title="`分享页导航条上显示的名字（最多 32 字）；留空则显示「${item.name || item.path}」`"
           @input="setAlias(i, ($event.target as HTMLInputElement).value)"
         >
+        <!--
+          图标选择。目录名常是「文档」「笔记」这类通用词，没有图标时读者
+          分不出这几个入口分别通向哪里 —— 顶栏导航条那排小图标就是入口辨识的唯一线索。
+          留空表示「按类型用默认」（目录书架 / 文档单篇）。
+        -->
+        <el-popover placement="bottom-start" :width="268" trigger="click">
+          <template #reference>
+            <button type="button" class="md-menu-pick__icon-btn" title="选择图标">
+              <MdIcon :name="navIconOf(item.icon, item.type)" :size="14" />
+            </button>
+          </template>
+          <div class="md-icon-grid">
+            <button
+              type="button"
+              class="md-icon-grid__cell"
+              :class="{ 'is-on': !item.icon }"
+              title="按类型用默认"
+              @click="setIcon(i, undefined)"
+            >
+              <MdIcon name="refresh" :size="13" />
+              <span>默认</span>
+            </button>
+            <button
+              v-for="opt in NAV_ICONS"
+              :key="opt.key"
+              type="button"
+              class="md-icon-grid__cell"
+              :class="{ 'is-on': item.icon === opt.key }"
+              :title="opt.label"
+              @click="setIcon(i, opt.key)"
+            >
+              <MdIcon :name="opt.key" :size="13" />
+              <span>{{ opt.label }}</span>
+            </button>
+          </div>
+        </el-popover>
         <span class="md-menu-pick__ops">
           <button type="button" title="上移" :disabled="i === 0" @click="move(i, -1)">
             <MdIcon name="arrow-up" :size="13" />
