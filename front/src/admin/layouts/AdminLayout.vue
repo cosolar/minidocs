@@ -300,8 +300,8 @@ watch(() => route.fullPath, () => {
         <p>做成链接而不是纯文字，因为「这是哪个版本、去哪看源码」是看到版本号时
         最自然的两个念头，纯文字会让其中一个白想。</p>
 
-        <p>外链图标是必要的信号：没有它，一个可点的蓝色小字在侧栏底部会被当成
-        选中态或普通强调文案，读者不会预期它会离开当前系统。</p>
+        <p>居中：这一行是页脚署名，不属于左侧导航的层级，居中后它不再与上方的
+        入口列表争夺注意力。</p>
       -->
       <a
         v-if="!navCollapsed"
@@ -310,10 +310,7 @@ watch(() => route.fullPath, () => {
         target="_blank"
         rel="noopener noreferrer"
         title="在 GitHub 上查看 MiniDocs 仓库"
-      >
-        <span>2026@MiniDocs</span>
-        <MdIcon name="external" :size="12" class="md-sidebar__foot-ext" />
-      </a>
+      >2026@MiniDocs</a>
     </aside>
 
     <div v-if="isMobile && mobileNavOpen" class="md-admin__mask" @click="mobileNavOpen = false" />
