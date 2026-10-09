@@ -81,12 +81,40 @@
 }
 .md-seg__btn:hover { color: var(--md-text); }
 .md-seg__btn em { font-style: normal; font-size: 11px; color: var(--md-text-3); transition: color .15s ease; }
-/* 选中态走主色实心：灰色胶囊在一排按钮里认不出「我现在在哪一档」 */
+
+/*
+ * 三档各一个色相（全部=蓝 / 共享=绿 / 加密=琥珀），与侧栏、工作区工具条共用同一套令牌。
+ *
+ * <p>常态是「极淡底 + 同色系描边 + 文字用该色」，选中态换成该色相的实心。两个决定：</p>
+ *
+ * <p><b>选中态用各自色相的实心，而不是统一主色。</b>统一主色会让「当前在哪一档」和
+ * 「这一档是谁」分走两套颜色 —— 选中「加密」时按钮是绿的，identity 就丢了。实心 +
+ * 色相同时承担两件事：填充表示「在」，颜色表示「谁」。</p>
+ *
+ * <p><b>计数跟着变浅一档</b>，不然实心块里的深色数字会像没被选中。</p>
+ */
+.md-seg__btn--blue   { --tone: #3b6cf6; }
+.md-seg__btn--green  { --tone: #16a34a; }
+.md-seg__btn--amber  { --tone: #d97706; }
+
+.md-seg__btn {
+  border: 1px solid color-mix(in srgb, var(--tone, transparent) 22%, transparent);
+  background: color-mix(in srgb, var(--tone, transparent) 8%, transparent);
+  color: color-mix(in srgb, var(--tone, var(--md-text-2)) 84%, var(--md-text));
+}
+.md-seg__btn em { color: color-mix(in srgb, var(--tone, var(--md-text-3)) 62%, var(--md-text-3)); }
+.md-seg__btn:hover {
+  border-color: color-mix(in srgb, var(--tone, var(--md-primary)) 45%, transparent);
+  background: color-mix(in srgb, var(--tone, transparent) 14%, transparent);
+}
+
 .md-seg__btn.is-active {
-  background: var(--md-primary); color: #fff; font-weight: 600;
-  box-shadow: 0 3px 10px color-mix(in srgb, var(--md-primary) 34%, transparent);
+  background: var(--tone); color: #fff; font-weight: 600;
+  border-color: transparent;
+  box-shadow: 0 3px 10px color-mix(in srgb, var(--tone) 34%, transparent);
 }
 .md-seg__btn.is-active em { color: rgba(255, 255, 255, .82); }
+.md-seg__btn.is-active:hover { background: var(--tone); color: #fff; }
 
 /*
  * 搜索框是右侧动作组的第一项：定宽 260px 且不参与压缩，整组一起贴右沿。
@@ -453,3 +481,8 @@
   .md-cards { flex: none; min-height: 0; overflow: visible; padding: 0; margin: 0; }
   .md-portal .md-empty-state { flex: none; min-height: 0; justify-content: flex-start; }
 }
+
+/* 暗色：色相换浅一档，上面那组 600 色阶压在深底上会发暗、边界发糊 */
+[data-theme='dark'] .md-seg__btn--blue  { --tone: #60a5fa; }
+[data-theme='dark'] .md-seg__btn--green { --tone: #4ade80; }
+[data-theme='dark'] .md-seg__btn--amber { --tone: #fbbf24; }

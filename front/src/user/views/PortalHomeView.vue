@@ -30,10 +30,16 @@ useBodyClasses(computed(() => (failed.value || (!loading.value && !home.value) ?
  * 所以这里既没有「本组织」，也不叫「公开 / 私有」——那两个词留给后台的权限语境，
  * 免得读者把「门户上要口令」理解成「只有某类人能看」。</p>
  */
+/*
+ * 三档各配一个色相：全部=蓝、共享=绿、加密=琥珀。
+ *
+ * <p>语义上也有对应 —— 共享是「可公开读」用绿，加密是「要口令」用琥珀（一点警示味）。
+ * 令牌与侧栏、工作区工具条共用同一套，所以同一个入口在三个地方颜色一致。</p>
+ */
 const TABS = [
-  { key: 'all', label: '全部', icon: 'grid' },
-  { key: 'public', label: '共享', icon: 'globe' },
-  { key: 'private', label: '加密', icon: 'lock' }
+  { key: 'all', label: '全部', icon: 'grid', tone: 'blue' },
+  { key: 'public', label: '共享', icon: 'globe', tone: 'green' },
+  { key: 'private', label: '加密', icon: 'lock', tone: 'amber' }
 ] as const
 
 type FilterKey = (typeof TABS)[number]['key']
@@ -201,7 +207,7 @@ function switchView(mode: 'grid' | 'list') {
           type="button"
           role="tab"
           class="md-seg__btn"
-          :class="{ 'is-active': filter === tab.key }"
+          :class="[`md-seg__btn--${tab.tone}`, { 'is-active': filter === tab.key }]"
           @click="filter = tab.key"
         >
           <Icon :name="tab.icon" :size="14" />{{ tab.label }}<em>{{ counts[tab.key] }}</em>
