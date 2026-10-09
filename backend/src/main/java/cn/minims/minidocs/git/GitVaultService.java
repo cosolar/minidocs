@@ -16,6 +16,8 @@ import org.eclipse.jgit.lib.BranchTrackingStatus;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.revwalk.RevCommit;
+import org.eclipse.jgit.lib.Ref;
+import org.eclipse.jgit.revwalk.RevCommit;
 import org.eclipse.jgit.revwalk.RevWalk;
 import org.eclipse.jgit.transport.PushResult;
 import org.eclipse.jgit.transport.RefSpec;
@@ -124,62 +126,129 @@ public class GitVaultService {
     /**
      * 从远程拉取。
      *
-     * @param force {@code true} = 丢弃本地未提交改动（hard reset）后再拉；{@code false} = 合并拉取，
-     *              工作区脏时直接拒绝。默认走合并：JGit 的 {@code PullCommand} 只做合并，
-     *              脏工作区下强行 pull 会把本地改动留在冲突标记里，那是最难收拾的一种状态。
+     * @param force {@code true} = 丢弃本地未提交改动（hard reset + clean）后再拉；
+     *               {@code false} = <b>保留</b>本地改动，拉取时临时收起、拉完自动放回。
      */
     public SyncOutcome pull(Path repoDir, String branch, String username, String token, boolean force) {
         try (Git git = open(repoDir)) {
             Repository repository = git.getRepository();
             Status status = git.status().call();
+            /*
+             * 本地有未提交改动时的两条路，默认走「保留改动」那条。
+             *
+             * <p>JGit 的 PullCommand 内部是 fetch + merge，而 merge 在工作区脏、且远程改动了
+             * 同一批文件时会直接失败。所以要先把这批改动临时收起来 —— 等价于
+             * {@code git pull --autostash}。</p>
+             *
+             * <p>不「stash 之后就不管」：那样一旦后续任一步失败，作者的改动就停在 stash 里，
+             * 而界面上没有任何地方告诉他「你的东西在这里」，那比拉取失败严重得多。所以两条
+             * 分支都保证处理：拉取失败时放回，冲突时保留并把 ref 报出来。</p>
+             */
+            RevCommit stashed = null;
             if (!status.isClean()) {
-                if (!force) {
-                    // 不自动 stash：stash 之后一旦后续步骤失败，用户根本不知道自己的改动去了哪
-                    // 计数走 changedPaths：getUncommittedChanges 不含未跟踪文件，新建的文档会被漏算成「0 处改动」
-                    throw BizException.of(ErrorCode.GIT_DIRTY,
-                            "本地有 " + changedPaths(status).size() + " 处未提交的改动，请先「提交并推送」再拉取，"
-                                    + "或选择「强制覆盖本地」");
+                if (force) {
+                    // 强制覆盖 = hard reset 到 HEAD + 清掉未跟踪文件。
+                    // 未跟踪文件必须单独处理：JGit 的 reset 不动它们，而作者新建的文档正是
+                    // 未跟踪的 —— 不清掉就会出现「工作区已经没有改动了，但那几篇新文档还躺在
+                    // 库里」的错觉。
+                    List<String> dropped = changedPaths(status);
+                    git.reset().setMode(ResetType.HARD).call();
+                    cleanUntracked(git);
+                    log.warn("强制覆盖本地改动 {} 个文件后拉取仓库 {}", dropped.size(), repoDir.getFileName());
+                } else {
+                    // includeUntracked：新建的文档也要收进去，否则它们留在工作区，
+                    // 正好撞上远程的同名新增文件
+                    stashed = git.stashCreate().setIncludeUntracked(true).call();
+                    if (stashed == null) {
+                        // 工作区其实干净时 stashCreate 返回 null；走到这里说明 status 与它不一致
+                        log.warn("工作区状态与 stash 判定不一致，按干净处理：{}", repoDir.getFileName());
+                    } else {
+                        log.info("拉取前临时收起本地改动：{}（仓库 {}）", stashed.name(), repoDir.getFileName());
+                    }
                 }
-                /*
-                 * 强制覆盖 = hard reset 到 HEAD：丢弃已跟踪文件的改动，并删掉索引里已登记的改动。
-                 * 未跟踪文件（JGit 的 reset 不动它们）单独清理，否则作者新建的文档会留在原地，
-                 * 而他以为「已经覆盖了」。
-                 */
-                List<String> dropped = changedPaths(status);
-                git.reset().setMode(ResetType.HARD).call();
-                cleanUntracked(git);
-                log.warn("强制覆盖本地改动 {} 个文件后拉取仓库 {}", dropped.size(), repoDir.getFileName());
             }
             ObjectId before = repository.resolve("HEAD");
-            PullResult result = git.pull()
-                    .setRemote(REMOTE)
-                    .setRemoteBranchName(branch)
-                    .setCredentialsProvider(credentials(username, token))
-                    .setTimeout(TIMEOUT_SECONDS)
-                    .call();
-            if (!result.isSuccessful()) {
-                throw BizException.of(ErrorCode.GIT_SYNC_FAILED, "拉取失败：" + describePull(result));
+            SyncOutcome outcome;
+            try {
+                outcome = doPull(git, repository, branch, username, token, before);
+            } catch (RuntimeException e) {
+                if (stashed != null) {
+                    // 拉取失败必须把改动放回去：界面上写着「拉取失败」，用户理所当然以为
+                    // 自己的东西还在 —— 实际它躺在 stash 里而没人告诉他
+                    restoreStash(git, stashed, repoDir);
+                }
+                throw e;
             }
-            MergeResult merge = result.getMergeResult();
-            if (merge != null && merge.getMergeStatus() == MergeStatus.CONFLICTING) {
-                throw BizException.of(ErrorCode.GIT_CONFLICT, "远程更新与本地冲突，已中止合并，请人工处理");
+            if (stashed != null) {
+                // 成功之后放回。冲突时 restoreStash 会抛，并在消息里带上 ref
+                int commits = outcome.changedCount();
+                restoreStash(git, stashed, repoDir);
+                outcome = new SyncOutcome(true, "已更新 " + commits + " 个提交，本地改动已合并回来",
+                        commits, outcome.commitId());
             }
-            if (merge != null && merge.getMergeStatus() == MergeStatus.FAILED) {
-                throw BizException.of(ErrorCode.GIT_SYNC_FAILED, "合并失败，请检查本地与远程的分支关系");
-            }
-            ObjectId after = repository.resolve("HEAD");
-            int commits = before == null || before.equals(after) ? 0 : countCommits(repository, before, after);
-            String message = commits == 0 ? "已是最新，没有需要更新的提交"
-                    : "已更新 " + commits + " 个提交到 " + shortId(after);
-            log.info("拉取 Git 仓库 {}：{}", repoDir.getFileName(), message);
             invalidateStatus(repoDir);
-            return new SyncOutcome(true, message, commits, shortId(after));
+            return outcome;
         } catch (BizException e) {
-            invalidateStatus(repoDir);
             throw e;
         } catch (Exception e) {
             invalidateStatus(repoDir);
             throw BizException.of(ErrorCode.GIT_SYNC_FAILED, "拉取失败：" + reasonOf(e));
+        }
+    }
+    /**
+     * 真正执行 fetch + merge。
+     *
+     * <p>从 {@link #pull} 里拆出来，是为了把「拉」这一段单独读 —— 拉取流程真正的决策
+     * （本地改动怎么办）都在调用方决定，这里只管把远程合进来。</p>
+     */
+    private SyncOutcome doPull(Git git, Repository repository, String branch,
+                               String username, String token, ObjectId before) throws Exception {
+        PullResult result = git.pull()
+                .setRemote(REMOTE)
+                .setRemoteBranchName(branch)
+                .setCredentialsProvider(credentials(username, token))
+                .setTimeout(TIMEOUT_SECONDS)
+                .call();
+        if (!result.isSuccessful()) {
+            throw BizException.of(ErrorCode.GIT_SYNC_FAILED, "拉取失败：" + describePull(result));
+        }
+        MergeResult merge = result.getMergeResult();
+        if (merge != null && merge.getMergeStatus() == MergeStatus.CONFLICTING) {
+            throw BizException.of(ErrorCode.GIT_CONFLICT,
+                    "远程更新与本地已提交的提交冲突，已中止合并，请人工处理");
+        }
+        if (merge != null && merge.getMergeStatus() == MergeStatus.FAILED) {
+            throw BizException.of(ErrorCode.GIT_SYNC_FAILED, "合并失败，请检查本地与远程的分支关系");
+        }
+        ObjectId after = repository.resolve("HEAD");
+        int commits = before == null || before.equals(after) ? 0 : countCommits(repository, before, after);
+        String message = commits == 0 ? "已是最新，没有需要更新的提交"
+                : "已更新 " + commits + " 个提交到 " + shortId(after);
+        log.info("拉取 Git 仓库：{}", message);
+        return new SyncOutcome(true, message, commits, shortId(after));
+    }
+
+    /**
+     * 把暂存起来的本地改动放回工作区；失败时抛出并把 stash 的 ref 说清楚。
+     *
+     * <p>失败（通常是本地改动与远程改动撞在同一处）时<b>不丢弃 stash</b>：留着它，
+     * 用户还能用 git stash list 找回来或手动 apply。丢掉就等于把「冲突」变成「丢失」。</p>
+     */
+    private void restoreStash(Git git, RevCommit stashed, Path repoDir) {
+        try {
+            // apply + drop，而不是 stashPop：pop 成功时自动 drop、失败时保留，
+            // 行为上与「apply 成功再显式 drop」等价，但冲突时 pop 已经把 stash 摘掉一半、
+            // ref 就不在了 —— 而那正是我们要报给用户去恢复它的那串东西
+
+            git.stashApply().setStashRef(stashed.name()).call();
+            // StashDropCommand 收的是序号（stash@{0}），不是 ref 名 —— 刚 stash 的那条必然是 0
+            git.stashDrop().setStashRef(0).call();
+        } catch (Exception e) {
+            String where = stashed.name() + "（仓库 " + repoDir.getFileName() + "）";
+            throw BizException.of(ErrorCode.GIT_CONFLICT,
+                    "本地未提交的改动与远程更新撞在同一处，无法自动合并。"
+                            + "这些改动完整保留在 " + where + " 里，没有丢弃；"
+                            + "可在工作区里用 git stash list 找到它并手动 apply，或改用「强制覆盖本地」重拉");
         }
     }
 
