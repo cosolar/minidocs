@@ -849,7 +849,6 @@ button { font-family: inherit; }
   --share-fg-2: var(--md-text-3);
   --share-line: var(--md-border);
   --share-hover: var(--md-surface-2);
-  --share-slot: color-mix(in srgb, var(--md-surface-2) 90%, transparent);
   --share-accent: var(--md-primary);
   position: sticky; top: 0; z-index: 30;
   display: flex; align-items: center; gap: 10px;
@@ -1061,10 +1060,16 @@ button { font-family: inherit; }
  */
 .md-share__menu {
   position: relative;
-  display: flex; align-items: center; gap: 2px;
+  display: flex; align-items: center; gap: 4px;
   flex: 0 1 auto; min-width: 0; max-width: 100%; width: max-content;
-  padding: 3px;
-  border-radius: 999px;
+  /*
+   * 不做胶囊壳：去掉底色、圆角与内边距，激活态交给下划线表达。
+   *
+   * <p>导航条与顶栏是同一层，不是浮在它上面的东西 —— 加一层壳等于声明它是独立的
+   * 控件，读者会去猜它能不能拖、能点什么。贴地的一排标签才是导航本来的样子。</p>
+   */
+  padding: 0;
+  background: none;
   /*
    * 固定思源黑体，不继承正文字体偏好：导航条是站点外壳，读者换了正文宋体不该
    * 传染到顶栏上（菜单项是 font-family: inherit，在这里声明一次就够）。
@@ -1072,34 +1077,24 @@ button { font-family: inherit; }
    * 本地安装的思源黑体时会安静地落到系统字体，看着「没生效」却查不出原因。
    */
   font-family: var(--md-share-nav-font);
-  /* 药丸坞：浅槽 + 发丝边 + 顶部高光，做出浮在顶栏上的层次；滑块在槽内滑动 */
-  background: var(--share-slot);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .65), 0 1px 2px rgba(24, 29, 51, .05);
+  /* 原来这里给过一道浅槽 + 发丝边 + 顶部高光（药丸坞），随胶囊壳一起去掉了 */
   overflow-x: auto; overscroll-behavior-x: contain;
   scrollbar-width: none;
 }
 .md-share__menu::-webkit-scrollbar { display: none; }
 /*
- * 滑动高亮块：浮起的一颗白色药丸。
+ * 滑动高亮块：一条 2px 的下划线，贴在菜单条底边。
  *
- * <p><b>为什么不用实心渐变。</b>导航条回答的是「我在哪一页」，不是「这里最重要」。
- * 之前给激活项铺蓝青渐变 + 白色粗体，它成了整个顶栏里最饱和的东西 —— 分享页真正的
- * 主操作（复制链接、搜索）都得排到它后面。一条导航比页面的主按钮更抢眼，顺序就是错的。
- * 白色药丸配主色描边在浅色顶栏上照样认得出来，安静但不含糊。</p>
+ * <p>不用胶囊、不用色块：导航回答的是「我在哪一页」，把激活项做成一块有底色的东西，
+ * 就等于给它和「主操作」同等的视觉重量。所以只用一条线 —— 它标位置，不抢注意力。</p>
  *
- * <p>渐变原来到 {@code #22d3ee}（青），那与品牌蓝不是一个色相，整块看着像贴了张
- * 别处的图。现在统一成主色 + 主色柔光。</p>
- *
- * <p>高度 30px 而非 32px：药丸比轨道矮 2px，上下各留 1px，浮起感来自留白而不是投影。</p>
+ * <p>仍然沿用原来的滑动机制（placeThumb 按激活项算 x 与宽度），改的只是这块的形状：
+ * 从 32px 高的药丸变成 2px 的线，动画与横向滚动补偿都不用动。</p>
  */
 .md-share__menu-thumb {
-  position: absolute; top: 3px; left: 0; z-index: 0;
-  height: 30px; border-radius: 999px;
-  background: var(--md-surface);
-  border: 1px solid color-mix(in srgb, var(--md-primary) 22%, transparent);
-  box-shadow:
-    0 1px 3px rgba(24, 29, 51, .08),
-    0 0 0 3px color-mix(in srgb, var(--md-primary) 8%, transparent);
+  position: absolute; bottom: 0; left: 0; z-index: 0;
+  height: 2px; border-radius: 2px;
+  background: var(--md-primary);
   opacity: 0; pointer-events: none;
   will-change: transform, width, opacity;
   transition:
@@ -1108,20 +1103,12 @@ button { font-family: inherit; }
     opacity .2s ease;
 }
 .md-share__menu-thumb.is-ready { opacity: 1; }
-/* 暗色下白药丸会整块发亮，改成比轨道略浅一层的深色 + 亮一点的主色描边 */
-[data-theme='dark'] .md-share__menu-thumb {
-  background: color-mix(in srgb, var(--md-surface) 88%, var(--md-primary));
-  border-color: color-mix(in srgb, var(--md-primary) 45%, transparent);
-  box-shadow:
-    0 1px 4px rgba(0, 0, 0, .45),
-    0 0 0 3px color-mix(in srgb, var(--md-primary) 12%, transparent);
-}
 .md-share__menu-item {
   position: relative; z-index: 1;
   display: inline-flex; align-items: center; gap: 7px; flex-shrink: 0;
-  /* 上限 + 省略号：菜单项的名字是作者自己起的，一个长标题不该把整条导航撑成
-     「一个巨药丸 + 几个小圆点」。原来没有上限，14 个字的标题能占掉半个顶栏。 */
-  max-width: 220px; height: 32px; padding: 0 14px; border-radius: 999px;
+  /* 上限 + 省略号：菜单项的名字是作者自己起的，一个长标题不该把整条导航撑宽。
+     原来没有上限，14 个字的标题能占掉半个顶栏。 */
+  max-width: 220px; height: 34px; padding: 0 10px; border-radius: 6px;
   border: 0; background: transparent;
   color: var(--share-fg-2); font-family: inherit; font-size: 13px; font-weight: 500;
   white-space: nowrap; cursor: pointer;
@@ -1129,8 +1116,9 @@ button { font-family: inherit; }
 }
 .md-share__menu-item > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .md-share__menu-item .md-icon { color: var(--share-fg-2); flex-shrink: 0; transition: color .18s ease; }
+/* hover 用极淡方底，不给圆角胶囊 —— 选中态是下划线，hover 就该比它更轻 */
 .md-share__menu-item:hover {
-  background: var(--share-hover);
+  background: color-mix(in srgb, var(--md-primary) 7%, transparent);
   color: var(--share-fg);
 }
 .md-share__menu-item:hover .md-icon { color: var(--share-accent); }
@@ -1138,15 +1126,14 @@ button { font-family: inherit; }
   outline: 2px solid var(--md-primary); outline-offset: 1px;
 }
 /*
- * 激活态：主色文字 + 主色图标，底色交给滑块。
+ * 激活态：主色文字 + 主色图标，位置由底部那条 2px 滑块表示。
  *
- * <p>不再是反白 —— 反白只在实心深底上才成立，而滑块现在是白底，白字白底等于没有。</p>
- *
- * <p>hover 时不给激活项加底色：它下面已经有药丸了，再叠一层 hover 底会变成双层底。</p>
+ * <p>字重只从 500 提到 600：已经有颜色和下划线两处信号，再加粗就成了三处。</p>
  */
 .md-share__menu-item.is-active { color: var(--md-primary); font-weight: 600; }
 .md-share__menu-item.is-active:hover {
-  background: transparent; color: var(--md-primary);
+  background: color-mix(in srgb, var(--md-primary) 7%, transparent);
+  color: var(--md-primary);
 }
 .md-share__menu-item.is-active .md-icon { color: var(--md-primary); }
 @media (prefers-reduced-motion: reduce) {
