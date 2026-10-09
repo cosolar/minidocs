@@ -663,11 +663,19 @@ button { font-family: inherit; }
  * <p>用 flex + 100dvh 而不是 grid + 100%：高度百分比要一路传到 body，任何一层没给满高度，
  * 卡片就会飘到顶端。错误页是访客看到的第一眼，位置飘一点比样式简陋更显草率。</p>
  *
+ * <p><b>高度用 100% 而不是 100dvh</b>：这一层在 {@code .md-view} 里面，而 {@code .md-view}
+ * 已经是 {@code flex: 1}（占满「视口减顶栏」）。这里再按整个视口算 100dvh，就比容器高出
+ * 一个顶栏的高度，于是多出一屏的滚动 —— 而页面外层是 {@code overflow: hidden}，滚动条
+ * 看不到、内容却被切掉，看起来像「卡片偏上」这种说不清的毛病。</p>
+ *
+ * <p>min-height 而非 height：卡片内容高过视口时（长库名折行、窄屏）仍要能撑开并滚动，
+ * 由 .md-view 承担滚动。</p>
+ *
  * <p>背景沿用登录页那套语言（极光 + 网格），淡一档：错误页不该抢走注意力，安静地把人引回
  * 文档才是它该做的事。</p>
  */
 .md-state {
-  min-height: 100vh; min-height: 100dvh;
+  min-height: 100%;
   display: flex; align-items: center; justify-content: center;
   padding: 32px 20px;
   background:
