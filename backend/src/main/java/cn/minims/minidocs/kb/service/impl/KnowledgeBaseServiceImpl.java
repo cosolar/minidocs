@@ -147,15 +147,14 @@ public class KnowledgeBaseServiceImpl extends ServiceImpl<KnowledgeBaseMapper, K
         long pageSize = Math.min(Math.max(1, size), 100);
 
         LambdaQueryWrapper<KnowledgeBase> wrapper = Wrappers.lambdaQuery();
-        // 门户可见集三道闸：组织未停用 + 已发布 + 对当前访客可见。
+        // 门户可见集两道闸：组织未停用 + （已发布且对当前访客可见）。
         // 可见性（public/org/private）仍然不参与 —— 它决定的是「谁能读」，与「是否出现在门户」正交。
         accessService.applyTenantActiveScope(wrapper);
-        wrapper.apply(SharePublicationSupport.publishedExists(access), TimeUtil.now());
-        // 参数个数必须与 SQL 里的占位符一一对应，匿名分支只用到 {0}（当前时刻）
         if (viewerId == null) {
-            wrapper.apply(SharePublicationSupport.portalScopeAllows(null), TimeUtil.now());
+            wrapper.apply(SharePublicationSupport.publishedAndVisibleExists(access, null), TimeUtil.now());
         } else {
-            wrapper.apply(SharePublicationSupport.portalScopeAllows(viewerId), viewerId, TimeUtil.now());
+            wrapper.apply(SharePublicationSupport.publishedAndVisibleExists(access, viewerId),
+                    TimeUtil.now(), viewerId);
         }
         if (keyword != null && !keyword.isBlank()) {
             String kw = keyword.trim();
@@ -165,17 +164,35 @@ public class KnowledgeBaseServiceImpl extends ServiceImpl<KnowledgeBaseMapper, K
         }
         applySort(wrapper, sort);
 
-        Page<KnowledgeBase> result = baseMapper.selectPage(new Page<>(current, pageSize), wrapper);
-        Map<Long, String> ownerNames = ownerNames(result.getRecords());
-        Map<Long, Tenant> tenants = tenantFacts(result.getRecords());
+        /*
+         * 这里用 selectList + 内存分页，不走 {@code selectPage}。
+         *
+         * <p>原因：分页插件的 count 语句是 {@code SELECT COUNT(*) FROM (原查询) TOTAL}，
+         * 而本查询带 {@code EXISTS} 子查询 + {@code ORDER BY}，插件的 count 优化会在
+         * 「能否剥离 ORDER BY」上摇摆 —— 剥离了却不给派生表补别名（{@code Every derived
+         * table must have its own alias}），不剥离又把 ORDER BY 留在子查询里（MySQL 语法
+         * 错误）。两个分支都试过，登录态与匿名态各炸一个，报错还互相掩盖。</p>
+         *
+         * <p>门户列表的量级是「已发布库数」，两位数；全量取回再在内存里切片，
+         * 省掉一次 count 也彻底绕开这个不稳定的插件行为。控制台那边列表走别的路径，
+         * 不受影响。</p>
+         */
+        List<KnowledgeBase> all = list(wrapper);
+        long total = all.size();
+        int from = (int) Math.min((current - 1) * pageSize, total);
+        int to = (int) Math.min(from + pageSize, total);
+        List<KnowledgeBase> rows = from >= to ? List.of() : all.subList(from, to);
+
+        Map<Long, String> ownerNames = ownerNames(rows);
+        Map<Long, Tenant> tenants = tenantFacts(rows);
         // 一次批量取回这批库的发布分享，逐行判「公开 / 私有」，避免每行一次查询
         Map<Long, Share> shares = publicationSupport.findOf(
-                result.getRecords().stream().map(KnowledgeBase::getId).toList());
-        List<KbVO> list = result.getRecords().stream()
+                rows.stream().map(KnowledgeBase::getId).toList());
+        List<KbVO> vo = rows.stream()
                 .map(kb -> withPublication(KbVO.from(kb, false, ownerNames.get(kb.getOwnerId()),
                         tenants.get(kb.getTenantId())), shares.get(kb.getId())))
                 .collect(Collectors.toList());
-        return PageResult.of(list, result.getTotal(), result.getCurrent(), result.getSize());
+        return PageResult.of(vo, total, current, pageSize);
     }
 
     @Override

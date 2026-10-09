@@ -94,33 +94,58 @@ public class SharePublicationSupport {
      *
      * @param userId 当前用户 id；null 表示未登录访客
      */
-    public static String portalScopeAllows(Long userId) {
-        if (userId == null) {
-            // 匿名访客只看得见 anonymous。member 与 maintainer 都需要一个身份。
-            // 注意这里只用一个占位符 —— MyBatis-Plus 会校验「SQL 里的 {n} 个数 == 传入的参数个数」，
-            // 多传一个会直接抛 Please check the syntax correctness。
-            return "EXISTS (SELECT 1 FROM shares ps WHERE ps.kb_id = knowledge_base.id"
-                    + " AND ps.scope = 'kb' AND ps.revoked = 0 AND ps.invalid = 0"
-                    + " AND (ps.expires_at IS NULL OR ps.expires_at > {0})"
-                    + " AND COALESCE(ps.portal_scope, 'anonymous') = 'anonymous')";
+    /**
+     * 门户可见集的第二道闸：已发布且对当前访客可见。
+     *
+     * <p><b>把「已发布」与「对我可见」合并进同一条 EXISTS</b>，而不是两次 {@code apply}
+     * 各加一个。理由不是好看：MyBatis-Plus 的分页插件把 count 写成
+     * {@code SELECT COUNT(*) FROM (原查询) TOTAL}，MySQL 不接受子查询里带 ORDER BY。
+     * 插件会自动剥离 ORDER BY，但那只在「优化器判定能剥」时才做 —— 查询里出现两个
+     * {@code EXISTS} 之后它就放弃剥离，于是同一条门户查询匿名下 200、登录态 500
+     * （登录分支多一个带 userId 的 EXISTS，正好凑够让剥离失效的条件数）。
+     * 并成一个 EXISTS 后子查询回到一个，插件的剥离重新生效。
+     *
+     * <p>顺带一个好处：合并后「已发布」与「可见」必然命中同一条分享行。
+     * 分成两个 EXISTS 时理论上可能出现「A 行满足已发布、B 行满足可见」而A≠B 的情况，
+     * 那会让「已加密的库」被一条免密分享行误判成公开。</p>
+     *
+     * @param access {@link #ACCESS_PUBLIC} / {@link #ACCESS_PRIVATE} 再按是否加密筛；null 不筛
+     * @param userId 当前用户 id；null 表示未登录访客
+     */
+    public static String publishedAndVisibleExists(String access, Long userId) {
+        StringBuilder sql = new StringBuilder("EXISTS (SELECT 1 FROM shares s WHERE s.kb_id = knowledge_base.id"
+                + " AND s.scope = 'kb' AND s.revoked = 0 AND s.invalid = 0"
+                + " AND (s.expires_at IS NULL OR s.expires_at > {0})");
+        if (ACCESS_PUBLIC.equals(access)) {
+            sql.append(" AND s.password_hash IS NULL");
+        } else if (ACCESS_PRIVATE.equals(access)) {
+            sql.append(" AND s.password_hash IS NOT NULL");
         }
-        return "EXISTS (SELECT 1 FROM shares ps WHERE ps.kb_id = knowledge_base.id"
-                + " AND ps.scope = 'kb' AND ps.revoked = 0 AND ps.invalid = 0"
-                + " AND (ps.expires_at IS NULL OR ps.expires_at > {1})"
-                // null 视为 anonymous：迁移前的老行没有这一列的值，读出来是 null
-                + " AND (COALESCE(ps.portal_scope, 'anonymous') IN ('anonymous', 'member')"
-                + "   OR (COALESCE(ps.portal_scope, 'anonymous') = 'maintainer' AND ("
-                + "     knowledge_base.owner_id = {0}"
-                + "     OR EXISTS (SELECT 1 FROM kb_member km WHERE km.kb_id = knowledge_base.id"
-                + "       AND km.user_id = {0}"
-                // 名单授权只在组织内生效（规范 §9）：必须带组织成员这一层，
-                // 否则被移出组织后 kb_member 的行仍在库里，会成为静默的权限残留
-                + "       AND EXISTS (SELECT 1 FROM tenant_member tm JOIN tenant t ON t.id = tm.tenant_id"
-                + "            WHERE t.id = knowledge_base.tenant_id AND tm.user_id = {0} AND t.status = 'active'))"
-                + "     OR (knowledge_base.maintain_scope = 'org_all'"
-                + "       AND EXISTS (SELECT 1 FROM tenant_member tm2 JOIN tenant t2 ON t2.id = tm2.tenant_id"
-                + "            WHERE t2.id = knowledge_base.tenant_id AND tm2.user_id = {0} AND t2.status = 'active'))"
-                + "   )))";
+        if (userId == null) {
+            // 匿名只看得见 anonymous。注意这里只用到 {0}（当前时刻）——
+            // MyBatis-Plus 校验「占位符个数 == 传入参数个数」，多传一个直接抛异常。
+            // 这里不补右括号：下面的 sql.append(")") 统一收口，重复补会多出一个括号。
+            sql.append(" AND COALESCE(s.portal_scope, 'anonymous') = 'anonymous'");
+        } else {
+            // 已登录：anonymous / member 直接放行；maintainer 走三个粗筛（库创建者 /
+            // 在维护名单里 / maintain_scope=org_all 且是本组织活跃成员）。
+            // 这三条是 AccessServiceImpl#can(..., KB_EDIT_META) 的超集而非复制，
+            // 真正的裁决仍在权限服务，这里只把明显不可能的库先排除掉。
+            sql.append(" AND (COALESCE(s.portal_scope, 'anonymous') IN ('anonymous', 'member')"
+                    + "   OR (COALESCE(s.portal_scope, 'anonymous') = 'maintainer' AND ("
+                    + "     knowledge_base.owner_id = {1}"
+                    + "     OR EXISTS (SELECT 1 FROM kb_member km WHERE km.kb_id = knowledge_base.id"
+                    + "       AND km.user_id = {1}"
+                    // 名单授权只在组织内生效（规范 §9）：必须带组织成员这一层，
+                    // 否则被移出组织后 kb_member 的行仍在库里，会成为静默的权限残留
+                    + "       AND EXISTS (SELECT 1 FROM tenant_member tm JOIN tenant t ON t.id = tm.tenant_id"
+                    + "            WHERE t.id = knowledge_base.tenant_id AND tm.user_id = {1} AND t.status = 'active'))"
+                    + "     OR (knowledge_base.maintain_scope = 'org_all'"
+                    + "       AND EXISTS (SELECT 1 FROM tenant_member tm2 JOIN tenant t2 ON t2.id = tm2.tenant_id"
+                    + "            WHERE t2.id = knowledge_base.tenant_id AND tm2.user_id = {1} AND t2.status = 'active'))"
+                    + "   )))");
+        }
+        return sql.append(")").toString();
     }
 
     /** 某个库的发布分享；没有（未分享 / 已撤销 / 已过期 / 只有单篇分享）返回 null。 */
