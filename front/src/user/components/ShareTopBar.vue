@@ -38,7 +38,6 @@ const props = defineProps<{
   /** 当前高亮的菜单项路径 */
   activePath?: string | null
   /** 知识库封面；缺键（没设封面）时用库名首字母兜底 */
-  cover?: string
   docCount?: number
   updatedText?: string
   /**
@@ -163,9 +162,14 @@ async function share() {
       :title="kbTitle"
       @click="emit('all')"
     >
+      <!--
+        一律用图标，不看封面。
+        <p>封面在这个位置只有 26px，缩到这么小只是一块认不出的色块—— 而这里要回答的
+        是「我在哪个库」，色块回答不了。库名就在右边，所以图标只需要是个可辨识的标记，
+        不必承担「这是哪个库」的信息。</p>
+      -->
       <span class="md-share__kb-cover" aria-hidden="true">
-        <img v-if="cover" :src="cover" alt="" loading="lazy">
-        <KbGlyph v-else :size="17" />
+        <KbGlyph :size="17" />
       </span>
       <span class="md-share__kb-text">
         <strong>{{ kbName }}</strong>

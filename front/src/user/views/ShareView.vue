@@ -258,7 +258,6 @@ function pickMenu(item: NavMenuItem) {
     <div class="md-share">
       <ShareTopBar
         :kb-name="view.kbName"
-        :cover="view.kbCoverSrc"
         :site-base="view.siteBase"
         :doc-count="view.docCount"
         :updated-text="view.kbUpdatedText"
