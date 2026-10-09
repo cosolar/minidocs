@@ -66,6 +66,12 @@ public interface DocService {
     /** 上传封面图，返回相对知识库根的路径。 */
     String uploadCover(Long kbId, MultipartFile file, LoginUser user);
 
+    /** 设置外链封面；传空串等价于 {@link #clearCover} */
+    String setCoverUrl(Long kbId, String url, LoginUser user);
+
+    /** 清空封面。外链是手输的，没有单独这个入口就没法从界面上撤掉粘错的地址 */
+    void clearCover(Long kbId, LoginUser user);
+
     DownloadPayload download(Long kbId, String path, LoginUser user);
 
     /**

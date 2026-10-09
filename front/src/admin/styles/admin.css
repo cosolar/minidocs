@@ -1241,6 +1241,18 @@ body.is-col-resizing .md-ws__bytemd-resizer::after { background: var(--md-primar
   max-width: 200px; max-height: 110px; object-fit: cover;
   border: 1px solid var(--md-border); border-radius: 8px;
 }
+/*
+ * 封面：上传与外链二选一，两个控件并排。
+ *
+ * <p>「用哪一张」是一个选择 —— 并排比上下两行更能表达「二选一」，也让这一行不额外
+ * 吃掉竖向空间（弹窗里已经有标签、维护档位两栏了）。</p>
+ */
+.md-kb-cover-row { display: flex; align-items: center; gap: 8px; width: 100%; }
+.md-kb-cover-or { flex-shrink: 0; color: var(--md-text-3); font-size: 12.5px; }
+.md-kb-cover-url { flex: 1; min-width: 0; }
+.md-kb-cover-clear { flex-shrink: 0; padding: 7px; }
+.md-kb-cover-tip { display: flex; flex-direction: column; gap: 4px; }
+.md-kb-cover-tip .md-kb-cover { margin-top: 8px; }
 
 /* ------------------------------------------------------------ 分享弹窗 */
 /*

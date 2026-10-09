@@ -104,9 +104,25 @@ public final class KbDtos {
         public static KbVO from(KnowledgeBase kb, boolean favored, String ownerName, Tenant tenant,
                                List<KbAction> permissions) {
             String tenantSlug = tenant == null ? null : tenant.getSlug();
-            String coverSrc = kb.getCoverUrl() == null || tenantSlug == null ? null
-                    : AppPaths.of("/kb/" + tenantSlug + "/" + kb.getSlug() + "/asset/"
-                    + PathEncoder.encodePath(kb.getCoverUrl()));
+            /*
+             * cover_url 有两种形态：上传存的是库内相对路径（assets/cover-xxx.png），
+             * 外链存的是完整 http(s) 地址。
+             *
+             * <p>外链必须原样下发。少了这个判断，它会被拼成
+             * {@code /kb/{组织}/{库}/asset/https%3A//...} —— 那个地址指向库内的资源
+             * 代理，必然 404，于是「设置成功但门户上封面空白」。</p>
+             */
+            String coverUrl = kb.getCoverUrl();
+            String coverSrc;
+            if (coverUrl == null) {
+                coverSrc = null;
+            } else if (coverUrl.startsWith("http://") || coverUrl.startsWith("https://")) {
+                coverSrc = coverUrl;
+            } else {
+                coverSrc = tenantSlug == null ? null
+                        : AppPaths.of("/kb/" + tenantSlug + "/" + kb.getSlug() + "/asset/"
+                        + PathEncoder.encodePath(coverUrl));
+            }
             List<String> granted = permissions == null ? List.of()
                     : permissions.stream().map(Enum::name).toList();
             return new KbVO(kb.getId(), kb.getOwnerId(), ownerName, kb.getName(), kb.getSlug(), kb.getDescription(),
@@ -232,6 +248,19 @@ public final class KbDtos {
     public record MaintainScopeRequest(
             @NotBlank(message = "维护档位不能为空")
             @Pattern(regexp = "owner_only|members|org_all", message = "维护档位取值非法") String maintainScope) {
+    }
+
+    /**
+     * 用外链设置封面。
+     *
+     * <p>协议白名单在这里也做一遍（不只靠服务层）：它会进 {@code img src}，
+     * {@code data:} 能塞可执行内容、{@code javascript:} 直接可点。两道校验失败原因
+     * 不同 —— 这道报「格式不对」，服务层那道报「必须以 http:// 开头」。</p>
+     */
+    public record CoverUrlRequest(
+            @Size(max = 1024, message = "封面地址过长")
+            @Pattern(regexp = "https?://\\S+|^\\s*$",
+                    message = "封面地址必须以 http:// 或 https:// 开头") String url) {
     }
 
     /** 名单条目。{@code orgMember=false} 表示这行当前不产生任何权利（§9），UI 应提示而非静默。 */

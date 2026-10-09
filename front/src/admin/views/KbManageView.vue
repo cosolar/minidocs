@@ -58,6 +58,8 @@ const form = reactive({
   tags: [] as string[],
   coverFile: null as File | null,
   coverPreview: '',
+  /** 外链封面地址。与 coverFile 二选一：填了它就优先用链接，不再上传 */
+  coverUrl: '',
   encrypted: false,
   password: '',
   expiresIn: 'forever',
@@ -160,7 +162,8 @@ function openCreate() {
   formMode.value = 'create'
   Object.assign(form, {
     slug: '', name: '', description: '', visibility: 'org', maintainScope: 'owner_only', tags: [],
-    coverFile: null, coverPreview: '', encrypted: false, password: '', expiresIn: 'forever',
+    coverFile: null, coverPreview: '', coverUrl: '', coverBroken: false,
+    encrypted: false, password: '', expiresIn: 'forever',
     sourceType: 'local', gitUrl: '', gitBranch: 'main', gitUsername: '', gitToken: '', gitTokenSet: false
   })
   resetTagEditor()
@@ -180,6 +183,9 @@ function openEdit(kb: KbVO) {
     tags: [...(kb.tags || [])],
     coverFile: null,
     coverPreview: kb.coverSrc || '',
+    // 已存的外链回填进输入框：只回填预览图的话，作者看不到那条链接、也没法改
+    coverUrl: isExternalCover(kb.coverSrc) ? kb.coverSrc : '',
+    coverBroken: false,
     encrypted: false,
     password: '',
     expiresIn: 'forever',
@@ -197,6 +203,48 @@ function openEdit(kb: KbVO) {
 function onCoverChange(file: { raw: File }) {
   form.coverFile = file.raw
   form.coverPreview = URL.createObjectURL(file.raw)
+  // 上传与外链互斥：选了文件就把链接清掉，否则保存时两套都发、后写的赢，
+  // 作者会以为上传没生效
+  form.coverUrl = ''
+}
+
+/**
+ * 预览图加载失败。
+ *
+ * <p>只在预览阶段提示、不阻止提交：外链图在作者这边加载不出来，常见原因是对方的
+ * 防盗链按Referer 拦——而访客那边可能又能正常显示。此时拦住提交等于让作者为一个
+ * 别人看不到的问题反复折腾。</p>
+ */
+function onCoverPreviewError() {
+  coverBroken.value = true
+}
+
+function clearCover() {
+  form.coverFile = null
+  form.coverUrl = ''
+  form.coverPreview = ''
+  coverBroken.value = false
+}
+
+/** 已存的封面是不是外链（上传的存的是库内相对路径，形如 assets/cover-xxx.png） */
+function isExternalCover(src?: string): boolean {
+  return Boolean(src && /^https?:\/\//i.test(src))
+}
+
+/**
+ * 外链地址变化时同步预览。
+ *
+ * <p>不校验图片能不能真的加载出来：跨域防盗链会让外链图在本地能显示、在访客那边
+ * 404，提交前预检反而会给出假的失败结论。这里只挡明显的非 http/https。</p>
+ */
+function onCoverUrlInput() {
+  const v = form.coverUrl.trim()
+  if (!v) {
+    form.coverPreview = ''
+  } else if (/^https?:\/\/\S+$/i.test(v)) {
+    form.coverPreview = v
+    form.coverFile = null
+  }
 }
 
 async function submitForm() {
@@ -233,6 +281,12 @@ async function submitForm() {
     const kb = isCreate ? await kbApi.create(payload) : await kbApi.update(form.slug, payload)
     if (form.coverFile) {
       await kbApi.uploadCover(kb.slug, form.coverFile)
+    } else if (form.coverUrl.trim()) {
+      // 外链封面单独一次调用：它落在 knowledge_base.cover_url，与库元信息的 payload 是两条路
+      await kbApi.setCoverUrl(kb.slug, form.coverUrl.trim())
+    } else if (!isCreate) {
+      // 编辑态两个都空 = 清掉封面。不加这一条的话，粘错了地址就只能重新上传一张盖掉它
+      await kbApi.clearCover(kb.slug)
     }
     if (form.encrypted || form.password) {
       await shareApi.create({
@@ -823,10 +877,41 @@ watch(org, () => {
               <div v-if="tagError" class="md-form-hint is-error">{{ tagError }}</div>
             </el-form-item>
             <el-form-item label="封面图（≤ 2MB）">
-              <el-upload :auto-upload="false" :show-file-list="false" accept="image/*" :on-change="onCoverChange">
-                <el-button><MdIcon name="image" :size="14" />选择图片</el-button>
-              </el-upload>
-              <img v-if="form.coverPreview" :src="form.coverPreview" alt="封面预览" class="md-kb-cover" />
+              <!--
+                上传与外链二选一，所以两个控件并排放而不是叠成两行：
+                「用哪一张」是一个选择，并排比上下更能表达「二选一」。
+
+                外链不预检能不能加载：跨域防盗链会让图在本地能显示、访客那边 404，
+                提交前探测给出的是假的失败结论。
+              -->
+              <div class="md-kb-cover-row">
+                <el-upload :auto-upload="false" :show-file-list="false" accept="image/*" :on-change="onCoverChange">
+                  <el-button><MdIcon name="image" :size="14" />选择图片</el-button>
+                </el-upload>
+                <span class="md-kb-cover-or">或</span>
+                <el-input
+                  v-model="form.coverUrl"
+                  class="md-kb-cover-url"
+                  placeholder="图片外链，如 https://.../cover.png"
+                  maxlength="1024"
+                  clearable
+                  @input="onCoverUrlInput"
+                />
+                <el-button
+                  v-if="form.coverPreview"
+                  class="md-kb-cover-clear"
+                  title="移除封面"
+                  @click="clearCover"
+                >
+                  <MdIcon name="close" :size="14" />
+                </el-button>
+              </div>
+              <div v-if="form.coverPreview" class="md-kb-cover-tip">
+                <img :src="form.coverPreview" alt="封面预览" class="md-kb-cover" @error="onCoverPreviewError" />
+                <span v-if="coverBroken" class="md-form-hint is-error">
+                  这张图加载不出来 —— 地址可能拼错了，或对方站点有防盗链（跨站防盗链会拦掉不来的图片）
+                </span>
+              </div>
             </el-form-item>
           </div>
         </section>

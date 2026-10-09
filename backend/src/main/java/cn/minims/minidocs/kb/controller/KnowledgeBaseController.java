@@ -11,6 +11,7 @@ import cn.minims.minidocs.kb.dto.KbDtos.GitSyncRequest;
 import cn.minims.minidocs.kb.dto.KbDtos.GitSyncVO;
 import cn.minims.minidocs.kb.dto.KbDtos.KbVO;
 import cn.minims.minidocs.kb.dto.KbDtos.MaintainScopeRequest;
+import cn.minims.minidocs.kb.dto.KbDtos.CoverUrlRequest;
 import cn.minims.minidocs.kb.dto.KbDtos.RosterEntryVO;
 import cn.minims.minidocs.kb.dto.KbDtos.RosterGrantRequest;
 import cn.minims.minidocs.kb.dto.KbDtos.UpdateRequest;
@@ -146,6 +147,21 @@ public class KnowledgeBaseController {
                                                         @RequestParam("file") MultipartFile file) {
         String path = docService.uploadCover(locate(slug), file, UserContext.require());
         return ApiResponse.ok(Map.of("coverUrl", path));
+    }
+
+    @Operation(summary = "用外链设置封面（与上传二选一）")
+    @PutMapping("/{slug}/cover")
+    public ApiResponse<Map<String, String>> setCoverUrl(@PathVariable String org, @PathVariable String slug,
+                                                         @Valid @RequestBody CoverUrlRequest request) {
+        String path = docService.setCoverUrl(locate(slug), request.url(), UserContext.require());
+        return ApiResponse.ok(Map.of("coverUrl", path == null ? "" : path));
+    }
+
+    @Operation(summary = "清空封面")
+    @DeleteMapping("/{slug}/cover")
+    public ApiResponse<Void> clearCover(@PathVariable String org, @PathVariable String slug) {
+        docService.clearCover(locate(slug), UserContext.require());
+        return ApiResponse.ok(null);
     }
 
     @Operation(summary = "收藏知识库")

@@ -281,6 +281,48 @@ public class DocServiceImpl implements DocService {
     }
 
     @Override
+    public String setCoverUrl(Long kbId, String url, LoginUser user) {
+        // 门与上传同一档：改的是库元信息（knowledge_base.cover_url），不是资源
+        accessService.requireKb(kbId, KbAction.KB_EDIT_META, user);
+        String value = url == null ? null : url.trim();
+        if (value == null || value.isEmpty()) {
+            // 空串 = 清空：外链是手输的，粘错之后没有上传按钮可用来「覆盖掉」它
+            clearCover(kbId, user);
+            return null;
+        }
+        /*
+         * 外链封面必须只放行 http/https。
+         *
+         * <p>它最终会进 {@code img src}：{@code data:} 能塞进可执行内容（SVG 脚本），
+         * {@code javascript:} 更是直接可点。协议校验放在写入口，不靠渲染时过滤。</p>
+         *
+         * <p>不限制具体域名：这个字段的用途就是「把别处的图放进来」，限定域名等于
+         * 让功能失去意义。真正的风险（脚本协议）在上面已经挡掉了。</p>
+         */
+        if (!value.matches("https?://\\S+")) {
+            throw BizException.of(ErrorCode.FILE_TYPE_NOT_ALLOWED, "封面地址必须以 http:// 或 https:// 开头");
+        }
+        if (value.length() > 1024) {
+            throw BizException.of(ErrorCode.FILE_TYPE_NOT_ALLOWED, "封面地址过长");
+        }
+        KnowledgeBase update = new KnowledgeBase();
+        update.setId(kbId);
+        update.setCoverUrl(value);
+        knowledgeBaseService.updateById(update);
+        return value;
+    }
+
+    @Override
+    public void clearCover(Long kbId, LoginUser user) {
+        // 单独一个清空入口：外链是手输的，粘错之后没有上传按钮可用来「覆盖掉」它
+        accessService.requireKb(kbId, KbAction.KB_EDIT_META, user);
+        KnowledgeBase update = new KnowledgeBase();
+        update.setId(kbId);
+        update.setCoverUrl(null);
+        knowledgeBaseService.updateById(update);
+    }
+
+    @Override
     public DownloadPayload download(Long kbId, String path, LoginUser user) {
         // 下载只是把原文再读一遍，v1 误挂在写门上；v2 归回读轴（规范 §2.2）
         KnowledgeBase kb = accessService.requireKb(kbId, KbAction.DOC_READ, user);

@@ -97,6 +97,15 @@ export const kbApi = {
       headers: { 'Content-Type': 'multipart/form-data' }
     })
   },
+  /**
+   * 用外链设置封面（与上传二选一）。
+   *
+   * <p>传空串等价于清空 —— 外链是手输的，粘错之后没有上传按钮可以用来「覆盖掉」它。</p>
+   */
+  setCoverUrl: (kbSlug: string, url: string) =>
+    request<{ coverUrl: string }>({ url: `${kbPath(kbSlug)}/cover`, method: 'put', data: { url } }),
+  /** 清空封面 */
+  clearCover: (kbSlug: string) => request<void>({ url: `${kbPath(kbSlug)}/cover`, method: 'delete' }),
   /** 库内图片等资源都要过的组织门代理（后端 coverSrc 已是绝对到 org 的地址） */
   assetUrl: (kbSlug: string, relativePath: string) => kbUrl(kbSlug, `/asset/${encodePath(relativePath)}`),
   /** 维护名单（写轴的 members 档看这张表，规范 §2.3） */
