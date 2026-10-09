@@ -141,21 +141,39 @@ public class KnowledgeBaseServiceImpl extends ServiceImpl<KnowledgeBaseMapper, K
         return PageResult.of(list, result.getTotal(), result.getCurrent(), result.getSize());
     }
 
+    /** 门户列表：已发布且对当前访客可见的库，按页取。与 {@link #portalVisibleScope} 同源。 */
+    /**
+     * 门户可见集：组织未停用 + （已发布且对当前访客可见）。
+     *
+     * <p>可见性（public/org/private）仍然不参与 —— 它决定的是「谁能读」，与「是否出现在
+     * 门户」正交（见 {@code SharePublicationSupport} 的类注释）。</p>
+     *
+     * <p><b>统计与列表必须共用这一份。</b>两者是同一个界面的同一组数字：卡片写「知识库
+     * 总数 2」而下面只列得出 1 个，用户会先怀疑产品坏了而不是怀疑统计口径。此前两者
+     * 各写一份过滤，改了列表忘了统计就是这个样子 —— 合成一处之后想不一致都难。</p>
+     *
+     * @param access    按是否加密再筛（{@code public} / {@code private}）；null 不筛
+     * @param viewerId  当前访客 id；null = 未登录，此时只有 anonymous 档可见
+     */
+    private LambdaQueryWrapper<KnowledgeBase> portalVisibleScope(String access, Long viewerId) {
+        LambdaQueryWrapper<KnowledgeBase> wrapper = Wrappers.lambdaQuery();
+        accessService.applyTenantActiveScope(wrapper);
+        if (viewerId == null) {
+            wrapper.apply(SharePublicationSupport.publishedAndVisibleExists(access, null), TimeUtil.now());
+        } else {
+            // 参数个数必须与 SQL 占位符一一对应，匿名分支只用到 {0}
+            wrapper.apply(SharePublicationSupport.publishedAndVisibleExists(access, viewerId),
+                    TimeUtil.now(), viewerId);
+        }
+        return wrapper;
+    }
+
     @Override
     public PageResult<KbVO> pagePublished(String keyword, String sort, String access, Long viewerId, long page, long size) {
         long current = Math.max(1, page);
         long pageSize = Math.min(Math.max(1, size), 100);
 
-        LambdaQueryWrapper<KnowledgeBase> wrapper = Wrappers.lambdaQuery();
-        // 门户可见集两道闸：组织未停用 + （已发布且对当前访客可见）。
-        // 可见性（public/org/private）仍然不参与 —— 它决定的是「谁能读」，与「是否出现在门户」正交。
-        accessService.applyTenantActiveScope(wrapper);
-        if (viewerId == null) {
-            wrapper.apply(SharePublicationSupport.publishedAndVisibleExists(access, null), TimeUtil.now());
-        } else {
-            wrapper.apply(SharePublicationSupport.publishedAndVisibleExists(access, viewerId),
-                    TimeUtil.now(), viewerId);
-        }
+        LambdaQueryWrapper<KnowledgeBase> wrapper = portalVisibleScope(access, viewerId);
         if (keyword != null && !keyword.isBlank()) {
             String kw = keyword.trim();
             wrapper.and(w -> w.like(KnowledgeBase::getName, kw)
@@ -196,11 +214,10 @@ public class KnowledgeBaseServiceImpl extends ServiceImpl<KnowledgeBaseMapper, K
     }
 
     @Override
-    public PortalStatsVO portalStats() {
-        LambdaQueryWrapper<KnowledgeBase> wrapper = Wrappers.lambdaQuery();
-        accessService.applyTenantActiveScope(wrapper);
-        wrapper.apply(SharePublicationSupport.publishedExists(null), TimeUtil.now());
-        List<KnowledgeBase> list = list(wrapper);
+    public PortalStatsVO portalStats(Long viewerId) {
+        // 与列表同一份可见集：卡片上的「知识库总数 / 共享 / 加密」必须等于下面列得出的条数，
+        // 否则用户看到「总数 2、列表 1 个」会先怀疑产品坏了
+        List<KnowledgeBase> list = list(portalVisibleScope(null, viewerId));
 
         Map<Long, Share> shares = publicationSupport.findOf(list.stream().map(KnowledgeBase::getId).toList());
         long kbPublic = list.stream()

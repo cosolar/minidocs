@@ -47,7 +47,8 @@ public interface KnowledgeBaseService extends IService<KnowledgeBase> {
     PageResult<KbVO> pagePublished(String keyword, String sort, String access, Long viewerId, long page, long size);
 
     /** 门户统计：已发布库的总数、公开 / 私有拆分与文档量。 */
-    PortalStatsVO portalStats();
+    /** @param viewerId 当前访客 id；null = 未登录，统计口径与门户列表一致 */
+    PortalStatsVO portalStats(Long viewerId);
 
     KbVO detail(Long id, LoginUser viewer);
 

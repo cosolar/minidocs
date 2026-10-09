@@ -91,7 +91,7 @@ public class PortalApiController {
     @GetMapping("/api/portal/home")
     public ApiResponse<PortalHomeVO> home() {
         LoginUser user = currentUserResolver.resolve();
-        return ApiResponse.ok(new PortalHomeVO(knowledgeBaseService.portalStats(), user));
+        return ApiResponse.ok(new PortalHomeVO(knowledgeBaseService.portalStats(user == null ? null : user.id()), user));
     }
 
     /**
