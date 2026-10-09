@@ -167,7 +167,19 @@ function toggle() {
   collapsed.value = !collapsed.value
 }
 
+/**
+ * 点行名。
+ *
+ * <p><b>目录是展开/收起，文档与图片才是打开。</b>此前一律 emit select，而工作区那边
+ * 只处理 doc 与image，目录落空什么都不做 —— 于是「点目录名展开」这个所有文件树的
+ * 基本行为在这里不成立，用户只能去点那个16px 的小箭头，看起来就是「点击没反应」。
+ * 目录名与箭头是两个入口，但语义必须一致：箭头能展开，名字也该能。</p>
+ */
 function onSelect() {
+  if (props.node.type === 'dir') {
+    toggle()
+    return
+  }
   emit('select', props.node)
 }
 
@@ -310,7 +322,13 @@ function onDrop(event: DragEvent) {
 
       <MdIcon class="md-ad-tree__type" :name="typeIcon" :size="15" />
 
-      <span class="md-ad-tree__name" :class="{ 'is-asset': node.type === 'image' }" :title="node.path" @click="onSelect">{{ displayText }}</span>
+      <!-- title 分两种：目录说「点开合」，文档才给完整路径（悬停看全名是这里的刚需） -->
+      <span
+        class="md-ad-tree__name"
+        :class="{ 'is-asset': node.type === 'image' }"
+        :title="node.type === 'dir' ? '点击展开 / 收起' : node.path"
+        @click="onSelect"
+      >{{ displayText }}</span>
 
       <!--
         篇数排在「更多」左边而不是行的最右：最右那一列平时是透明的（opacity:0），
