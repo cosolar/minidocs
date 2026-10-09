@@ -28,6 +28,11 @@ const props = defineProps<{
   kbName: string
   views?: number
   expires?: string
+  /**
+   * 开源仓库地址（后端下发）：顶栏在「设置」后显示一个 GitHub 按钮跳到这里。
+   * 空 = 不显示 —— 作者没配、或配了但暂时藏起来了。
+   */
+  repoUrl?: string
   /** 分享者配置的导航菜单；为空时整块不渲染 */
   menu?: NavMenuItem[]
   /** 当前高亮的菜单项路径 */
@@ -188,6 +193,25 @@ async function share() {
 
       <!-- 阅读设置：外观（明亮/暗黑）+ 正文字体，只存在访客这台浏览器上 -->
       <ShareSettingsMenu />
+
+      <!--
+        开源仓库：放在设置之后、分享之前。位置有讲究 —— 它与设置一样是「关于这一页」
+        的动作，而分享是「把这一页传出去」，两者不同类，所以不挨着。
+
+        用 a 而不是 button：这是纯导航，且要支持新标签页与「复制链接地址」这类浏览器
+        原生行为。地址由后端归一过（只放行 http/https），前端不再二次过滤。
+      -->
+      <a
+        v-if="repoUrl"
+        class="md-share__action"
+        :href="repoUrl"
+        target="_blank"
+        rel="noopener noreferrer"
+        title="查看开源仓库"
+        aria-label="查看开源仓库"
+      >
+        <Icon name="github" :size="17" />
+      </a>
 
       <button
         type="button"

@@ -87,6 +87,10 @@ export interface ReadView {
   views?: number
   shareToken?: string
   expiresText?: string
+  /** 开源仓库地址；分享页顶栏的GitHub 按钮跳到这里。未配置时为 undefined */
+  repoUrl?: string
+  /** 是否显示仓库按钮 —— 后端已与 repoUrl 绑死，没地址时恒为 false */
+  showRepo?: boolean
   singleDoc: boolean
 
   prevPath?: string

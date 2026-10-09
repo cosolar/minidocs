@@ -109,6 +109,7 @@ public class ShareServiceImpl implements ShareService {
             share.setExpiresAt(resolveExpiresAt(request.expiresIn()));
             share.setMenuConfig(buildMenuConfig(kb, request.menu()));
             applyPortalScope(share, request.portalScope(), null);
+            applyRepo(share, request.repoUrl(), request.showRepo());
             try {
                 shareMapper.insert(share);
             } catch (DuplicateKeyException e) {
@@ -135,6 +136,7 @@ public class ShareServiceImpl implements ShareService {
             share.setExpiresAt(resolveExpiresAt(request.expiresIn()));
             // null = 本次不动菜单（只改口令 / 有效期的入口不发这个字段），空数组 = 清掉菜单
             applyPortalScope(share, request.portalScope(), existing.getPortalScope());
+            applyRepo(share, request.repoUrl(), request.showRepo());
             if (request.menu() != null) {
                 share.setMenuConfig(buildMenuConfig(kb, request.menu()));
             }
@@ -213,6 +215,7 @@ public class ShareServiceImpl implements ShareService {
             share.setExpiresAt(resolveExpiresAt(request.expiresIn()));
         }
             applyPortalScope(share, request.portalScope(), share.getPortalScope());
+            applyRepo(share, request.repoUrl(), request.showRepo());
         persistEditable(share);
         return toVO(share, baseUrl, kb, actor);
     }
@@ -464,6 +467,8 @@ public class ShareServiceImpl implements ShareService {
                 .set(Share::getMenuConfig, share.getMenuConfig())
                 // 门户曝光范围：与 menu / token 同一个持久化出口，创建与更新两条路径一次覆盖
                 .set(Share::getPortalScope, share.getPortalScope() == null ? Share.PORTAL_ALL : share.getPortalScope())
+                .set(Share::getRepoUrl, share.getRepoUrl())
+                .set(Share::getShowRepo, share.getShowRepo() == null ? 0 : share.getShowRepo())
                 .set(Share::getUpdatedAt, TimeUtil.now()));
     }
 
@@ -484,6 +489,23 @@ public class ShareServiceImpl implements ShareService {
             return;
         }
         share.setPortalScope(current == null ? Share.PORTAL_ALL : current);
+    }
+
+    /**
+     * 开源仓库入口：地址与显示开关。
+     *
+     * <p>地址在 DTO 上已用 {@code @Pattern} 挡掉非 http/https 协议，这里再做一次
+     * 归一（去空白）。两道看着重复：注解挡的是「协议不对」，这里挡的是「空白 /
+     * 超长 / 拼错」这类脏值，两边失败的原因不同，错误信息也不同。</p>
+     *
+     * <p>{@code showRepo} 只在地址非空时允许为真：配了开关但没地址时按钮无处可去，
+     * 而「按钮在但不跳转」是最容易被当成 bug 的那种状态。</p>
+     */
+    private void applyRepo(Share share, String repoUrl, Boolean showRepo) {
+        String url = repoUrl == null ? null : repoUrl.trim();
+        share.setRepoUrl(url == null || url.isEmpty() ? null : url);
+        boolean want = Boolean.TRUE.equals(showRepo) && share.getRepoUrl() != null;
+        share.setShowRepo(want ? 1 : 0);
     }
 
     private void applyPassword(Share share, String password, Boolean encrypted, String currentHash) {

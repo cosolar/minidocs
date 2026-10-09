@@ -35,6 +35,8 @@ const saving = ref(false)
 const form = reactive({
   encrypted: false,
   portalScope: 'anonymous' as const,
+  repoUrl: '',
+  showRepo: false,
   password: '',
   expiresIn: 'forever',
   /** 自定义短链：留空 = 自动生成。仅首次创建时生效，已有链接时这一项禁用 */
@@ -81,6 +83,8 @@ watch(
       if (existing) {
         form.encrypted = existing.encrypted
         form.portalScope = (existing.portalScope || 'anonymous') as PortalScope
+        form.repoUrl = existing.repoUrl || ''
+        form.showRepo = Boolean(existing.showRepo)
         form.expiresIn = existing.expiresIn || 'forever'
         // 回填当前短链：改不改是用户的决定，看到自己填的是什么才谈得上改
         form.token = existing.token || ''
@@ -136,6 +140,8 @@ async function submit() {
       docPath: props.docPath || undefined,
       encrypted: form.encrypted,
       portalScope: form.portalScope,
+      repoUrl: form.repoUrl.trim() || undefined,
+      showRepo: form.showRepo,
       // 空串在这里一律不发：后端把 null 当「沿用原密码」，而清空密码是另一个动作
       password: form.password || undefined,
       expiresIn: form.expiresIn,
@@ -312,6 +318,33 @@ const portalScopeHint = computed(() => {
         </div>
       </section>
 
+      <!--
+        开源仓库入口：分享页顶栏在「设置」按钮后多一个 GitHub 图标，点它跳到仓库。
+
+        <p>地址与开关分成两个控件：地址先配好、审阅期再把按钮藏起来，是真实会用到的
+        状态。若合成一个（「有地址就显示」），临时撤按钮只能删地址。</p>
+
+        <p>开关在没填地址时禁用：后端也会兜（没地址不给开），但前端先灰掉更好 ——
+        让作者在同一个界面里就能看出「这个开关现在还没法用」。</p>
+      -->
+      <div v-if="kbScope" class="md-share-field md-share-field--stack">
+        <div class="md-share-field__text">
+          <span class="md-share-field__label"><MdIcon name="github" :size="14" />开源仓库</span>
+          <span class="md-share-field__hint">读者可从分享页顶栏一键跳到你的仓库；留空则不显示该按钮</span>
+        </div>
+        <el-input
+          v-model="form.repoUrl"
+          placeholder="https://github.com/cosolar/minidocs"
+          maxlength="512"
+          clearable
+        />
+        <el-switch
+          v-model="form.showRepo"
+          :disabled="!form.repoUrl.trim()"
+          active-text="在分享页顶栏显示仓库按钮"
+          inline-prompt
+        />
+      </div>
       <!-- 导航菜单：只有整库分享才有「目录」可挑，单篇分享不显示这一块 -->
       <section v-if="kbScope" class="md-share-panel">
         <h4 class="md-share-panel__title">导航菜单</h4>

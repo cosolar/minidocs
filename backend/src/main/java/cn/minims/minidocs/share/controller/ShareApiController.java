@@ -152,8 +152,21 @@ public class ShareApiController {
             throw BizException.notFound("内容已删除");
         }
         view.setMenu(resolveMenu(share, view));
-        // 顶栏「分享」按钮复制的绝对地址与后台管理台那条 URL 同源，都出自 SiteBaseUrlResolver
+        /*
+         * 顶栏「分享」按钮复制的绝对地址与后台管理台那条 URL 同源，都出自 SiteBaseUrlResolver
+         */
         view.setSiteBase(siteBaseUrlResolver.resolve(request));
+        /*
+         * 开源仓库入口。
+         *
+         * <p>与后台那条「分享信息」接口同源（同一个 Share 行），但这里多一层判断：
+         * 只有 showRepo 为真且地址非空才下发。分享页是匿名可读的，把一个作者只想
+         * 自己看见的地址泄给所有访客是最容易被忽略的一种越界。</p>
+         */
+        if (Integer.valueOf(1).equals(share.getShowRepo()) && share.getRepoUrl() != null) {
+            view.setRepoUrl(share.getRepoUrl());
+            view.setShowRepo(true);
+        }
 
         return ApiResponse.ok(ShareReadVO.ok(view));
     }

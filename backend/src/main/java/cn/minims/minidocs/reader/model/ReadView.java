@@ -100,6 +100,15 @@ public class ReadView {
     private Long views;
     private String shareToken;
     private String expiresText;
+    /**
+     * 开源仓库地址；分享页顶栏的 GitHub 按钮跳到这里。null = 不显示该按钮。
+     *
+     * <p>只在分享页由 {@code ShareApiController} 填写，门户阅读不设 —— 门户上放一个
+     * 「去仓库」入口没有对应的语义（读者不是来逛仓库的）。</p>
+     */
+    private String repoUrl;
+    /** 是否显示仓库按钮。与 {@link #repoUrl} 一起下发，单独用没有意义 */
+    private boolean showRepo;
     private boolean singleDoc;
 
     private String prevPath;

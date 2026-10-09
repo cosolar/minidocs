@@ -67,6 +67,24 @@ public class Share {
     /** 门户曝光范围，取值见 {@link #PORTAL_ALL} 等常量；null 视为 {@link #PORTAL_ALL} */
     private String portalScope;
 
+    /**
+     * 开源仓库地址；分享页顶栏的 git 按钮跳到这里。null = 不配。
+     *
+     * <p>存的是已归一的绝对地址（见 {@code ShareDtos} 的 {@code normalizeRepoUrl}）：
+     * 它最终会进 {@code href}，所以必须在写入口就把 {@code javascript:} 这类协议挡掉，
+     * 不能等到渲染时再判断。</p>
+     */
+    private String repoUrl;
+
+    /**
+     * 是否在分享页顶栏显示仓库按钮。
+     *
+     * <p>与 {@link #repoUrl} 分开存而不是「有地址就显示」：作者可能先把地址配好、
+     * 审阅期间先藏起来。没有这一档的话，想临时撤掉按钮只能把地址删掉，
+     * 删完还得记住它是什么。</p>
+     */
+    private Integer showRepo;
+
     /** null = 永久有效 */
     private LocalDateTime expiresAt;
 

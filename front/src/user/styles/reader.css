@@ -871,6 +871,8 @@ button { font-family: inherit; }
   width: 36px; height: 36px; border-radius: 10px;
   border: 1px solid var(--md-border-strong); background: var(--md-surface-2);
   color: var(--md-text-2); display: grid; place-items: center; cursor: pointer;
+  /* 这个类同时挂在 <a> 上（开源仓库入口）：a 默认带下划线与蓝色，grid 居中不抵消那两点 */
+  text-decoration: none;
   transition: border-color .15s ease, background-color .15s ease, color .15s ease;
 }
 .md-share__action:hover { border-color: var(--md-primary); color: var(--md-primary); }

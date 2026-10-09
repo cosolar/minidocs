@@ -42,6 +42,18 @@ public final class ShareDtos {
             @Pattern(regexp = "anonymous|member|maintainer",
                     message = "门户可见范围只能是 anonymous / member / maintainer") String portalScope,
             /**
+             * 开源仓库地址；分享页顶栏的git 按钮跳到这里。留空 = 不配。
+             *
+             * <p>只放行 http/https：它最终会进 {@code href}，
+             * {@code javascript:} 那类协议必须在这里挡掉，不能等到渲染时再判断。</p>
+             */
+            @Size(max = 512, message = "仓库地址不能超过 512 字符")
+            @Pattern(regexp = "https?://\\S+$|^$",
+                    message = "仓库地址必须以 http:// 或 https:// 开头")
+            String repoUrl,
+            /** 顶栏是否显示仓库按钮；null = 不动现有值 */
+            Boolean showRepo,
+            /**
              * 导航菜单：null = 不动现有配置，空数组 = 清掉菜单。
              *
              * <p>区分这两者是因为同一个入口既要能「只改有效期」（前端不发这个字段），
@@ -60,7 +72,7 @@ public final class ShareDtos {
         /** 不带菜单与短链的便捷构造（组织隔离等旧调用点用）。 */
         public CreateRequest(String kbSlug, String scope, String docPath, String password,
                              Boolean encrypted, String expiresIn) {
-            this(kbSlug, scope, docPath, password, encrypted, expiresIn, null, null, null);
+            this(kbSlug, scope, docPath, password, encrypted, expiresIn, null, null, null, null, null);
         }
     }
 
@@ -70,11 +82,20 @@ public final class ShareDtos {
             String expiresIn,
             /** 门户曝光范围；null = 不动现有值 */
             @Pattern(regexp = "anonymous|member|maintainer",
-                    message = "门户可见范围只能是 anonymous / member / maintainer") String portalScope) {
+                    message = "门户可见范围只能是 anonymous / member / maintainer") String portalScope,
+            /**
+             * 开源仓库地址；留空 = 不配。协议限制同 {@link CreateRequest}。
+             */
+            @Size(max = 512, message = "仓库地址不能超过 512 字符")
+            @Pattern(regexp = "https?://\\S+$|^$",
+                    message = "仓库地址必须以 http:// 或 https:// 开头")
+            String repoUrl,
+            /** 顶栏是否显示仓库按钮；null = 不动现有值 */
+            Boolean showRepo) {
 
         /** 只改口令与有效期的旧调用点：门户曝光范围不动。 */
         public UpdateRequest(String password, Boolean encrypted, String expiresIn) {
-            this(password, encrypted, expiresIn, null);
+            this(password, encrypted, expiresIn, null, null, null);
         }
     }
 
@@ -86,13 +107,17 @@ public final class ShareDtos {
      * 每一行的撤销按钮都是亮的，点下去一半 403。</p>
      */
     public record ShareVO(Long id, String token, String url, Long kbId, String kbSlug, String kbName,
-                          String scope, String docPath, String docName, boolean encrypted, String expiresIn,
-                          LocalDateTime expiresAt, int views, long uv, String status,
-                          LocalDateTime createdAt, LocalDateTime updatedAt, boolean canGovern,
-                          String portalScope, List<NavMenuItem> menu) {
+                           String scope, String docPath, String docName, boolean encrypted, String expiresIn,
+                           LocalDateTime expiresAt, int views, long uv, String status,
+                           LocalDateTime createdAt, LocalDateTime updatedAt, boolean canGovern,
+                           String portalScope, List<NavMenuItem> menu,
+                           /** 开源仓库地址；null = 未配置 */
+                           String repoUrl,
+                           /** 顶栏是否显示仓库按钮。恒为 false 当 {@code repoUrl} 为空 */
+                           boolean showRepo) {
 
         public static ShareVO of(Share share, String url, KnowledgeBase kb, String docName,
-                                 long uv, String expiresIn, boolean canGovern, List<NavMenuItem> menu) {
+                                  long uv, String expiresIn, boolean canGovern, List<NavMenuItem> menu) {
             return new ShareVO(share.getId(), share.getToken(), url, share.getKbId(),
                     kb == null ? null : kb.getSlug(), kb == null ? null : kb.getName(),
                     share.getScope(), share.getDocPath(), docName, share.encrypted(), expiresIn,
@@ -100,7 +125,11 @@ public final class ShareDtos {
                     share.status(), share.getCreatedAt(), share.getUpdatedAt(), canGovern,
                     // null 归一为 anonymous：迁移前的老行没这一列，前端拿到 null 会显示成空档位
                     share.getPortalScope() == null ? Share.PORTAL_ALL : share.getPortalScope(),
-                    menu);
+                    menu,
+                    // showRepo 在写入口已与 repoUrl 绑死（没地址不给开），这里再兜一次：
+                    // 分享页是匿名可读的，一个「按钮在但不跳转」的入口最难解释
+                    share.getRepoUrl(),
+                    share.getRepoUrl() != null && Integer.valueOf(1).equals(share.getShowRepo()));
         }
     }
 }

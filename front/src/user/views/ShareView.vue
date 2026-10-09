@@ -265,6 +265,7 @@ function pickMenu(item: NavMenuItem) {
         :all-mode="allMode"
         :views="view.views"
         :expires="view.expiresText"
+        :repo-url="view.repoUrl"
         :menu="menu"
         :active-path="activeMenuPath"
         @pick="pickMenu"
