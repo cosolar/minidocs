@@ -78,6 +78,12 @@ public class MarkdownService {
     private final MarkdownSanitizer sanitizer;
     private final Parser parser;
     private final HtmlRenderer renderer;
+    /** 表格分隔行每格的最少横线数 —— flexmark 的硬要求，GFM 规范本身没写这一条 */
+    private static final int DELIMITER_MIN_DASHES = 3;
+    /** 合法分隔格：冒号? + 横线+ + 冒号? */
+    private static final java.util.regex.Pattern DELIMITER_CELL =
+            java.util.regex.Pattern.compile("^:?-+:?$");
+
     private final Cache<String, Neutral> cache;
 
     public MarkdownService(MiniDocsProperties properties, MarkdownSanitizer sanitizer) {
@@ -102,6 +108,111 @@ public class MarkdownService {
         this.parser = Parser.builder(options).build();
         this.renderer = HtmlRenderer.builder(options).build();
         this.cache = Caffeine.newBuilder().maximumSize(properties.getRenderCacheSize()).build();
+    }
+
+    /**
+     * 表格分隔行归一：横线不足 3 个的补足。
+     *
+     * <p><b>为什么需要这一步：同一个库有两套渲染器，对「分隔行最少几个横线」的判断
+     * 不一致。</b>工作区预览走 Cherry Markdown（前端），阅读页与分享页走本类的 flexmark
+     * （后端）。GFM 规范只要求每格是「若干横线 + 可选的首尾冒号」，而 flexmark 额外要求
+     * 至少 3 个 —— 于是 {@code |:-|:---|} 这种合法 GFM 在工作区里渲染成表格、在阅读页
+     * 里塌成一段带竖线的文字。</p>
+     *
+     * <p>实测（agentlearn/docs/README.md）：全文 5 个分割行里，只有第一格写成 {@code :-}
+     * （1 个横线）的那一个没渲染，其余 4 个（4–6 个横线）都正常。</p>
+     *
+     * <p><b>改渲染器而不是改内容</b>：这些文档多半是工具或模型生成的，让作者去逐篇把
+     * {@code :-} 改成 {@code :--} 既不现实也易复发；而 Cherry 已经能渲染它，说明「能渲染」
+     * 才是这套产品该有的行为。</p>
+     *
+     * <p>只碰「整行都由分隔格组成」的那些行，且只补横线、不动冒号与列数 —— 表格里的
+     * {@code ---} 会被误伤，所以要求该行至少含 2 个 {@code |} 且每格都匹配
+     * {@code :?-+:?}。</p>
+     */
+    private static String normalizeTableDelimiters(String md) {
+        // 按行处理但保留原换行符：不能把 CRLF 一起吃掉，那会让整篇文档变成一行
+        String[] lines = md.split("\r\n|\n", -1);
+        boolean changed = false;
+        for (int i = 0; i < lines.length; i++) {
+            String line = lines[i];
+            String t = line.trim();
+            if (!t.startsWith("|") || t.indexOf('|', 1) < 0) {
+                continue;
+            }
+            // 整行按 | 切开后每格都必须是「冒号? + 横线+ + 冒号?」，否则不是分隔行
+            String[] cells = t.split("\\|", -1);
+            boolean isDelimiter = true;
+            boolean needsPad = false;
+            for (int c = 0; c < cells.length; c++) {
+                String cell = cells[c].trim();
+                if (cell.isEmpty()) {
+                    // 首尾空格格（| A | 切出来的）跳过
+                    continue;
+                }
+                if (!DELIMITER_CELL.matcher(cell).matches()) {
+                    isDelimiter = false;
+                    break;
+                }
+                if (countDashes(cell) < DELIMITER_MIN_DASHES) {
+                    needsPad = true;
+                }
+            }
+            if (!isDelimiter || !needsPad) {
+                continue;
+            }
+            StringBuilder sb = new StringBuilder();
+            for (int c = 0; c < cells.length; c++) {
+                if (c > 0) {
+                    sb.append('|');
+                }
+                String cell = cells[c].trim();
+                if (cell.isEmpty()) {
+                    sb.append(cell);
+                    continue;
+                }
+                /*
+                 * 首尾冒号要分开数，不能用 startsWith/endsWith 各判一次 ——
+                 * {@code :-} 同样 endsWith(":"), 那样会把「左对齐」写成「右对齐」，
+                 * 输出 {@code --:} 这种废分隔行，表照样渲染不出来。
+                 */
+                int lead = 0;
+                while (lead < cell.length() && cell.charAt(lead) == ':') {
+                    lead++;
+                }
+                int tail = 0;
+                while (tail < cell.length() - lead
+                        && cell.charAt(cell.length() - 1 - tail) == ':') {
+                    tail++;
+                }
+                if (lead > 0) {
+                    sb.append(':');
+                }
+                int dashes = countDashes(cell);
+                // 写 max(原有, 下限) 根，而不是「只补差额」—— 后者在原有横线已达标时
+                // 一次都不写，那格就退化成一个冒号，整行反而废了
+                int total = Math.max(dashes, DELIMITER_MIN_DASHES);
+                for (int d = 0; d < total; d++) {
+                    sb.append('-');
+                }
+                if (tail > 0) {
+                    sb.append(':');
+                }
+            }
+            lines[i] = sb.toString();
+            changed = true;
+        }
+        return changed ? String.join("\n", lines) : md;
+    }
+
+    private static int countDashes(String cell) {
+        int n = 0;
+        for (int i = 0; i < cell.length(); i++) {
+            if (cell.charAt(i) == '-') {
+                n++;
+            }
+        }
+        return n;
     }
 
     /**
@@ -184,7 +295,7 @@ public class MarkdownService {
         FrontMatterParser.Parsed parsed = FrontMatterParser.parse(content);
         Map<String, Object> frontmatter = parsed.data();
 
-        String rawHtml = renderer.render(parser.parse(parsed.body()));
+        String rawHtml = renderer.render(parser.parse(normalizeTableDelimiters(parsed.body())));
 
         Document document = Jsoup.parseBodyFragment(rawHtml);
         document.outputSettings().prettyPrint(false);
