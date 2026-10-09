@@ -332,7 +332,23 @@
 .md-navitem:not(.is-active):hover { background: color-mix(in srgb, var(--tone, var(--md-text-3)) 7%, transparent); }
 /* 激活态图标沿用自己的色相（底色已表明位置），但压深一档保证对比 */
 .md-navitem.is-active .md-navitem__icon { color: color-mix(in srgb, var(--tone, var(--md-primary)) 78%, var(--md-text)); }
-.md-sidebar__foot { padding: 10px 12px; border-top: 1px solid var(--md-border); font-size: 12px; color: var(--md-text-3); }
+/*
+ * 侧栏底部：版本标识兼仓库入口。
+ *
+ * <p>做成整块可点，而不是只给文字加链接样式 —— 12px 的小字热区太窄，
+ * 而底部本来就有那条分隔线托着，按块给 hover 底色读起来更自然。</p>
+ */
+.md-sidebar__foot {
+  display: flex; align-items: center; gap: 6px;
+  padding: 10px 12px; border-top: 1px solid var(--md-border);
+  font-size: 12px; color: var(--md-text-3); text-decoration: none;
+  transition: color .15s ease, background-color .15s ease;
+}
+.md-sidebar__foot:hover { background: var(--md-surface-2); color: var(--md-primary); }
+.md-sidebar__foot:focus-visible { outline: 2px solid var(--md-primary); outline-offset: -2px; }
+/* 外链图标在常态下压到很淡：它是「这是个出口」的提示，不该抢版本号本身 */
+.md-sidebar__foot-ext { opacity: .55; transition: opacity .15s ease; }
+.md-sidebar__foot:hover .md-sidebar__foot-ext { opacity: 1; }
 
 .md-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .md-header {
