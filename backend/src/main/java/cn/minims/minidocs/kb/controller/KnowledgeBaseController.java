@@ -103,8 +103,12 @@ public class KnowledgeBaseController {
 
     @Operation(summary = "拉取远程更新到工作副本（云端库）")
     @PostMapping("/{slug}/git/pull")
-    public ApiResponse<GitSyncVO> gitPull(@PathVariable String org, @PathVariable String slug) {
-        return ApiResponse.ok(knowledgeBaseService.gitPull(locate(slug), UserContext.require()));
+    public ApiResponse<GitSyncVO> gitPull(@PathVariable String org,
+                                          @PathVariable String slug,
+                                          @RequestParam(defaultValue = "false") boolean force) {
+        // force 走 query 而不是 body：这个动作没有请求体，而「丢弃本地改动」这种不可逆的
+        // 选择用query 传，前端也更容易在 URL 上看出这次调用带了什么
+        return ApiResponse.ok(knowledgeBaseService.gitPull(locate(slug), force, UserContext.require()));
     }
 
     @Operation(summary = "提交并推送工作副本的改动（云端库）")

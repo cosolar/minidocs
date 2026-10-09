@@ -395,13 +395,18 @@ public class KnowledgeBaseServiceImpl extends ServiceImpl<KnowledgeBaseMapper, K
      * <p>门用 {@code DOC_WRITE} 而不是读权：拉取会直接改写磁盘上的正文，这与「编辑文档」是同一类
      * 后果，只读成员不该能触发。不套 {@code @Transactional}：这一步改的是文件而不是数据库，
      * 而且失败时必须把「上次同步失败」这行状态留下来 —— 放在事务里会被回滚掉。</p>
+     *
+     * <p>{@code force} 走的是「丢弃本地未提交改动再拉」，比普通的合并拉取更危险
+     * （作者的改动会真的没了），所以 controller 那边要求显式传true 才生效，
+     * 且前端必须先弹确认框把「会丢什么」说清楚。</p>
      */
     @Override
-    public GitSyncVO gitPull(Long id, LoginUser actor) {
+    public GitSyncVO gitPull(Long id, boolean force, LoginUser actor) {
         KnowledgeBase kb = requireGitKb(id, KbAction.DOC_WRITE, actor);
         Path root = vaultFileService.rootOf(kb.getStorageKey());
         try {
-            SyncOutcome outcome = gitVaultService.pull(root, kb.getGitBranch(), kb.getGitUsername(), decryptToken(kb));
+            SyncOutcome outcome = gitVaultService.pull(root, kb.getGitBranch(), kb.getGitUsername(),
+                    decryptToken(kb), force);
             // 拉进来的提交会带进新文档与删除，目录树缓存和 doc_count 都得跟着重算
             vaultFileService.invalidateTree(root);
             touch(kb.getId());

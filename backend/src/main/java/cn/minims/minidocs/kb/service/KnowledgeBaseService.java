@@ -73,7 +73,8 @@ public interface KnowledgeBaseService extends IService<KnowledgeBase> {
      *
      * @throws cn.minims.minidocs.common.exception.BizException 本地有未提交改动或远程冲突 → 409，网络/认证失败 → 502
      */
-    GitSyncVO gitPull(Long id, LoginUser actor);
+    /** @param force true = 丢弃本地未提交改动（hard reset）后再拉；false = 合并拉取，脏工作区直接拒绝 */
+    GitSyncVO gitPull(Long id, boolean force, LoginUser actor);
 
     /**
      * 把工作副本的改动提交并推送到远程。

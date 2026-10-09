@@ -1825,3 +1825,45 @@ body.is-col-resizing .md-ws__bytemd-resizer::after { background: var(--md-primar
 [data-theme='dark'] .md-navitem:not(.is-active):hover {
   background: color-mix(in srgb, var(--tone, var(--md-text-3)) 12%, transparent);
 }
+
+/*
+ * 拉取方式选择面板。
+ *
+ * <p>两个选项做成整行可点的卡片（而不是 radio），因为「强制覆盖」那一条要放三行字：
+ * 后果、影响范围、以及会丢多少个文件。radio 的标签塞不下这些，而塞不下就会退化成
+ * 一句「确定覆盖？」—— 那正是这个面板要消除的东西。</p>
+ */
+.md-pullpick { display: flex; flex-direction: column; gap: 8px; }
+.md-pullpick__lead { margin: 0 0 4px; color: var(--md-text-2); font-size: 13px; }
+.md-pullpick__opt {
+  display: flex; align-items: flex-start; gap: 10px; width: 100%;
+  padding: 12px 14px; text-align: left;
+  border: 1px solid var(--md-border); border-radius: 10px;
+  background: var(--md-surface); cursor: pointer;
+  transition: border-color .15s ease, background .15s ease;
+}
+.md-pullpick__opt:hover { border-color: var(--md-primary); background: var(--md-primary-soft); }
+.md-pullpick__opt.is-on { border-color: var(--md-primary); background: var(--md-primary-soft); }
+/* 破坏性那一档只在选中时才染红：常驻的红会被读成「这里出事了」 */
+.md-pullpick__opt--danger.is-on,
+.md-pullpick__opt--danger:hover { border-color: #dc2626; background: #fef2f2; }
+.md-pullpick__mark {
+  width: 18px; height: 18px; flex-shrink: 0; margin-top: 1px;
+  border: 1.5px solid var(--md-border-strong); border-radius: 50%;
+  display: grid; place-items: center; color: transparent;
+  transition: border-color .15s ease, color .15s ease;
+}
+.md-pullpick__opt.is-on .md-pullpick__mark { border-color: currentColor; color: currentColor; }
+.md-pullpick__opt--danger.is-on .md-pullpick__mark,
+.md-pullpick__opt--danger:hover .md-pullpick__mark { border-color: #dc2626; color: #dc2626; }
+.md-pullpick__body { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.md-pullpick__body b { font-size: 13.5px; color: var(--md-text); }
+.md-pullpick__body em { font-style: normal; color: var(--md-text-2); font-size: 12.5px; line-height: 1.55; }
+.md-pullpick__body strong { color: #dc2626; }
+
+/* 文件清单默认收起：多数时候用户不需要看，展开也只是为了确认一下 */
+.md-pullpick__list { font-size: 12.5px; color: var(--md-text-2); }
+.md-pullpick__list summary { cursor: pointer; color: var(--md-text-3); }
+.md-pullpick__list ul { margin: 8px 0 0; padding-left: 18px; max-height: 160px; overflow-y: auto; }
+.md-pullpick__list li { margin: 2px 0; word-break: break-all; }
+.md-pullpick__list code { font-size: 12px; }

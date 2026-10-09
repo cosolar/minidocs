@@ -110,7 +110,15 @@ export const kbApi = {
   /** 云端库工作副本状态（改动数 / 领先落后 / HEAD） */
   gitStatus: (kbSlug: string) => request<GitStatusVO>({ url: `${kbPath(kbSlug)}/git` }),
   /** 拉取远程更新到工作副本。本地脏或远程冲突时后端给 409，由调用方提示 */
-  gitPull: (kbSlug: string) => request<GitSyncVO>({ url: `${kbPath(kbSlug)}/git/pull`, method: 'post' }),
+  /**
+   * 拉取远程更新。
+   *
+   * @param force true = 先 hard reset 丢弃本地未提交改动（含未跟踪文件）再拉。
+   *   走 query 而非 body：这个动作没有请求体，而「丢弃本地改动」这种不可逆的选择
+   *   用 URL 能一眼看出这次调用带了什么。
+   */
+  gitPull: (kbSlug: string, force = false) =>
+    request<GitSyncVO>({ url: `${kbPath(kbSlug)}/git/pull?force=${force}`, method: 'post' }),
   /** 提交并推送工作副本的改动 */
   gitCommit: (kbSlug: string, message?: string) =>
     request<GitSyncVO>({ url: `${kbPath(kbSlug)}/git/commit`, method: 'post', data: { message } })

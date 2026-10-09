@@ -13,6 +13,7 @@ import MdIcon from '@/admin/components/MdIcon.vue'
 import ShareDialog from '@/admin/components/ShareDialog.vue'
 import KbSettingsDialog from '@/admin/components/KbSettingsDialog.vue'
 import GitCommitDialog from '@/admin/components/GitCommitDialog.vue'
+import GitPullDialog from '@/admin/components/GitPullDialog.vue'
 import ImagePreview from '@/user/components/ImagePreview.vue'
 import { draggingPath } from '@/admin/components/docDrag'
 import { docApi, kbApi } from '@/admin/api'
@@ -1230,6 +1231,8 @@ const gitStatus = ref<GitStatusVO | null>(null)
 const gitBusy = ref(false)
 /** 提交推送面板：动作本身在面板里，这里只持有开关与它要用的状态 */
 const commitVisible = ref(false)
+/** 拉取方式选择面板：动作在面板里，这里只持有开关 */
+const pullVisible = ref(false)
 
 /* ---------------------------------------------------------------- 库设置面板 */
 const settingsVisible = ref(false)
@@ -1398,10 +1401,29 @@ watch(cloning, (now, before) => {
   }
 }, { immediate: true })
 
-async function gitPull() {
+/**
+ * 「拉取」只负责开面板，真正的拉取在 {@link GitPullDialog} 选完方式之后。
+ *
+ * <p>为什么不直接拉：工作区有未提交改动时，后端会拒绝（本地脏）。而作者此刻有两条路 ——
+ * 先提交，或者丢掉改动直接更新。这两条后果完全不同，藏在一个 tooltip 里说不清，
+ * 所以摆成一次显式选择。</p>
+ */
+function openPullDialog() {
+  pullVisible.value = true
+}
+
+/**
+ * 按面板选的方式拉取。
+ *
+ * @param force true = 丢弃本地未提交改动（hard reset）后再拉。走的是不可逆路径，
+ *   面板里已经把会丢哪些文件列出来，这里不再二次确认 —— 一次动作对应一次确认，
+ *   连着弹两次「你确定吗」只会让人机械地点掉。
+ */
+async function doPull(force: boolean) {
+  pullVisible.value = false
   gitBusy.value = true
   try {
-    const result = await kbApi.gitPull(kbSlug.value)
+    const result = await kbApi.gitPull(kbSlug.value, force)
     ElMessage.success(result.message)
     // 拉进来的提交可能新增 / 改写了正文：目录与当前文档都得重取，否则看到的还是旧内容
     await loadKb()
@@ -1764,7 +1786,7 @@ onBeforeUnmount(() => {
             :title="cloning
               ? '仓库正在后台拉取，完成后才能拉取'
               : '把远程仓库的新提交拉到工作副本；本地有未提交改动时会拒绝'"
-            @click="gitPull"
+            @click="openPullDialog"
           >
             <MdIcon name="cloud" :size="14" />
             拉取
@@ -2150,6 +2172,13 @@ onBeforeUnmount(() => {
       :kb-slug="kbSlug"
       :status="gitStatus"
       @committed="onCommitted"
+    />
+
+    <GitPullDialog
+      v-if="pullVisible"
+      :status="gitStatus"
+      @close="pullVisible = false"
+      @pick="doPull"
     />
   </div>
 </template>

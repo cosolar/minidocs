@@ -9,6 +9,7 @@ import org.eclipse.jgit.api.Git;
 import org.eclipse.jgit.api.MergeResult;
 import org.eclipse.jgit.api.MergeResult.MergeStatus;
 import org.eclipse.jgit.api.PullResult;
+import org.eclipse.jgit.api.ResetCommand.ResetType;
 import org.eclipse.jgit.api.Status;
 import org.eclipse.jgit.api.errors.GitAPIException;
 import org.eclipse.jgit.lib.BranchTrackingStatus;
@@ -106,15 +107,48 @@ public class GitVaultService {
      *
      * @throws BizException 工作区有未提交改动（409）、合并冲突（409）、或网络/认证失败（502）
      */
-    public SyncOutcome pull(Path repoDir, String branch, String username, String token) {
+    /**
+     * 删掉工作区里的未跟踪文件与目录。
+     *
+     * <p><b>只在「强制覆盖」时调用</b>，且必须在 {@code reset --hard} 之后：
+     * JGit 的 reset 不处理未跟踪文件，而作者新建的文档正是未跟踪的 —— 不清掉就会出现
+     * 「工作区已经没有改动了，但那几篇新文档还躺在库里」的错觉。</p>
+     *
+     * <p>用JGit 的 {@code CleanCommand} 而不是递归删文件：它默认就跳过 {@code .gitignore}
+     * 里的东西，不会把构建产物或本地配置一起删掉。</p>
+     */
+    private void cleanUntracked(Git git) throws Exception {
+        git.clean().setCleanDirectories(true).call();
+    }
+
+    /**
+     * 从远程拉取。
+     *
+     * @param force {@code true} = 丢弃本地未提交改动（hard reset）后再拉；{@code false} = 合并拉取，
+     *              工作区脏时直接拒绝。默认走合并：JGit 的 {@code PullCommand} 只做合并，
+     *              脏工作区下强行 pull 会把本地改动留在冲突标记里，那是最难收拾的一种状态。
+     */
+    public SyncOutcome pull(Path repoDir, String branch, String username, String token, boolean force) {
         try (Git git = open(repoDir)) {
             Repository repository = git.getRepository();
             Status status = git.status().call();
             if (!status.isClean()) {
-                // 不自动 stash：stash 之后一旦后续步骤失败，用户根本不知道自己的改动去了哪
-                // 计数走 changedPaths：getUncommittedChanges 不含未跟踪文件，新建的文档会被漏算成「0 处改动」
-                throw BizException.of(ErrorCode.GIT_DIRTY,
-                        "本地有 " + changedPaths(status).size() + " 处未提交的改动，请先「提交并推送」再拉取");
+                if (!force) {
+                    // 不自动 stash：stash 之后一旦后续步骤失败，用户根本不知道自己的改动去了哪
+                    // 计数走 changedPaths：getUncommittedChanges 不含未跟踪文件，新建的文档会被漏算成「0 处改动」
+                    throw BizException.of(ErrorCode.GIT_DIRTY,
+                            "本地有 " + changedPaths(status).size() + " 处未提交的改动，请先「提交并推送」再拉取，"
+                                    + "或选择「强制覆盖本地」");
+                }
+                /*
+                 * 强制覆盖 = hard reset 到 HEAD：丢弃已跟踪文件的改动，并删掉索引里已登记的改动。
+                 * 未跟踪文件（JGit 的 reset 不动它们）单独清理，否则作者新建的文档会留在原地，
+                 * 而他以为「已经覆盖了」。
+                 */
+                List<String> dropped = changedPaths(status);
+                git.reset().setMode(ResetType.HARD).call();
+                cleanUntracked(git);
+                log.warn("强制覆盖本地改动 {} 个文件后拉取仓库 {}", dropped.size(), repoDir.getFileName());
             }
             ObjectId before = repository.resolve("HEAD");
             PullResult result = git.pull()
