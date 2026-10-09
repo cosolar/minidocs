@@ -76,43 +76,49 @@ function orgCan(action: KbActionName): boolean {
  */
 const navGroups = computed(() => {
   const personal = [
-    { name: 'account', label: '账号设置', icon: 'user', path: '/account' },
-    { name: 'discover', label: '发现组织', icon: 'globe', path: '/discover' }
+    { name: 'account', label: '账号设置', icon: 'user', path: '/account', tone: 'indigo' },
+  { name: 'discover', label: '发现组织', icon: 'globe', path: '/discover', tone: 'sky' }
   ]
   if (auth.isPlatformAdmin) {
-    personal.push({ name: 'platform-users', label: '平台用户管理', icon: 'users', path: '/platform/users' })
+    personal.push({
+      name: 'platform-users', label: '平台用户管理', icon: 'users', path: '/platform/users', tone: 'violet'
+    })
   }
   /*
    * 站点设置改的是全部署的品牌，不属于任何组织，门槛是平台角色（后端 /api/platform/site 同一条）。
    * 非平台管理员连入口都不给 —— 点进去也只会被守卫弹回工作区。
    */
   const siteItems = auth.isPlatformAdmin
-    ? [{ name: 'platform-site', label: '站点设置', icon: 'settings', path: '/platform/site' }]
+    ? [{
+        name: 'platform-site', label: '站点设置', icon: 'settings', path: '/platform/site', tone: 'orange'
+      }]
     : []
   if (!inOrg.value) {
     const groups = [
       { title: '个人', items: personal },
-      { title: '工作区', items: [{ name: 'entry', label: '返回工作区', icon: 'home', path: '/console' }] }
+      { title: '工作区', items: [{ name: 'entry', label: '返回工作区', icon: 'home', path: '/console', tone: 'blue' }] }
     ]
     if (siteItems.length) groups.push({ title: '站点', items: siteItems })
     return groups
   }
   const at = (path: string) => `/console/${encodeURIComponent(currentOrg.value)}/${path}`
   const orgItems = [
-    { name: 'overview', label: '系统概览', icon: 'grid', path: at('overview') },
-    { name: 'kbs', label: '知识库管理', icon: 'books', path: at('kbs') },
-    { name: 'shares', label: '分享管理', icon: 'share', path: at('shares') },
-    { name: 'org-settings', label: '组织设置', icon: 'building', path: at('settings') }
+    { name: 'overview', label: '系统概览', icon: 'grid', path: at('overview'), tone: 'blue' },
+    { name: 'kbs', label: '知识库管理', icon: 'books', path: at('kbs'), tone: 'teal' },
+    { name: 'shares', label: '分享管理', icon: 'share', path: at('shares'), tone: 'violet' },
+    { name: 'org-settings', label: '组织设置', icon: 'building', path: at('settings'), tone: 'amber' }
   ]
   if (orgCan('AUDIT_READ')) {
-    orgItems.push({ name: 'audit', label: '审计日志', icon: 'clock', path: at('audit') })
+    orgItems.push({
+      name: 'audit', label: '审计日志', icon: 'clock', path: at('audit'), tone: 'rose'
+    })
   }
   return [
     { title: '组织', items: orgItems },
     { title: '个人', items: personal },
     {
       title: '站点',
-      items: [{ name: 'portal', label: '打开门户', icon: 'external', path: '/' }, ...siteItems]
+      items: [{ name: 'portal', label: '打开门户', icon: 'external', path: '/', tone: 'green' }, ...siteItems]
     }
   ]
 })
@@ -279,7 +285,7 @@ watch(() => route.fullPath, () => {
             v-for="item in group.items"
             :key="item.name"
             class="md-navitem"
-            :class="{ 'is-active': activeName === item.name }"
+            :class="['md-navitem', `md-navitem--${item.tone || 'blue'}`, { 'is-active': activeName === item.name }]"
             :to="item.path"
             :title="navCollapsed ? item.label : undefined"
           >

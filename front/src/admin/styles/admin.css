@@ -321,6 +321,34 @@
 .md-navitem.is-active { background: var(--md-primary-soft); color: var(--md-primary); font-weight: 600; }
 /* MdIcon 自己按 size 写内联宽高，这里只保证它在行里不被压缩、与文字对齐 */
 .md-navitem__icon { flex-shrink: 0; }
+
+/*
+ * 每个入口一个色相。
+ *
+ * <p><b>只给图标上色，文字保持中性</b>。十行文字铺五种颜色会花成一团，而图标是
+ * 扫视时最先落眼的地方 —— 色相放这里，辨识度有了，整栏的秩序感还在。</p>
+ *
+ * <p>十个色相刻意挑成同一档明度与饱和度（大致相当于 600 色阶），而不是各选一个
+ * 「好看的颜色」：明暗不齐的色板放一列会显得是随手调的，像积木而不像一套系统。</p>
+ *
+ * <p>激活态不用色相区分 —— 底色与字重已经承担了「你在哪」这件事；图标此时略微加深，
+ * 保持身份不变。深色下用 {@code --tone-*} 的浅色档，见文件末尾的暗色覆盖。</p>
+ */
+.md-navitem--blue   { --tone: #3b6cf6; }
+.md-navitem--teal   { --tone: #0d9488; }
+.md-navitem--violet { --tone: #8b5cf6; }
+.md-navitem--amber  { --tone: #d97706; }
+.md-navitem--rose   { --tone: #e11d48; }
+.md-navitem--indigo { --tone: #4f46e5; }
+.md-navitem--sky    { --tone: #0284c7; }
+.md-navitem--green  { --tone: #16a34a; }
+.md-navitem--orange { --tone: #ea580c; }
+
+.md-navitem:not(.is-active) .md-navitem__icon { color: var(--tone, var(--md-text-3)); }
+/* 悬停时整行浮起该色相的淡底，与图标同源 —— 一眼看得出「这一行的色」 */
+.md-navitem:not(.is-active):hover { background: color-mix(in srgb, var(--tone, var(--md-text-3)) 7%, transparent); }
+/* 激活态图标沿用自己的色相（底色已表明位置），但压深一档保证对比 */
+.md-navitem.is-active .md-navitem__icon { color: color-mix(in srgb, var(--tone, var(--md-primary)) 78%, var(--md-text)); }
 .md-sidebar__foot { padding: 10px 12px; border-top: 1px solid var(--md-border); font-size: 12px; color: var(--md-text-3); }
 
 .md-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
@@ -1738,4 +1766,25 @@ body.is-col-resizing .md-ws__bytemd-resizer::after { background: var(--md-primar
   /* 底部状态栏指标折行；作者与更新时间先让位，别把「回到顶部」挤出去 */
   .md-ws__status { height: auto; flex-wrap: wrap; padding: 6px 12px; gap: 4px 12px; }
   .md-ws__status .md-ws__metric:nth-child(n + 5) { display: none; }
+}
+
+/*
+ * 暗色下的色相换成浅一档。
+ *
+ * <p>上面那组是为浅底选的（600 色阶），放到 #0f1115 这类深底上会明显发暗、边界发糊。
+ * 这里换�� 300–400 色阶 —— 同一批色相、更高的明度，在深底上才站得住。</p>
+ *
+ * <p>悬停底色也跟着调淡：7% 在深底上几乎看不出来，12% 才有一层可辨的着色。</p>
+ */
+[data-theme='dark'] .md-navitem--blue   { --tone: #60a5fa; }
+[data-theme='dark'] .md-navitem--teal   { --tone: #2dd4bf; }
+[data-theme='dark'] .md-navitem--violet { --tone: #a78bfa; }
+[data-theme='dark'] .md-navitem--amber  { --tone: #fbbf24; }
+[data-theme='dark'] .md-navitem--rose   { --tone: #fb7185; }
+[data-theme='dark'] .md-navitem--indigo { --tone: #818cf8; }
+[data-theme='dark'] .md-navitem--sky    { --tone: #38bdf8; }
+[data-theme='dark'] .md-navitem--green  { --tone: #4ade80; }
+[data-theme='dark'] .md-navitem--orange { --tone: #fb923c; }
+[data-theme='dark'] .md-navitem:not(.is-active):hover {
+  background: color-mix(in srgb, var(--tone, var(--md-text-3)) 12%, transparent);
 }
