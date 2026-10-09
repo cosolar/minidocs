@@ -213,6 +213,7 @@ cd front  && npm run build    # 产出 front/dist
 
 - 权限判定只写在 `permission/AccessService` 一处，业务代码不得自行比较角色或 owner（测试里有静态守卫）
 - 改动分享、渲染、目录树等共享逻辑时，同步更新 `docs/` 下的规范文档
+- 改样式前先看 [`docs/DESIGN.md`](docs/DESIGN.md)：那里记录了视觉层级、色相比例等**取舍**（含试过但行不通的做法）。代码里只留功能性注释，设计理由统一写在那份文档里
 
 ## License
 

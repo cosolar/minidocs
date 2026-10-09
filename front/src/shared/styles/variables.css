@@ -42,13 +42,7 @@
   --md-radius: 12px;
   --md-radius-sm: 8px;
 
-  /*
-   * 品牌渐变：只给「知识库标识」这一块顶栏色块用。
-   * 曾想让返回键也用同一对色做视觉配对，实测两块同尺寸同渐变并排会看成
-   * 「一对一样的按钮」，反而分不出哪个是库、哪个是返回 —— 次要动作必须
-   * 轻于身份标识，所以返回键只用图标颜色（var(--md-primary)）来标识自己。
-   * 提成令牌而不是写死，是为了让品牌色只有这一处定义，改色时不会漏掉别处。
-   */
+  /* 品牌渐变。只给知识库标识那一块色块用，理由与配色比例见 docs/DESIGN.md */
   --md-brand-gradient: linear-gradient(135deg, var(--md-primary), #7c5cff);
   --md-brand-shadow: 0 4px 12px color-mix(in srgb, var(--md-primary) 28%, transparent);
   --md-content-width: 940px;
@@ -61,16 +55,7 @@
   --md-read-font: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB',
     'Microsoft YaHei', 'Helvetica Neue', Arial, sans-serif;
 
-  /*
-   * 分享页顶栏导航菜单字体：固定思源黑体，不跟读者的正文字体偏好走。
-   *
-   * <p>导航条是站点自己的外壳（品牌、入口、动作），不是文章内容 —— 让它随正文字体
-   * 一起变，会把「读者选了款正文宋体」这件事传染到导航上，而导航条上的字只有几个
-   * 入口名，字体变化在这里几乎无意义。固定下来反而让顶栏在��个库里长得一样。</p>
-   *
-   * <p>家族名在不同系统上有三种叫法，挨个兜住；后面接 readerFont 的系统字体栈，
-   * 万一 webfont 没加载上（CDN 不可达）也只是回退，不会掉到难看的默认字。</p>
-   */
+  /* 分享页顶栏导航字体：固定思源黑体，不跟读者正文字体偏好走（理由见 docs/DESIGN.md）。家族名三种叫法兜住，后面接系统字体栈 */
   --md-share-nav-font: 'Noto Sans SC', 'Source Han Sans SC', 'Source Han Sans CN', '思源黑体',
     -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB',
     'Microsoft YaHei', 'Helvetica Neue', Arial, sans-serif;
@@ -148,16 +133,7 @@
   color-scheme: dark;
 }
 
-/*
- * 全局滚动条：一次定义覆盖所有可滚动元素。
- *
- * <p>此前只有 20 处按元素单独写样式，漏掉的那些就退回浏览器默认样式——Windows 上是
- * 约 15px 宽、带上下箭头的灰条，落在 300px 的侧栏里非常扎眼（如图标树的滚动容器）。
- * 用 {@code *} 兜住「漏写」这一类，比逐个补规则更不容易再犯。</p>
- *
- * <p>元素级规则特异性更高，仍会覆盖这里；所以那 20 处也已改成引用同一组令牌，
- * 两边不会打架。刻意隐藏的三处（{@code scrollbar-width: none}）同样不受影响。</p>
- */
+/* 全局滚动条：一次定义覆盖所有可滚动元素。元素级规则特异性更高、仍会覆盖这里，所以那 20 处也已改为引用同一组令牌 */
 * {
   scrollbar-width: thin;
   scrollbar-color: var(--md-scrollbar-thumb) transparent;

@@ -60,13 +60,7 @@
 }
 
 /* ------------------------------------------------------------------ 登录 / 注册页 */
-/*
- * 桌面端是「左品牌 / 右表单」两块拼在一张圆角卡里（.md-login__shell），窄屏收成单列。
- *
- * <p>背景从下往上四层：底色 → 三团错位的极光（品牌蓝 / 紫 / 青，用 color-mix 跟着主题走）
- * → 56px 细网格（径向 mask 让四周淡出）→ 一层极淡噪点。纯渐变在大片留白上会显得「塑料」：
- * 网格给密度、噪点打散色带。两者都必须淡到「说不出在哪、但少了就空」。</p>
- */
+/* 登录页背景四层：底色 → 三团极光 → 56px 网格 → 淡噪点。网格给密度、噪点打散色带，纯渐变在大片留白上会显塑料 */
 .md-login {
   /* 滚动区（.md-view）已经把视口高度占满，这里只要 100%，写 100vh 会多出一屏可滚 */
   position: relative;
@@ -322,18 +316,7 @@
 /* MdIcon 自己按 size 写内联宽高，这里只保证它在行里不被压缩、与文字对齐 */
 .md-navitem__icon { flex-shrink: 0; }
 
-/*
- * 每个入口一个色相。
- *
- * <p><b>只给图标上色，文字保持中性</b>。十行文字铺五种颜色会花成一团，而图标是
- * 扫视时最先落眼的地方 —— 色相放这里，辨识度有了，整栏的秩序感还在。</p>
- *
- * <p>十个色相刻意挑成同一档明度与饱和度（大致相当于 600 色阶），而不是各选一个
- * 「好看的颜色」：明暗不齐的色板放一列会显得是随手调的，像积木而不像一套系统。</p>
- *
- * <p>激活态不用色相区分 —— 底色与字重已经承担了「你在哪」这件事；图标此时略微加深，
- * 保持身份不变。深色下用 {@code --tone-*} 的浅色档，见文件末尾的暗色覆盖。</p>
- */
+/* 侧栏色相：只给图标上色、文字保持中性；十个色相挑成同一档明暗（约 600 色阶）。比例与理由见 docs/DESIGN.md */
 .md-navitem--blue   { --tone: #3b6cf6; }
 .md-navitem--teal   { --tone: #0d9488; }
 .md-navitem--violet { --tone: #8b5cf6; }
@@ -400,15 +383,7 @@
 }
 
 /* ------------------------------------------------------------------ 移动端抽屉 */
-/*
- * ≤1024px 时侧栏脱离文档流变成浮层抽屉。
- *
- * <p>固定宽度的侧栏在平板上就吃掉四分之一屏，手机上更是只给正文留一条缝；
- * 断点必须与 AdminLayout 里的 matchMedia 严格一致，否则会出现「JS 认为该开抽屉、
- * CSS 还按窄栏排」的错位。</p>
- *
- * <p>抽屉与遮罩都提到 60/55 的层级：Element Plus 的弹窗从 2000 起，仍在其上。</p>
- */
+/* ≤1024px 侧栏变浮层抽屉。断点必须与 AdminLayout 的 matchMedia 严格一致，否则会「JS 开抽屉、CSS 按窄栏排」 */
 @media (max-width: 1024px) {
   .md-sidebar {
     position: fixed; top: 0; bottom: 0; left: 0; z-index: 60;
@@ -603,16 +578,7 @@
   height: 58px; flex-shrink: 0; display: flex; align-items: center; gap: 14px;
   padding: 0 16px; background: var(--md-surface); border-bottom: 1px solid var(--md-border);
 }
-/*
- * 返回键：托盘图形 + 浅蓝圆角底 + 「返回」文字。
- *
- * <p>规格与旁边那组 .md-ws__btn 完全一致（30px 高、12px 圆角、12.5px 字、
- * gap 6px / padding 0 12px），只有底色不同：那里都是描边白底，返回键留一层淡蓝 ——
- * 一眼能认出「这是导航回去，不是对当前库做操作」。</p>
- *
- * <p>line-height 刻意不给 0：文字加入后那行会连带压扁字形。图标本身是
- * {@code .md-icon { display: block }}，配合 flex 居中不会有基线空隙问题。</p>
- */
+/* 返回键。与 .md-ws__btn 同规格，只有底色不同（导航 vs 对当前库操作）。 */
 .md-ws__back { margin-right: 6px; }
 .md-ws__back {
   display: inline-flex; align-items: center; gap: 6px;
@@ -627,7 +593,6 @@
 .md-ws__back:hover { background: color-mix(in srgb, var(--md-primary) 16%, transparent); color: var(--md-primary-hover); }
 .md-ws__back:active { transform: translateX(-2px); }
 .md-ws__back:focus-visible { outline: 2px solid var(--md-primary); outline-offset: 2px; }
-/* 库标识是顶栏里唯一的品牌色块 —— 返回键刻意不用同款（两块同色并排会看成一对控件） */
 .md-ws__logo {
   width: 34px; height: 34px; border-radius: 10px; flex-shrink: 0;
   background: var(--md-brand-gradient);
@@ -673,17 +638,8 @@
 }
 
 /*
- * 工具条的身份色。
- *
- * <p>每个按钮一个色相，但只有「极淡底 + 同色系描边 + 文字用该色」这一档变化：
- * 底色是该色相的 8%，描边 22%，文字压深一档。够认出是谁，又不会八个色块一起抢焦点 ——
- * 真正的焦点留给实心的 {@code --primary}。</p>
- *
- * <p>悬停时底色 8% → 14%、描边 22% → 45%，两档之间有明确的「在响应」的感觉，
- * 而不需要靠位移或缩放去强调（那两种在工具条里都太吵）。</p>
- *
- * <p>与侧栏那套 {@code --navitem--*} 是<b>同一个色板</b>：同一个入口在侧栏和工具条里
- * 颜色一致，位置变了颜色没变，读者不用重新建立映射。</p>
+ * 工具条身份色。色板与侧栏的--navitem--* 共用，新增按钮在两处用同一个 tone。
+ * 比例（底 8% / 描边 22% / 悬停 15% / 45%）见 docs/DESIGN.md。
  */
 .md-ws__btn--blue   { --tone: #3b6cf6; }
 .md-ws__btn--teal   { --tone: #0d9488; }
@@ -748,13 +704,7 @@
 }
 .md-ws__side-search { padding: 0 12px 8px; }
 .md-ws__side-search .el-input__prefix { color: var(--md-text-3); }
-/*
- * 用网格而不是 flex 来三等分。
- *
- * <p>flex 下这三件「文档 / 目录 / 导入」怎么都等不了宽：「导入」外面套着 el-dropdown 的根 div，
- * 里面还有一层 el-tooltip 的触发按钮，尺寸要穿过两层盒子才落到按钮上，最后总是它窄一截
- * （实测 88 / 87 / 74）。网格的 minmax(0, 1fr) 直接把三列钉成等宽，内容多宽都不影响列宽。</p>
- */
+/* 三等分用网格而非 flex：「导入」外面套 el-dropdown + el-tooltip 两层盒子，flex 下量到的宽度永远窄一截 */
 .md-ws__side-tools {
   display: grid; grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 6px; padding: 0 12px 10px;
@@ -769,13 +719,7 @@
   transition: color .16s ease, border-color .16s ease, background .16s ease, box-shadow .16s ease;
 }
 .md-ws__tool:hover { color: var(--md-primary); border-color: var(--md-primary); background: var(--md-primary-soft); }
-/*
- * 新建文档是这一栏的主行动，常驻软色底 + 主色描边，悬停才整颗实心。
- *
- * <p>三个按钮原先都是「白底 + 浅灰描边」，而侧栏底色本身就是近白（--md-sidebar），框等于没画，
- * 一排放下来只剩三个灰字，既没有层次也不像一组动作。让「文档」带上主色、另两个退成浅灰软底，
- * 这排才有主次，也和阅读页工具条那颗「编辑」用的是同一套软色语言。</p>
- */
+/* 「新建文档」是这一栏的主行动：常驻软色底 + 主色描边，悬停才实心。三个按钮同规格会没有主次 */
 .md-ws__tool--primary {
   border-color: var(--md-primary); background: var(--md-primary-soft);
   color: var(--md-primary); font-weight: 600;
@@ -1184,21 +1128,7 @@ body.is-col-resizing .md-ws__bytemd-resizer::after { background: var(--md-primar
 .el-dialog { max-width: calc(100vw - 32px); }
 
 /* ------------------------------------------------------------ 知识库表单弹窗 */
-/*
- * 长表单弹窗的关键：弹窗整体定高，正文区内部滚动。
- *
- * <p>不让页面出滚动条，靠的不是「把内容压矮」（内容该多高还是多高），而是把滚动
- * 收进 {@code .el-dialog__body}：外层遮罩被 Element Plus 的 align-center 变成 flex
- * 容器，弹窗再高也只在 88vh 以内，整页因此永远滚不起来。</p>
- *
- * <p>88vh 与下面那套紧凑间距是配套的：字段少的知识库（没有标签、封面，也没开访问
- * 密码）整屏放得下，连弹窗内的滚动条都不会出现；字段多时正文区自己滚 —— 滚动始终
- * 被关在弹窗里，不会溢到页面上变成整页滚动条。</p>
- *
- * <p>{@code --el-dialog-padding-primary} 归零是为了拿到「通栏」的头尾分隔线：
- * 组件默认把 16px 内边距加在弹窗本身，分隔线会被这圈留白顶得缩进去。归零后
- * 内边距改由头 / 正文 / 尾三段各自负责。</p>
- */
+/* 长表单弹窗：整体定高、正文区内部滚动。外层是 align-center 的 flex 容器，弹窗再高也只在 88vh 内，整页因此滚不起来 */
 .md-kb-dialog {
   --el-dialog-padding-primary: 0;
   display: flex;
@@ -1805,14 +1735,7 @@ body.is-col-resizing .md-ws__bytemd-resizer::after { background: var(--md-primar
   .md-ws__status .md-ws__metric:nth-child(n + 5) { display: none; }
 }
 
-/*
- * 暗色下的色相换成浅一档。
- *
- * <p>上面那组是为浅底选的（600 色阶），放到 #0f1115 这类深底上会明显发暗、边界发糊。
- * 这里换�� 300–400 色阶 —— 同一批色相、更高的明度，在深底上才站得住。</p>
- *
- * <p>悬停底色也跟着调淡：7% 在深底上几乎看不出来，12% 才有一层可辨的着色。</p>
- */
+/* 暗色下色相换 300–400 浅色档：600 色阶那组压在深底上会发暗、边界发糊；悬停底色 7% → 12% */
 [data-theme='dark'] .md-navitem--blue   { --tone: #60a5fa; }
 [data-theme='dark'] .md-navitem--teal   { --tone: #2dd4bf; }
 [data-theme='dark'] .md-navitem--violet { --tone: #a78bfa; }
@@ -1826,13 +1749,7 @@ body.is-col-resizing .md-ws__bytemd-resizer::after { background: var(--md-primar
   background: color-mix(in srgb, var(--tone, var(--md-text-3)) 12%, transparent);
 }
 
-/*
- * 拉取方式选择面板。
- *
- * <p>两个选项做成整行可点的卡片（而不是 radio），因为「强制覆盖」那一条要放三行字：
- * 后果、影响范围、以及会丢多少个文件。radio 的标签塞不下这些，而塞不下就会退化成
- * 一句「确定覆盖？」—— 那正是这个面板要消除的东西。</p>
- */
+/* 拉取方式面板：两个选项做成整行卡片而非 radio —— 「强制覆盖」要放三行字（后果 / 范围 / 文件数），radio 的标签塞不下 */
 .md-pullpick { display: flex; flex-direction: column; gap: 8px; }
 .md-pullpick__lead { margin: 0 0 4px; color: var(--md-text-2); font-size: 13px; }
 .md-pullpick__opt {

@@ -141,7 +141,7 @@ function mountWebfonts(hrefs: readonly string[]) {
  *
  * <p>与 {@link applyReaderFont} 分开是刻意的：那个会改读者偏好，
  * 这里只是让某个元素用上字体。共用一个函数的话，加载导航字体时会顺手
- * 把读者选的正文��体也改掉。</p>
+ * 把读者选的正文字体也改掉。</p>
  */
 export function ensureReaderFontWebfonts(id: string) {
   const font = readerFontById(id);
