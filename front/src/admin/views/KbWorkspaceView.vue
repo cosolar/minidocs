@@ -1661,8 +1661,18 @@ onBeforeUnmount(() => {
 
       <div class="md-ws__actions">
         <!--
-          保存只在编辑态出现：预览态没有可写入口，摆一个按不动的按钮只会让人误会。
-          顺序上保存打头（写文档是最要紧的动作），导出收尾（低频，且是往外拿东西）。
+          工具条的配色分三类，不是八个按钮八种颜色：
+
+          1. 主操作 —— 保存（md-ws__btn--primary，实心主色）。一个工具条里只能有一个实心块，
+             否则「最要紧的动作是哪个」这个问题就没有答案了。
+          2. 状态胶囊 —— 「N 处改动」用琥珀、「已同步 / 读取中」用中性色。状态色与动作色必须
+             分开：琥珀在别处是警示，在这里是「有未提交内容」，混用会让人以为出了故障。
+          3. 功能入口 —— 设置 / 分享 / 拉取 / 提交推送 / 预览 / 导出，各给一个色相的**极淡底**
+             （该色相 8%）+ 实色图标。底色只做身份识别，不抢焦点；图标继承按钮文字色，
+             所以暗色主题下图标跟着变浅，不存在深底压深色的问题。
+
+          提交推送在云端库里是频次最高的写操作，给实心主色；保存只出现在编辑态，
+          两者不同时在一个视图里争焦点。
         -->
         <button
           v-if="paneMode === 'edit'"
@@ -1714,7 +1724,7 @@ onBeforeUnmount(() => {
         <button
           v-if="kbCan('KB_EDIT_META') || kbCan('KB_SET_VISIBILITY')"
           type="button"
-          class="md-ws__btn"
+          class="md-ws__btn md-ws__btn--indigo"
           title="知识库设置：基本信息与隐藏配置"
           @click="openSettings"
         >
@@ -1725,7 +1735,7 @@ onBeforeUnmount(() => {
         <button
           v-if="kbCan('SHARE_CREATE')"
           type="button"
-          class="md-ws__btn"
+          class="md-ws__btn md-ws__btn--violet"
           :disabled="!currentPath"
           @click="() => openSharePanel()"
         >
@@ -1749,7 +1759,7 @@ onBeforeUnmount(() => {
           <button
             v-if="canWriteKb"
             type="button"
-            class="md-ws__btn"
+            class="md-ws__btn md-ws__btn--teal"
             :disabled="gitBusy || cloning"
             :title="cloning
               ? '仓库正在后台拉取，完成后才能拉取'
@@ -1762,7 +1772,7 @@ onBeforeUnmount(() => {
           <button
             v-if="canWriteKb"
             type="button"
-            class="md-ws__btn"
+            class="md-ws__btn md-ws__btn--primary"
             :disabled="gitBusy || cloning"
             title="查看将要提交的文件并填写提交说明，然后提交并推送"
             @click="openCommitDialog"
@@ -1772,13 +1782,13 @@ onBeforeUnmount(() => {
           </button>
         </template>
 
-        <button type="button" class="md-ws__btn" @click="openPortal">
+        <button type="button" class="md-ws__btn md-ws__btn--sky" @click="openPortal">
           <MdIcon name="external" :size="14" />
           预览
         </button>
 
         <el-dropdown trigger="click" @command="onExportCommand">
-          <button type="button" class="md-ws__btn">
+          <button type="button" class="md-ws__btn md-ws__btn--green">
             <MdIcon name="download" :size="14" />
             导出
             <MdIcon name="chevron-down" :size="13" class="md-ws__btn-caret" />

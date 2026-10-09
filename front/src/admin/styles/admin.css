@@ -672,6 +672,43 @@
   box-shadow: 0 6px 16px rgba(59, 108, 246, .4);
 }
 
+/*
+ * 工具条的身份色。
+ *
+ * <p>每个按钮一个色相，但只有「极淡底 + 同色系描边 + 文字用该色」这一档变化：
+ * 底色是该色相的 8%，描边 22%，文字压深一档。够认出是谁，又不会八个色块一起抢焦点 ——
+ * 真正的焦点留给实心的 {@code --primary}。</p>
+ *
+ * <p>悬停时底色 8% → 14%、描边 22% → 45%，两档之间有明确的「在响应」的感觉，
+ * 而不需要靠位移或缩放去强调（那两种在工具条里都太吵）。</p>
+ *
+ * <p>与侧栏那套 {@code --navitem--*} 是<b>同一个色板</b>：同一个入口在侧栏和工具条里
+ * 颜色一致，位置变了颜色没变，读者不用重新建立映射。</p>
+ */
+.md-ws__btn--blue   { --tone: #3b6cf6; }
+.md-ws__btn--teal   { --tone: #0d9488; }
+.md-ws__btn--violet { --tone: #8b5cf6; }
+.md-ws__btn--indigo { --tone: #4f46e5; }
+.md-ws__btn--sky    { --tone: #0284c7; }
+.md-ws__btn--green  { --tone: #16a34a; }
+
+.md-ws__btn:not(.md-ws__btn--primary) {
+  color: color-mix(in srgb, var(--tone, var(--md-text-2)) 84%, var(--md-text));
+  border-color: color-mix(in srgb, var(--tone, var(--md-border)) 24%, transparent);
+  background: color-mix(in srgb, var(--tone, transparent) 8%, var(--md-surface));
+}
+.md-ws__btn:not(.md-ws__btn--primary):hover:not(:disabled) {
+  color: color-mix(in srgb, var(--tone, var(--md-primary)) 78%, var(--md-text));
+  border-color: color-mix(in srgb, var(--tone, var(--md-primary)) 48%, transparent);
+  background: color-mix(in srgb, var(--tone, transparent) 15%, var(--md-surface));
+}
+/* 停用态：连底色一起褪掉，否则一排灰按钮里夹着一个饱和色块，像还能点 */
+.md-ws__btn:not(.md-ws__btn--primary):disabled {
+  background: var(--md-surface-2);
+  border-color: var(--md-border);
+  color: var(--md-text-3);
+}
+
 /* 保存状态：跟着保存按钮走，自动保存与手动保存都在这一个位置交代 */
 .md-ws__save-state {
   display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px; border-radius: 999px;
