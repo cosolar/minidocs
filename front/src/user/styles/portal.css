@@ -9,6 +9,24 @@
 .md-portal {
   display: flex; flex-direction: column; height: 100%;
   width: 100%; padding: 24px 22px 0;
+  /*
+   * 门户整页的远景：一张水墨山水。
+   *
+   * <p>门户页不滚（滚的是卡片区），所以背景钉在这一层、用 cover 铺满视口即可，
+   * 不需要 fixed —— 那样会在 iOS 上出特有的那套滚动抖动。</p>
+   *
+   * <p>图本身很淡（上白下青），文字压在上面仍然清楚，所以不给内容加额外的底；
+   * 真要加就该加在卡片上，而不是给整页蒙一层灰。</p>
+   */
+  background: var(--md-bg) url('../assets/portal-bg.png') center center / cover no-repeat;
+}
+/* 暗色：图是浅色的，直接铺会变成一整屏亮底。压低对比并盖一层深色，
+   保住「远景」的感觉又不至于刺眼 */
+[data-theme='dark'] .md-portal {
+  background-image:
+    linear-gradient(color-mix(in srgb, var(--md-bg) 78%, transparent),
+      color-mix(in srgb, var(--md-bg) 84%, transparent)),
+    url('../assets/portal-bg.png');
 }
 /* 卡片区之外的每一段都保持自身高度，压缩全部让给卡片区 */
 .md-portal > .md-stat-grid,
@@ -462,52 +480,6 @@
  * 它是整页最后一个视觉元素，用卡片语言收尾，页面才有头有尾；中轴排布也和上方
  * 统计卡、筛选栏对得上，不再是一句飘着的版权。
  */
-.md-portal .md-footer {
-  position: relative; overflow: hidden;
-  max-width: none; margin: 0 0 18px;
-  display: flex; flex-direction: column; align-items: center; gap: 9px;
-  padding: 18px 22px 20px;
-  border: 1px solid var(--md-border);
-  border-radius: 18px;
-  background:
-    radial-gradient(120% 190% at 50% 0%, color-mix(in srgb, var(--md-primary) 9%, transparent), transparent 60%),
-    var(--md-surface);
-  box-shadow: var(--md-shadow-sm);
-}
-/* 点阵纹理只往左下角渐显：给底座一点「设计过」的质感，又不压到居中的文字 */
-.md-portal .md-footer::before {
-  content: ''; position: absolute; inset: 0; pointer-events: none;
-  background-image: radial-gradient(var(--md-border-strong) 1px, transparent 1px);
-  background-size: 18px 18px; opacity: .55;
-  -webkit-mask-image: radial-gradient(90% 140% at 0% 100%, #000, transparent 64%);
-  mask-image: radial-gradient(90% 140% at 0% 100%, #000, transparent 64%);
-}
-.md-footer__brand { position: relative; z-index: 1; display: flex; align-items: center; gap: 9px; }
-.md-footer__logo {
-  width: 30px; height: 30px; border-radius: 10px; flex-shrink: 0;
-  display: grid; place-items: center; color: #fff;
-  background: linear-gradient(140deg, var(--md-primary), #22d3ee);
-  box-shadow: 0 5px 14px color-mix(in srgb, var(--md-primary) 30%, transparent);
-  overflow: hidden;
-}
-/* 上传了自定义 Logo：换成中性底 + 发丝线，图片铺满，不再叠品牌渐变 */
-.md-footer__logo.is-image { background: var(--md-surface-2); box-shadow: none; border: 1px solid var(--md-border); }
-.md-footer__logo.is-image img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.md-footer__text { position: relative; z-index: 1; display: flex; flex-direction: column; line-height: 1.25; }
-.md-footer__text strong { font-size: 13.5px; font-weight: 600; color: var(--md-text); }
-.md-footer__text small { font-size: 11.5px; color: var(--md-text-3); }
-.md-footer__copy {
-  position: relative; z-index: 1;
-  margin: 0; color: var(--md-text-3); font-size: 12px;
-  display: flex; align-items: center; gap: 9px;
-}
-/* 版权与标语之间用一枚实心小点，比「·」更像分隔 */
-.md-footer__dot { width: 3px; height: 3px; border-radius: 50%; background: currentColor; opacity: .55; }
-
-/* ------------------------------------------------------------------ 响应式 */
-@media (max-width: 1180px) {
-  /* 门户原本的响应式规则在这次重做里被合并进下面的页脚样式，媒体查询本身保留 */
-}
 
 /*
  * 页脚：整幅山水铺底 + 居中三段式。
@@ -526,14 +498,26 @@
   position: relative;
   overflow: hidden;
   max-width: none;
-  margin: 0;
+  /*
+   * 左右负 margin 抵消 .md-portal 的 22px padding，让背景满宽出血到视口两边。
+   *
+   * <p>不加这一条，页脚即使写了 max-width: none，实际也只占内容区宽度 ——
+   * 两侧各留一道 22px 空隙，看起来像「图没铺满」而不是设计如此。</p>
+   *
+   * <p>内部的 .md-footer__inner 仍限宽居中，所以只有背景出血、文字不跟着拉宽。
+   * 这是项目里既有的「贴死」做法：阅读页与分享页的三栏都这样把边界让到屏幕外。</p>
+   */
+  margin: 0 -22px;
   padding: 0;
   border: 0;
   border-radius: 0;
   /* 相对路径而非变量：Vite 会把 assets 下的图打包并加内容哈希，
      走 url() 才享受得到缓存失效；写成变量名反而拿不到这个处理。 */
-  background: var(--md-surface) url('../assets/footer-bg.png') center bottom / 100% auto no-repeat;
+  background: var(--md-surface) url('../assets/portal-bg.png') center bottom / 100% auto no-repeat;
   box-shadow: none;
+
+/* 出血之后内容要多留一倍水平内边距：文字仍按内容列居中，但不能贴到屏幕边 */
+.md-portal .md-footer__inner { padding-left: 44px; padding-right: 44px; }
 }
 
 /* 顶部渐隐：让页脚与内容之间是「渐远」而不是「硬插」 */
