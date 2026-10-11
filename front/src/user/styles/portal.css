@@ -286,7 +286,7 @@
  * 卡片底部叠了两条分隔线，又高又碎。合并后整张卡矮一截，视线也只有一个落点。
  */
 .md-card__foot {
-  display: flex; align-items: center; gap: 10px;
+  display: flex; align-items: center; gap: 9px;
   padding: 10px 14px 12px; border-top: 1px solid var(--md-border);
 }
 /*
@@ -381,7 +381,7 @@
 .md-portal .md-footer {
   position: relative; overflow: hidden;
   max-width: none; margin: 0 0 18px;
-  display: flex; flex-direction: column; align-items: center; gap: 10px;
+  display: flex; flex-direction: column; align-items: center; gap: 9px;
   padding: 18px 22px 20px;
   border: 1px solid var(--md-border);
   border-radius: 18px;
@@ -398,7 +398,7 @@
   -webkit-mask-image: radial-gradient(90% 140% at 0% 100%, #000, transparent 64%);
   mask-image: radial-gradient(90% 140% at 0% 100%, #000, transparent 64%);
 }
-.md-footer__brand { position: relative; z-index: 1; display: flex; align-items: center; gap: 10px; }
+.md-footer__brand { position: relative; z-index: 1; display: flex; align-items: center; gap: 9px; }
 .md-footer__logo {
   width: 30px; height: 30px; border-radius: 10px; flex-shrink: 0;
   display: grid; place-items: center; color: #fff;
@@ -469,14 +469,28 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 10px;
+  gap: 9px;
   width: 100%;
   max-width: 1180px;
   margin: 0 auto;
-  padding: 44px 24px 34px;
+  padding: 26px 24px 20px;
 }
 
-.md-footer__brand { position: relative; z-index: 1; display: flex; align-items: center; gap: 10px; }
+/*
+ * 社交入口与版权同一行。
+ *
+ * <p>原来社交独占一排，页脚因此多出三十多像素 —— 而它在设计图里本来就在版权那一行的
+ * 左边。合行之后整页脚从三段压成两段。</p>
+ */
+.md-footer__row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.md-footer__brand { position: relative; z-index: 1; display: flex; align-items: center; gap: 9px; }
 .md-footer__logo {
   width: 30px; height: 30px; border-radius: 10px; flex-shrink: 0;
   display: grid; place-items: center; color: #fff;
@@ -492,10 +506,10 @@
 .md-footer__text small { font-size: 11.5px; color: var(--md-text-3); }
 
 /* 社交入口：一排半透明白底的小圆钮，与上面的标志共用一份「压在图上」的底 */
-.md-footer__social { display: flex; align-items: center; gap: 8px; }
+.md-footer__social { display: flex; align-items: center; }
 .md-footer__social-btn {
   display: grid; place-items: center;
-  width: 30px; height: 30px; border-radius: 50%;
+  width: 26px; height: 26px; border-radius: 50%;
   color: var(--md-text-2);
   background: color-mix(in srgb, var(--md-surface) 78%, transparent);
   border: 1px solid color-mix(in srgb, var(--md-border) 60%, transparent);
