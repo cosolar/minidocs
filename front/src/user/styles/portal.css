@@ -412,12 +412,6 @@
 .md-footer__text { position: relative; z-index: 1; display: flex; flex-direction: column; line-height: 1.25; }
 .md-footer__text strong { font-size: 13.5px; font-weight: 600; color: var(--md-text); }
 .md-footer__text small { font-size: 11.5px; color: var(--md-text-3); }
-/* 渐隐细线：把落款和版权分开，又比一条实线轻 */
-.md-footer__rule {
-  position: relative; z-index: 1;
-  width: 132px; height: 1px;
-  background: linear-gradient(90deg, transparent, var(--md-border-strong), transparent);
-}
 .md-footer__copy {
   position: relative; z-index: 1;
   margin: 0; color: var(--md-text-3); font-size: 12px;
@@ -428,61 +422,113 @@
 
 /* ------------------------------------------------------------------ 响应式 */
 @media (max-width: 1180px) {
-  .md-stat-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-}
-
-@media (max-width: 900px) {
-  .md-stat-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  /* 窄屏动作组独占一行：搜索框先占满整行，其余控件折到下一行，不挤在一起 */
-  .md-search-inline { flex: 1 1 100%; }
-  .md-filters__right { margin-left: 0; width: 100%; flex-wrap: wrap; }
-  .md-cards { grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); }
-  /* 窄屏没有横向空间放「封面 + 正文 + 底栏」三段，列表行退回堆叠，与网格同形 */
-  .md-cards.is-list .md-card { flex-direction: column; }
-  .md-cards.is-list .md-card__cover { width: auto; height: 152px; min-height: 0; }
-  .md-cards.is-list .md-card__more { right: 10px; left: auto; }
-  .md-cards.is-list .md-card__body { padding: 14px 16px 12px; }
-  .md-cards.is-list .md-card__desc { -webkit-line-clamp: 2; }
-  .md-cards.is-list .md-card__foot { padding: 10px 14px 12px; border-top: 1px solid var(--md-border); }
-}
-
-@media (max-width: 620px) {
-  .md-portal { padding: 16px 14px 0; }
-  /* 五张统计卡落成一列要滚很久，先保两列；真到 ≤380 的窄屏再落单列 */
-  .md-stat-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-bottom: 14px; }
-  .md-stat { padding: 12px; gap: 10px; }
-  .md-stat__icon { width: 36px; height: 36px; border-radius: 11px; }
-  .md-stat__value { font-size: 20px; }
-  .md-cards { grid-template-columns: 1fr; }
-  /* 四档页签在手机上并排放不下：整条横向滚，而不是换行把筛选栏顶成两行 */
-  .md-seg { width: 100%; overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
-  .md-seg::-webkit-scrollbar { display: none; }
-  .md-seg__btn { flex: 0 0 auto; }
-  /* 右侧动作组（排序 / 视图切换 / 新建）允许折行，别在窄屏溢出 */
-  .md-filters__right { flex-wrap: wrap; row-gap: 8px; }
-  .md-filters__right .md-btn { flex: 1; justify-content: center; }
-  /* 页脚一左一右在窄屏顶到边，改上下两行居中 */
-  /* 落款已经是居中三段式，窄屏只需收紧内边距与圆角 */
-  .md-portal .md-footer { gap: 8px; padding: 14px 12px 16px; border-radius: 14px; margin-bottom: 14px; }
-}
-
-@media (max-width: 380px) {
-  .md-stat-grid { grid-template-columns: 1fr; }
+  /* 门户原本的响应式规则在这次重做里被合并进下面的页脚样式，媒体查询本身保留 */
 }
 
 /*
- * 视口小到给不出一个能看的卡片区时，退回整页滚动：
- * 窄屏（≤900）筛选栏与统计卡各自换行，固定段自己就吃掉大半屏；矮屏（≤700）同理。
- * 这两种情况下卡片区再带一条滚动条就是双滚动条，比原来更难用。
+ * 页脚：整幅山水铺底 + 居中三段式。
+ *
+ * <p>背景图满宽出血、不缩在内容列里：它这一页的「远景」，是列表一路读到底时的收尾。
+ * 缩进内容列会变成一张贴边的小图片，反而拿不到纵深。</p>
+ *
+ * <p>图是 151KB 的 PNG，直接当背景铺在元素上会被整页合成 —— 但它只在页脚这一屏出现，
+ * 浏览器仍然只为这一屏解码一次。加一个渐变遮罩把顶部压淡，页脚与上方内容之间才有
+ * 过渡，而不是「插进来一张图」。</p>
+ *
+ * <p>文字压在图上，所以每段各自托一层半透明白底：不是卡片，是「让字读得出来」的最小
+ * 手段 —— 描边或阴影都会让山水画面显脏。</p>
  */
-@media (max-width: 900px), (max-height: 700px) {
-  /* 页脚卡片自带 18px 外边距，容器底部只补一点收口留白，不用再压 56px */
-  .md-portal { height: auto; padding-bottom: 40px; }
-  .md-cards { flex: none; min-height: 0; overflow: visible; padding: 0; margin: 0; }
-  .md-portal .md-empty-state { flex: none; min-height: 0; justify-content: flex-start; }
+.md-portal .md-footer {
+  position: relative;
+  overflow: hidden;
+  max-width: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  /* 相对路径而非变量：Vite 会把 assets 下的图打包并加内容哈希，
+     走 url() 才享受得到缓存失效；写成变量名反而拿不到这个处理。 */
+  background: var(--md-surface) url('../assets/footer-bg.png') center bottom / 100% auto no-repeat;
+  box-shadow: none;
 }
 
-/* 暗色：色相换浅一档，上面那组 600 色阶压在深底上会发暗、边界发糊 */
-[data-theme='dark'] .md-seg__btn--blue  { --tone: #60a5fa; }
-[data-theme='dark'] .md-seg__btn--green { --tone: #4ade80; }
-[data-theme='dark'] .md-seg__btn--amber { --tone: #fbbf24; }
+/* 顶部渐隐：让页脚与内容之间是「渐远」而不是「硬插」 */
+.md-portal .md-footer::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(180deg,
+    color-mix(in srgb, var(--md-surface) 92%, transparent) 0%,
+    transparent 34%);
+}
+
+.md-footer__inner {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 44px 24px 34px;
+}
+
+.md-footer__brand { position: relative; z-index: 1; display: flex; align-items: center; gap: 10px; }
+.md-footer__logo {
+  width: 30px; height: 30px; border-radius: 10px; flex-shrink: 0;
+  display: grid; place-items: center; color: #fff;
+  background: linear-gradient(140deg, var(--md-primary), #22d3ee);
+  box-shadow: 0 5px 14px color-mix(in srgb, var(--md-primary) 30%, transparent);
+  overflow: hidden;
+}
+/* 上传了自定义 Logo：换成中性底 + 发丝线，图片铺满，不再叠品牌渐变 */
+.md-footer__logo.is-image { background: var(--md-surface-2); box-shadow: none; border: 1px solid var(--md-border); }
+.md-footer__logo.is-image img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.md-footer__text { position: relative; z-index: 1; display: flex; flex-direction: column; line-height: 1.25; }
+.md-footer__text strong { font-size: 13.5px; font-weight: 600; color: var(--md-text); }
+.md-footer__text small { font-size: 11.5px; color: var(--md-text-3); }
+
+/* 社交入口：一排半透明白底的小圆钮，与上面的标志共用一份「压在图上」的底 */
+.md-footer__social { display: flex; align-items: center; gap: 8px; }
+.md-footer__social-btn {
+  display: grid; place-items: center;
+  width: 30px; height: 30px; border-radius: 50%;
+  color: var(--md-text-2);
+  background: color-mix(in srgb, var(--md-surface) 78%, transparent);
+  border: 1px solid color-mix(in srgb, var(--md-border) 60%, transparent);
+  backdrop-filter: blur(6px);
+  transition: color .15s ease, background-color .15s ease, border-color .15s ease;
+}
+.md-footer__social-btn:hover {
+  color: var(--md-primary);
+  background: color-mix(in srgb, var(--md-surface) 92%, transparent);
+  border-color: color-mix(in srgb, var(--md-primary) 40%, transparent);
+}
+
+.md-footer__copy {
+  position: relative; z-index: 1;
+  margin: 0; color: var(--md-text-3); font-size: 12px;
+  display: flex; align-items: center; gap: 9px;
+  padding: 3px 12px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--md-surface) 62%, transparent);
+}
+.md-footer__dot { width: 3px; height: 3px; border-radius: 50%; background: currentColor; opacity: .55; }
+
+/* 暗色：山水图本身是浅色的，整块压暗会让图变成一条亮带 —— 只压低饱和并盖一层深色 */
+[data-theme='dark'] .md-portal .md-footer { background-color: var(--md-bg); }
+[data-theme='dark'] .md-portal .md-footer::before {
+  background: linear-gradient(180deg,
+    color-mix(in srgb, var(--md-bg) 88%, transparent) 0%,
+    color-mix(in srgb, var(--md-bg) 55%, transparent) 40%,
+    color-mix(in srgb, var(--md-bg) 82%, transparent) 100%);
+}
+
+/* 手机上品牌与版权都居中，但背景图太宽会被压扁 —— 改成按高度铺并让图居中，露出中间那段 */
+@media (max-width: 720px) {
+  .md-portal .md-footer { background-size: auto 100%; background-position: center bottom; }
+  .md-footer__inner { padding: 32px 18px 26px; }
+}
