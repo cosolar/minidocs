@@ -529,7 +529,20 @@ public class VaultFileService {
     }
 
     public void invalidateTree(Path root) {
-        treeCache.invalidate(root.toString());
+        /*
+         * 必须按前缀清，不能 invalidate(root.toString())。
+         *
+         * <p>{@link #tree} 的缓存键是 {@code root + "@" + 配置戳}（配置戳那条是为了让改
+         * .minidocs.json 立刻生效），而这里如果按 {@code root} 精确删，键根本对不上 ——
+         * 一次都清不中。</p>
+         *
+         * <p>症状很有迷惑性：导入提示「成功 1」、库信息的篇数也更新了，但目录树还是空的，
+         * 而且会一直空到进程重启 —— 因为那份空树早就被缓存住了。建文档、改名、删除走的是
+         * 同一条路，只是平时少有人「先打开一个空库、再往里导东西」，所以一直没被撞上。
+         * 与 {@code MarkdownService#invalidateKnowledgeBase} 用同一个前缀删法。</p>
+         */
+        String prefix = root + "@";
+        treeCache.asMap().keySet().removeIf(key -> key.startsWith(prefix));
     }
 
     public void invalidateAll() {
