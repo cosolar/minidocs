@@ -527,9 +527,48 @@ function collectHeadings(): HTMLElement[] {
  * bytemd 的预览不生成标题锚点，也不认识知识库内的相对图片路径，
  * 这里在渲染完成后统一补 id、补全图片地址（顺带带上资产接口鉴权路径）。
  */
+/**
+ * 标题锚点 slug —— 必须与后端 flexmark 的算法一致。
+ *
+ * <p>工作区预览（bytemd）不生成标题锚点，得由前端补；而作者在正文里写的目录是
+ * GitHub 风格锚点（`[一、Java 基础](#一java-基础语法与面向对象)`）。两边算法不一致时，
+ * 浏览器找不到对应 id，点击就「没反应」—— 而阅读页/分享页是好的，所以看起来像预览独有的
+ * bug。</p>
+ *
+ * <p>算法（小写 → 空白转连字符 → 拉丁接中文处补连字符 → 去掉标点），与 flexmark 的
+ * flexmark 的 GitHub 风格 slugger 逐条对齐。两条容易漏：
+ *
+ * <p>补连字符那条只认「紧邻」—— 中间有空格时空白已经变成连字符，再补就成了
+ * {@code 11--基本}。</p>
+ *
+ * <p>折叠连续连字符是必需的：{@code 2.5 LinkedHashMap & LRU} 里的 {@code & } 去掉后会留下
+ * 两个连字符，而 flexmark 的是一个。本篇 129 个标题里有 10 个栽在这条上
+ * （全是 {@code /}、{@code ·} 这类被标点隔开的分隔符）。</p>
+ *
+ * <p>样本：小写 → 空白转连字符 → 拉丁接中文处补连字符 → 去标点 → 折叠连续连字符。
+ * {@code Java核心面试知识点} → {@code java-核心面试知识点}。补连字符那条只认「紧邻」：
+ * 中间有空格时空白已经变成连字符了，再补就变成 {@code 11--基本}。</p>
+ */
+function slugifyHeading(text: string): string {
+  return text
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, '-')
+    .replace(/([a-z0-9])([\u4e00-\u9fff\u3400-\u4dbf])/g, '$1-$2')
+    .replace(/[^\p{L}\p{N}-]/gu, '')
+    .replace(/-{2,}/g, '-')
+    .replace(/^-+|-+$/g, '')
+}
+
 function postProcessPreview() {
-  collectHeadings().forEach((heading, index) => {
-    const id = `md-h-${index}`
+  const headings = collectHeadings()
+  // 同名标题要错开：两个「说明」都slug 成「说明」，后者会顶掉前者，目录里的第二条就永远跳不到
+  const seen = new Map<string, number>()
+  headings.forEach((heading) => {
+    const base = slugifyHeading(heading.textContent || '')
+    const count = seen.get(base) || 0
+    seen.set(base, count + 1)
+    const id = count === 0 ? base : `${base}-${count}`
     if (heading.id !== id) heading.id = id
   })
   const host = previewHost()
@@ -590,7 +629,8 @@ function refreshOutline() {
   const items = collectHeadings()
     .map((heading, index) => ({
       key: `${index}`,
-      id: `md-h-${index}`,
+      // 读 DOM 里已设好的 id，不自己再算一遍 —— 两处各算一次，slug 规则一旦不同步就会错位
+      id: heading.id,
       level: Number(heading.tagName.substring(1)),
       text: (heading.textContent || '').replace(/\s+/g, ' ').trim()
     }))
@@ -698,12 +738,41 @@ function onPreviewClick(event: MouseEvent) {
   const anchor = (event.target as HTMLElement | null)?.closest?.('a')
   if (!anchor) return
   const href = anchor.getAttribute('href') || ''
-  if (!href || href.startsWith('#') || href.startsWith('/') || /^[a-z][a-z0-9+.-]*:/i.test(href)) return
+  if (!href) return
+  /*
+   * 同页锚点：自己滚，不交给浏览器默认行为。
+   *
+   * <p>默认行为是给「页面」用的，而预览区是 bytemd 自己的滚动容器，页面级的
+   * {@code location.hash} 跳转不一定能把它滚到位 —— 结果就是点了没反应。这里显式
+   * scrollIntoView，与大纲跳转走同一套逻辑，两个入口行为一致。</p>
+   *
+   * <p>hash 读的是解码后的值：作者可能写中文或带空格的锚点，getAttribute 拿到的是
+   * 百分号编码形态，而标题 id 是原文。</p>
+   */
+  if (href.startsWith('#')) {
+    const id = safeDecode(href.slice(1))
+    if (!id) return
+    const target = document.getElementById(id) || markdownBody()?.querySelector<HTMLElement>(`#${CSS.escape(id)}`)
+    if (!target) return
+    event.preventDefault()
+    target.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    return
+  }
+  if (href.startsWith('/') || /^[a-z][a-z0-9+.-]*:/i.test(href)) return
   const [filePart] = href.split('#')
   if (!/\.(md|markdown)$/i.test(filePart)) return
   event.preventDefault()
   event.stopPropagation()
   void openDoc(resolveRelativePath(decodeURIComponent(filePart)))
+}
+
+/** decodeURIComponent 对畸形百分号序列会抛，锚点里什么字符都可能有 */
+function safeDecode(value: string): string {
+  try {
+    return decodeURIComponent(value)
+  } catch {
+    return value
+  }
 }
 
 function resolveRelativePath(href: string) {
