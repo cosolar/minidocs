@@ -17,22 +17,105 @@
 
 /* ------------------------------------------------------------------ 统计卡片 */
 /*
- * 色相收敛到 --tone / --tone-soft 两个局部变量上，图标底色、描边、数字色都从它派生，
- * 于是「加一档可见性配色」只要多写一行 .md-stat.is-xxx，不用再逐个属性抄一遍。
+ * 统计区背景：三层，随主题走。
+ *
+ * <p>参考稿是一张「柔光波纹 + 几个装饰球」的浅蓝横幅。这里用 CSS 复刻而不是贴图：
+ * 贴一张1080px 的位图要为它加 100KB+ 资源、且在暗色下必然显脏，而 CSS 三层渐变
+ * 跟着色板变量走，暗色只需换一档色值。</p>
+ *
+ * <p>层次（由内到外）：底色渐变 → 波纹团（{@code ::before}）→ 装饰球与圆点
+ * （{@code ::after}）。三层都是「说不出在哪、但少了就空」的淡 —— 浓一点就变成贴纸。</p>
  */
 .md-stat-grid {
+  position: relative;
+  overflow: hidden;
   display: grid; grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 14px; margin: 0 0 18px;
+  padding: 16px;
+  border-radius: 20px;
+  background:
+    radial-gradient(120% 150% at 6% 0%, rgba(255, 255, 255, .92) 0%, transparent 48%),
+    radial-gradient(95% 130% at 96% 104%, #d9e7fa 0%, transparent 54%),
+    linear-gradient(158deg, #f3f8fe 0%, #e9f1fd 46%, #f5faff 100%);
 }
+/* 波纹：三团错位的柔光椭圆，靠 blur 化成起伏的绸带而不是三个圆 */
+.md-stat-grid::before {
+  content: '';
+  position: absolute;
+  inset: -22% -10%;
+  pointer-events: none;
+  background:
+    radial-gradient(46% 56% at 16% 76%, rgba(140, 186, 246, .34), transparent 70%),
+    radial-gradient(40% 50% at 58% 4%, rgba(176, 208, 249, .30), transparent 72%),
+    radial-gradient(30% 42% at 97% 58%, rgba(193, 186, 246, .22), transparent 74%);
+  filter: blur(7px);
+}
+/* 装饰球与圆点：左上小球带一颗更小的，右下一颗大球 —— 只两处，多了就成点点印花 */
+.md-stat-grid::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(circle 20px at 7% 24%, rgba(126, 166, 242, .50), rgba(126, 166, 242, 0) 72%),
+    radial-gradient(circle 4px at 12.5% 17%, rgba(126, 166, 242, .42), rgba(126, 166, 242, 0) 72%),
+    radial-gradient(circle 30px at 95% 82%, rgba(152, 142, 240, .44), rgba(152, 142, 240, 0) 72%);
+}
+/* 暗色：底色换成深蓝一族，波纹与球整体压暗 —— 浅色波纹压在深底上会变成一条亮带 */
+[data-theme='dark'] .md-stat-grid {
+  background:
+    radial-gradient(120% 150% at 6% 0%, rgba(58, 78, 116, .55) 0%, transparent 48%),
+    radial-gradient(95% 130% at 96% 104%, rgba(30, 44, 74, .8) 0%, transparent 54%),
+    linear-gradient(158deg, #141a26 0%, #111722 46%, #151c2a 100%);
+}
+[data-theme='dark'] .md-stat-grid::before { opacity: .5; }
+[data-theme='dark'] .md-stat-grid::after { opacity: .45; }
+
+/*
+ * 卡片：玻璃。
+ *
+ * <p>底衬换成半透明白 + backdrop-filter，卡片下面那三层波纹才会「透上来」——
+ * 不然卡片是一块不透明的白块，背景做再多也只是它周围的一圈装饰。</p>
+ *
+ * <p>装饰块（{@code ::after}）在每张卡的右下角，用各自色相的极淡渐变斜置一块几何形，
+ * 呼应参考稿里那张卡片右侧的插画。不放真图：五张卡五张插画要多五份资源，而这些
+ * 形状只是让卡片右下角不那么空，抽象一点没人会指着说「这里该有个图标」。</p>
+ */
 .md-stat {
   --tone: var(--md-primary);
   --tone-soft: var(--md-primary-soft);
+  position: relative;
+  overflow: hidden;
+  z-index: 1;
   display: flex; align-items: center; gap: 13px; min-width: 0;
-  background: var(--md-surface); border: 1px solid var(--md-border);
-  border-radius: 16px; padding: 14px 16px; box-shadow: var(--md-shadow-sm);
+  background: color-mix(in srgb, var(--md-surface) 76%, transparent);
+  -webkit-backdrop-filter: blur(10px) saturate(140%);
+  backdrop-filter: blur(10px) saturate(140%);
+  border: 1px solid color-mix(in srgb, var(--md-surface) 92%, transparent);
+  border-radius: 16px; padding: 14px 16px;
+  box-shadow: 0 6px 18px rgba(37, 99, 235, .07);
   transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease;
 }
-.md-stat:hover { transform: translateY(-2px); box-shadow: var(--md-shadow); border-color: var(--md-border-strong); }
+.md-stat::after {
+  content: '';
+  position: absolute;
+  right: -14px; bottom: -16px;
+  width: 62px; height: 62px;
+  border-radius: 20px;
+  transform: rotate(14deg);
+  background: linear-gradient(140deg, var(--tone-soft), transparent 72%);
+  opacity: .8;
+  pointer-events: none;
+}
+/* 悬停时装饰块再淡一点：它是背景，不该在交互时抢注意力 */
+.md-stat:hover::after { opacity: .5; }
+.md-stat:hover { transform: translateY(-2px); box-shadow: var(--md-shadow); }
+/* 暗色下玻璃要有边界，否则卡片与背景糊成一片 */
+[data-theme='dark'] .md-stat {
+  background: color-mix(in srgb, var(--md-surface) 62%, transparent);
+  border-color: rgba(255, 255, 255, .09);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, .28);
+}
 .md-stat.is-blue { --tone: #3b82f6; --tone-soft: rgba(59, 130, 246, .13); }
 .md-stat.is-green { --tone: #16a34a; --tone-soft: rgba(22, 163, 74, .13); }
 .md-stat.is-violet { --tone: #8b5cf6; --tone-soft: rgba(139, 92, 246, .14); }
@@ -42,8 +125,9 @@
 [data-theme='dark'] .md-stat.is-green { --tone: #4ade80; --tone-soft: rgba(34, 197, 94, .16); }
 [data-theme='dark'] .md-stat.is-violet { --tone: #a78bfa; --tone-soft: rgba(139, 92, 246, .2); }
 [data-theme='dark'] .md-stat.is-amber { --tone: #fbbf24; --tone-soft: rgba(245, 158, 11, .16); }
+/* 徽章改成圆形：参考稿里五个都是圆，方的与之不搭 */
 .md-stat__icon {
-  width: 42px; height: 42px; border-radius: 13px; flex-shrink: 0;
+  width: 40px; height: 40px; border-radius: 50%; flex-shrink: 0;
   display: grid; place-items: center; color: var(--tone);
   background: linear-gradient(145deg, var(--tone-soft), transparent 92%);
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--tone) 16%, transparent);
