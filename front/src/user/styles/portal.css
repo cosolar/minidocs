@@ -130,7 +130,7 @@
 .md-stat:hover { transform: translateY(-2px); box-shadow: var(--md-shadow); }
 /* 暗色下玻璃要有边界，否则卡片与背景糊成一片 */
 [data-theme='dark'] .md-stat {
-  background: color-mix(in srgb, var(--md-surface) 62%, transparent);
+  background: transparent;
   border-color: rgba(255, 255, 255, .09);
   box-shadow: 0 6px 18px rgba(0, 0, 0, .28);
 }
@@ -482,54 +482,38 @@
  */
 
 /*
- * 页脚：整幅山水铺底 + 居中三段式。
+ * 页脚：透明毛玻璃。
  *
- * <p>背景图满宽出血、不缩在内容列里：它这一页的「远景」，是列表一路读到底时的收尾。
- * 缩进内容列会变成一张贴边的小图片，反而拿不到纵深。</p>
+ * <p><b>不再自己铺背景图</b> —— 背后就是整页那张山水，再铺一张等于把它盖住。改成半透明
+ * + backdrop-filter：整页背景从页脚底下透上来、被磨成一片柔光，这就是「用整体的背景」。
+ * 顺带省掉一份资源。</p>
  *
- * <p>图是 151KB 的 PNG，直接当背景铺在元素上会被整页合成 —— 但它只在页脚这一屏出现，
- * 浏览器仍然只为这一屏解码一次。加一个渐变遮罩把顶部压淡，页脚与上方内容之间才有
- * 过渡，而不是「插进来一张图」。</p>
+ * <p><b>顶边一条发丝线</b>：玻璃与上方内容之间靠线分界，不靠色差 —— 山水本来就是浅色，
+ * 玻璃与背景的明度差太小，只靠颜色分不出来。</p>
  *
- * <p>文字压在图上，所以每段各自托一层半透明白底：不是卡片，是「让字读得出来」的最小
- * 手段 —— 描边或阴影都会让山水画面显脏。</p>
+ * <p><b>出血到视口两边</b>（负 margin 抵消 .md-portal 的 22px padding），但内部的
+ * .md-footer__inner 仍限宽居中：只有玻璃满宽，文字不跟着拉宽。这是项目里既有的「贴死」
+ * 做法 —— 阅读页与分享页的三栏都这样把边界让到屏幕外。</p>
  */
 .md-portal .md-footer {
   position: relative;
-  overflow: hidden;
   max-width: none;
-  /*
-   * 左右负 margin 抵消 .md-portal 的 22px padding，让背景满宽出血到视口两边。
-   *
-   * <p>不加这一条，页脚即使写了 max-width: none，实际也只占内容区宽度 ——
-   * 两侧各留一道 22px 空隙，看起来像「图没铺满」而不是设计如此。</p>
-   *
-   * <p>内部的 .md-footer__inner 仍限宽居中，所以只有背景出血、文字不跟着拉宽。
-   * 这是项目里既有的「贴死」做法：阅读页与分享页的三栏都这样把边界让到屏幕外。</p>
-   */
   margin: 0 -22px;
   padding: 0;
   border: 0;
+  border-top: 1px solid color-mix(in srgb, var(--md-surface) 55%, transparent);
   border-radius: 0;
-  /* 相对路径而非变量：Vite 会把 assets 下的图打包并加内容哈希，
-     走 url() 才享受得到缓存失效；写成变量名反而拿不到这个处理。 */
-  background: var(--md-surface) url('../assets/portal-bg.png') center bottom / 100% auto no-repeat;
+  /* 半透明白 + 模糊：背后整页背景透上来。34% 是「透得出层次但字仍清楚」的档 */
+  background: color-mix(in srgb, var(--md-surface) 34%, transparent);
+  -webkit-backdrop-filter: blur(16px) saturate(160%);
+  backdrop-filter: blur(16px) saturate(160%);
   box-shadow: none;
-
+}
 /* 出血之后内容要多留一倍水平内边距：文字仍按内容列居中，但不能贴到屏幕边 */
 .md-portal .md-footer__inner { padding-left: 44px; padding-right: 44px; }
-}
 
 /* 顶部渐隐：让页脚与内容之间是「渐远」而不是「硬插」 */
-.md-portal .md-footer::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background: linear-gradient(180deg,
-    color-mix(in srgb, var(--md-surface) 92%, transparent) 0%,
-    transparent 34%);
-}
+/* 原先这里有一层顶部渐隐，是为「页脚自己铺图」做的 —— 现在图由整页背景提供，玻璃顶边有线分界，这层可以去掉 */
 
 .md-footer__inner {
   position: relative;
@@ -541,7 +525,8 @@
   width: 100%;
   max-width: 1180px;
   margin: 0 auto;
-  padding: 26px 24px 20px;
+  /* 页脚高度：内容 67px + 上下 28px ≈ 95px。再矮就压到 30px 的标志块上下了 */
+  padding: 15px 24px 13px;
 }
 
 /*
@@ -579,9 +564,9 @@
   display: grid; place-items: center;
   width: 26px; height: 26px; border-radius: 50%;
   color: var(--md-text-2);
-  background: color-mix(in srgb, var(--md-surface) 78%, transparent);
+  background: transparent;
   border: 1px solid color-mix(in srgb, var(--md-border) 60%, transparent);
-  backdrop-filter: blur(6px);
+
   transition: color .15s ease, background-color .15s ease, border-color .15s ease;
 }
 .md-footer__social-btn:hover {
@@ -594,23 +579,23 @@
   position: relative; z-index: 1;
   margin: 0; color: var(--md-text-3); font-size: 12px;
   display: flex; align-items: center; gap: 9px;
-  padding: 3px 12px;
+  padding: 2px 9px;
   border-radius: 999px;
   background: color-mix(in srgb, var(--md-surface) 62%, transparent);
 }
 .md-footer__dot { width: 3px; height: 3px; border-radius: 50%; background: currentColor; opacity: .55; }
 
-/* 暗色：山水图本身是浅色的，整块压暗会让图变成一条亮带 —— 只压低饱和并盖一层深色 */
-[data-theme='dark'] .md-portal .md-footer { background-color: var(--md-bg); }
-[data-theme='dark'] .md-portal .md-footer::before {
-  background: linear-gradient(180deg,
-    color-mix(in srgb, var(--md-bg) 88%, transparent) 0%,
-    color-mix(in srgb, var(--md-bg) 55%, transparent) 40%,
-    color-mix(in srgb, var(--md-bg) 82%, transparent) 100%);
+/*
+ * 暗色下的玻璃。
+ *
+ * <p>34% 的白在深底上会显灰，整块看起来像蒙了层雾 —— 换成同等透明度的深色，
+ * 「磨砂」的观感靠 saturate 与模糊撑着，不靠底色有多白。</p>
+ */
+[data-theme='dark'] .md-portal .md-footer {
+  background: color-mix(in srgb, var(--md-bg) 46%, transparent);
+  border-top-color: rgba(255, 255, 255, .08);
 }
 
-/* 手机上品牌与版权都居中，但背景图太宽会被压扁 —— 改成按高度铺并让图居中，露出中间那段 */
 @media (max-width: 720px) {
-  .md-portal .md-footer { background-size: auto 100%; background-position: center bottom; }
-  .md-footer__inner { padding: 32px 18px 26px; }
+  .md-footer__inner { padding: 14px 18px 12px; }
 }
