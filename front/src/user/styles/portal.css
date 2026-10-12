@@ -482,18 +482,21 @@
  */
 
 /*
- * 页脚：透明毛玻璃。
+ * 页脚：全透明，只留一条顶边发丝线。
  *
- * <p><b>不再自己铺背景图</b> —— 背后就是整页那张山水，再铺一张等于把它盖住。改成半透明
- * + backdrop-filter：整页背景从页脚底下透上来、被磨成一片柔光，这就是「用整体的背景」。
- * 顺带省掉一份资源。</p>
+ * <p><b>不再自己铺背景图，也不再磨砂。</b>背后就是整页那张山水，铺图等于把它盖住；
+ * 而 backdrop-filter 那层模糊在这张图上几乎没有可辨的效果 —— 山水的层次本来就很软，
+ * 磨完与不磨看不出来，却要让浏览器多合成一遍、还让文字边缘发虚。</p>
  *
- * <p><b>顶边一条发丝线</b>：玻璃与上方内容之间靠线分界，不靠色差 —— 山水本来就是浅色，
- * 玻璃与背景的明度差太小，只靠颜色分不出来。</p>
+ * <p>所以直接全透明：山水原样透上来，文字压在浅色的水面与山影上仍然清楚
+ * （深色文字 + 浅底，这个组合本来就够）。</p>
+ *
+ * <p><b>顶边那条发丝线是唯一剩下的分界</b>：去掉底色之后，玻璃与内容之间就没有色差了，
+ * 线必须留着 —— 否则页脚会直接化进背景里，看起来像背景没画完。</p>
  *
  * <p><b>出血到视口两边</b>（负 margin 抵消 .md-portal 的 22px padding），但内部的
- * .md-footer__inner 仍限宽居中：只有玻璃满宽，文字不跟着拉宽。这是项目里既有的「贴死」
- * 做法 —— 阅读页与分享页的三栏都这样把边界让到屏幕外。</p>
+ * .md-footer__inner 仍限宽居中：只有这一层满宽，文字不跟着拉宽。这是项目里既有的
+ * 「贴死」做法 —— 阅读页与分享页的三栏都这样把边界让到屏幕外。</p>
  */
 .md-portal .md-footer {
   position: relative;
@@ -503,17 +506,12 @@
   border: 0;
   border-top: 1px solid color-mix(in srgb, var(--md-surface) 55%, transparent);
   border-radius: 0;
-  /* 半透明白 + 模糊：背后整页背景透上来。34% 是「透得出层次但字仍清楚」的档 */
-  background: color-mix(in srgb, var(--md-surface) 34%, transparent);
-  -webkit-backdrop-filter: blur(16px) saturate(160%);
-  backdrop-filter: blur(16px) saturate(160%);
+  background: transparent;
   box-shadow: none;
 }
 /* 出血之后内容要多留一倍水平内边距：文字仍按内容列居中，但不能贴到屏幕边 */
 .md-portal .md-footer__inner { padding-left: 44px; padding-right: 44px; }
 
-/* 顶部渐隐：让页脚与内容之间是「渐远」而不是「硬插」 */
-/* 原先这里有一层顶部渐隐，是为「页脚自己铺图」做的 —— 现在图由整页背景提供，玻璃顶边有线分界，这层可以去掉 */
 
 .md-footer__inner {
   position: relative;
@@ -521,12 +519,12 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 9px;
+  gap: 7px;
   width: 100%;
   max-width: 1180px;
   margin: 0 auto;
   /* 页脚高度：内容 67px + 上下 28px ≈ 95px。再矮就压到 30px 的标志块上下了 */
-  padding: 15px 24px 13px;
+  padding: 11px 24px 9px;
 }
 
 /*
@@ -545,7 +543,7 @@
 
 .md-footer__brand { position: relative; z-index: 1; display: flex; align-items: center; gap: 9px; }
 .md-footer__logo {
-  width: 30px; height: 30px; border-radius: 10px; flex-shrink: 0;
+  width: 26px; height: 26px; border-radius: 9px; flex-shrink: 0;
   display: grid; place-items: center; color: #fff;
   background: linear-gradient(140deg, var(--md-primary), #22d3ee);
   box-shadow: 0 5px 14px color-mix(in srgb, var(--md-primary) 30%, transparent);
@@ -562,7 +560,7 @@
 .md-footer__social { display: flex; align-items: center; }
 .md-footer__social-btn {
   display: grid; place-items: center;
-  width: 26px; height: 26px; border-radius: 50%;
+  width: 24px; height: 24px; border-radius: 50%;
   color: var(--md-text-2);
   background: transparent;
   border: 1px solid color-mix(in srgb, var(--md-border) 60%, transparent);
