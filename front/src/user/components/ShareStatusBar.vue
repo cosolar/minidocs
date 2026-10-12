@@ -37,11 +37,18 @@ function toTop() {
       <span v-if="author" class="md-share__stat">
         <Icon name="user" :size="13" />{{ author }}
       </span>
+      <!--
+        两个时间必须带文字标签。
+        <p>原先这里只有日历图标 + 时间、时钟图标 + 时间。13px 的日历与时钟形状几乎
+        一致，读者只能靠猜——而「这是发布时间还是最后修改时间」猜错的代价很大：把修改
+        时间当成发布时间，会以为文章是那时候才写的。</p>
+        <p>而「发布于 / 更新于」四个字是直接说出来的，不依赖读者认出图标。</p>
+      -->
       <span v-if="publishedText" class="md-share__stat">
-        <Icon name="calendar" :size="13" />{{ publishedText }}
+        <Icon name="calendar" :size="13" />发布于 {{ publishedText }}
       </span>
       <span v-if="updatedText" class="md-share__stat">
-        <Icon name="clock" :size="13" />{{ updatedText }}
+        <Icon name="refresh" :size="13" />更新于 {{ updatedText }}
       </span>
     </div>
 
