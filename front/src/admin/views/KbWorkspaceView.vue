@@ -1931,9 +1931,18 @@ onBeforeUnmount(() => {
           title="拖动调整目录宽度"
           @mousedown="sideResizer.start"
         />
+        <!--
+          面板头部一行装完：标题、搜索、刷新/折叠、以及三个写操作。
+
+          <p>按钮排在头部而不是单独一行：原先它们在搜索框下面自己占一排，226px 的
+          侧栏里三颗按钮贴满一行、上下还各留一道空隙，竖向净增 40px 左右 —— 而左栏
+          本来就是三栏里最窄的一栏，每多一排都在挤目录树。现在并进头部，竖向省一排。</p>
+
+          <p>三个按钮的标签必须短：写「新建文档」会折成「新建文 / 档」。加号图标
+          已经表达了「新建」，完整说法交给 title。</p>
+        -->
         <div class="md-ws__side-head">
           <span class="md-ws__side-title">文档目录</span>
-          <span class="md-ws__count">{{ kb?.docCount ?? 0 }}</span>
           <span class="md-spacer" />
           <button type="button" class="md-ws__icon-btn" title="刷新目录" @click="loadTree">
             <MdIcon name="refresh" :size="15" />
@@ -1946,45 +1955,46 @@ onBeforeUnmount(() => {
           >
             <MdIcon :name="collapseAll ? 'chevron-right' : 'chevron-down'" :size="15" />
           </button>
-        </div>
-
-        <div class="md-ws__side-search">
-          <el-input v-model="keyword" size="small" placeholder="搜索文档" clearable>
-            <template #prefix>
-              <MdIcon name="search" :size="14" />
-            </template>
-          </el-input>
-        </div>
-
-        <!--
-          三个按钮挤在 226px 的侧栏里，标签必须短：写「新建文档」会折成「新建文 / 档」。
-          加号图标已经表达了「新建」，完整说法交给 title。
-        -->
-        <div v-if="canWriteKb" class="md-ws__side-tools">
-          <button type="button" class="md-ws__tool md-ws__tool--primary" title="新建文档" @click="() => createDoc('')">
-            <MdIcon name="plus" :size="14" /> 文档
-          </button>
-          <button type="button" class="md-ws__tool" title="新建目录" @click="() => createDir('')">
-            <MdIcon name="folder" :size="14" /> 目录
-          </button>
-          <!-- 选文件与选目录是两个不同的系统选择器，只能分两条入口 -->
-          <el-dropdown trigger="click" placement="bottom-start" @command="onImportCommand">
-            <button type="button" class="md-ws__tool" title="导入 Markdown、压缩包（zip）或整个目录">
-              <MdIcon name="upload" :size="14" /> 导入
-              <MdIcon name="chevron-down" :size="12" class="md-ws__tool-caret" />
+          <!--
+            写操作：三个按钮收成一组，靠 order 落到第二行。
+            用 wrapper 而不是靠 order 逐个给 —— 三个按钮各自设 order 的话，
+            「只读成员看不到它们」时第一行的图标钮也会被挤到第二行去。
+          -->
+          <div v-if="canWriteKb" class="md-ws__side-tools">
+            <button type="button" class="md-ws__tool md-ws__tool--primary" title="新建文档" @click="() => createDoc('')">
+              <MdIcon name="plus" :size="14" /> 文档
             </button>
-            <template #dropdown>
-              <el-dropdown-menu>
-                <el-dropdown-item command="files">
-                  <MdIcon name="file" :size="14" />选择文件 / 压缩包…
-                </el-dropdown-item>
-                <el-dropdown-item command="dir">
-                  <MdIcon name="folder" :size="14" />选择目录…
-                </el-dropdown-item>
-              </el-dropdown-menu>
-            </template>
-          </el-dropdown>
+            <button type="button" class="md-ws__tool" title="新建目录" @click="() => createDir('')">
+              <MdIcon name="folder" :size="14" /> 目录
+            </button>
+            <!-- 选文件与选目录是两个不同的系统选择器，只能分两条入口 -->
+            <el-dropdown trigger="click" placement="bottom-start" @command="onImportCommand">
+              <button type="button" class="md-ws__tool" title="导入 Markdown、压缩包（zip）或整个目录">
+                <MdIcon name="upload" :size="14" /> 导入
+                <MdIcon name="chevron-down" :size="12" class="md-ws__tool-caret" />
+              </button>
+              <template #dropdown>
+                <el-dropdown-menu>
+                  <el-dropdown-item command="files">
+                    <MdIcon name="file" :size="14" />选择文件 / 压缩包…
+                  </el-dropdown-item>
+                  <el-dropdown-item command="dir">
+                    <MdIcon name="folder" :size="14" />选择目录…
+                  </el-dropdown-item>
+                </el-dropdown-menu>
+              </template>
+            </el-dropdown>
+          </div>
+
+          <div class="md-ws__side-search">
+            <el-input v-model="keyword" size="small" placeholder="搜索文档" clearable>
+              <template #prefix>
+                <MdIcon name="search" :size="14" />
+              </template>
+            </el-input>
+          </div>
         </div>
+
 
         <!-- 树容器的空白处就是「移到根目录」的落点 -->
         <div
