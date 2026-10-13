@@ -575,8 +575,21 @@ function postProcessPreview() {
   if (!host) return
   host.querySelectorAll<HTMLImageElement>('img[src]').forEach((img) => {
     const src = (img.getAttribute('src') || '').trim()
-    if (!src || src.startsWith('/') || src.startsWith('data:') || /^([a-z][a-z0-9+.-]*:)?\/\//i.test(src)) return
-    img.setAttribute('src', kbApi.assetUrl(kbSlug.value, src))
+    /*
+     * 库内图片要把地址补成走组织门的代理；外链与 data: 原样留着。
+     *
+     * <p><b>以前导 `/` 一律跳过，那是个错</b>：作者写库内图片时最自然的两种形式是
+     * {@code image/a.png}（不带斜杠）和 {@code /image/a.png}（带斜杠，表示库根）。
+     * 那条判断把后者也当成「已经是绝对地址」放过去，于是这类图片在预览里永远是坏的 ——
+     * 而 Markdown 源码里看着完全正常。</p>
+     *
+     * <p>真正该跳过的是 {@code data:}、{@code http(s)://} 与 {@code //} 这三类：
+     * 它们要么没有路径可补，要么本来就指向别处。所以这里改成「只要不是这三类，就补」，
+     * 并且补之前把开头的 `/` 去掉 —— 否则 {@code /asset/} 后面再拼一个 `/image/...}
+     * 会变成双斜杠，后端按相对路径解析不出来。</p>
+     */
+    if (!src || src.startsWith('data:') || /^([a-z][a-z0-9+.-]*:)?\/\//i.test(src)) return
+    img.setAttribute('src', kbApi.assetUrl(kbSlug.value, src.replace(/^\/+/, '')))
   })
   // bytemd 预览只挂了 gfm + 代码高亮，```mermaid 围栏得借阅读页那套图表增强才出图，
   // 图片与 SVG 的灯箱也一并在这里挂上
