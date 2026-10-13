@@ -171,7 +171,17 @@ public class VaultFileService {
                     "文档超过 " + (properties.getDocMaxSize() / 1024 / 1024) + "MB 限制");
         }
         try {
-            return Files.readString(file, StandardCharsets.UTF_8);
+            /*
+             * 剥掉开头的 UTF-8 BOM。
+             *
+             * <p>编辑器读正文走这里：带着 BOM 会让它在输入框里显示成一个看不见的方块，
+             * 而用户一保存，那个方块又被原样写回文件 —— 从此每次打开都带着它。</p>
+             *
+             * <p>渲染侧（{@code MarkdownService}）也剥：不剥的话 BOM 紧贴井号时
+             * flexmark 不认这个 ATX 标题，整行变成带井号的纯文本。</p>
+             */
+            String text = Files.readString(file, StandardCharsets.UTF_8);
+            return text.isEmpty() || text.charAt(0) != '\uFEFF' ? text : text.substring(1);
         } catch (IOException e) {
             throw BizException.notFound("文档读取失败：" + relative);
         }
@@ -223,6 +233,31 @@ public class VaultFileService {
             throw BizException.of(ErrorCode.FILE_TOO_LARGE, "文档内容超过大小限制");
         }
         writeFile(file, content);
+        invalidateTree(root);
+    }
+
+    /**
+     * 写二进制文件（压缩包导入还原图片等资源用）。
+     *
+     * <p>与 {@link #write} 的差别只在一处：不过 UTF-8、不受 {@code docMaxSize} 约束 ——
+     * 图片走 {@code imageMaxSize}，其他资源由调用方按 {@code importMaxSize} 把握，
+     * 在这里再卡一道 2MB 文本限额就会把导入的图片全部顶掉。</p>
+     */
+    public void writeBytes(Path root, String relative, byte[] content) {
+        PathGuard.checkDepth(relative, true, properties.getMaxDepth());
+        Path file = resolve(root, relative);
+        if (Files.isDirectory(file)) {
+            throw BizException.param("目标是一个目录：" + relative);
+        }
+        try {
+            Path parent = file.getParent();
+            if (parent != null) {
+                Files.createDirectories(parent);
+            }
+            Files.write(file, content == null ? new byte[0] : content);
+        } catch (IOException e) {
+            throw new UncheckedIOException("写入文件失败：" + file.getFileName(), e);
+        }
         invalidateTree(root);
     }
 

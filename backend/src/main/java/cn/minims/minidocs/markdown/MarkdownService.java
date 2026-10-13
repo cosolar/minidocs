@@ -242,7 +242,7 @@ public class MarkdownService {
         }
         String content;
         try {
-            content = Files.readString(file, StandardCharsets.UTF_8);
+            content = stripBom(Files.readString(file, StandardCharsets.UTF_8));
         } catch (IOException e) {
             throw BizException.notFound("文档读取失败：" + docPath);
         }
@@ -286,6 +286,26 @@ public class MarkdownService {
     // ------------------------------------------------------------------ 内部实现
 
     /** 与入口无关的渲染结果。 */
+    /**
+     * 去掉文本开头的 UTF-8 BOM（{@code \uFEFF}）。
+     *
+     * <p><b>为什么必须去掉</b>：BOM 紧贴 {@code #} 时，flexmark 的 ATX 标题解析不认这一行 ——
+     * 它要求行首就是 {@code #}。于是整行被当成普通段落原样输出，页面上看到的是
+     * {@code # 8.1 核心 Agent 框架全景对比} 这样带井号的纯文本。</p>
+     *
+     * <p>Windows 上的编辑器（VS Code、Notepad、部分 Obsidian 导出）保存 UTF-8 时默认带 BOM，
+     * 而 Git 不会替谁剥掉它，所以这个坑只在你从 Windows 导入文档时出现 ——
+     * 同一篇文档在编辑预览里是好的，因为那边是前端渲染，不经过这条路。</p>
+     *
+     * <p>只剥**开头**那一个：BOM 在文件中间的合法用法是「零宽不换行空格」，那种动它会改内容。</p>
+     */
+    private static String stripBom(String text) {
+        if (text != null && !text.isEmpty() && text.charAt(0) == '\uFEFF') {
+            return text.substring(1);
+        }
+        return text;
+    }
+
     private record Neutral(String html, List<OutlineNode> outline, Map<String, Object> frontmatter,
                            DocMeta meta, String etag) {
     }
