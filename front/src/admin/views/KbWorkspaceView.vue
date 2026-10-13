@@ -1956,22 +1956,24 @@ onBeforeUnmount(() => {
             <MdIcon :name="collapseAll ? 'chevron-right' : 'chevron-down'" :size="15" />
           </button>
           <!--
-            写操作：三个按钮收成一组，靠 order 落到第二行。
-            用 wrapper 而不是靠 order 逐个给 —— 三个按钮各自设 order 的话，
-            「只读成员看不到它们」时第一行的图标钮也会被挤到第二行去。
+            写操作：三个图标钮，紧跟在刷新 / 折叠之后（第一行）。
+            <p>只要图标不要字：226px 的面头上，「文档目录」四个字加两颗图标钮已经占了
+            大半，再塞三个带文字的按钮必然折行。图标 + title 足够认出是谁，完整说法
+            悬停就有。</p>
+            <p>用 wrapper 把三个收成一组：只读成员看不到它们时，第一行其余图标钮的
+            位置不受影响。</p>
           -->
           <div v-if="canWriteKb" class="md-ws__side-tools">
-            <button type="button" class="md-ws__tool md-ws__tool--primary" title="新建文档" @click="() => createDoc('')">
-              <MdIcon name="plus" :size="14" /> 文档
+            <button type="button" class="md-ws__tool md-ws__tool--primary" title="新建文档" aria-label="新建文档" @click="() => createDoc('')">
+              <MdIcon name="plus" :size="14" />
             </button>
-            <button type="button" class="md-ws__tool" title="新建目录" @click="() => createDir('')">
-              <MdIcon name="folder" :size="14" /> 目录
+            <button type="button" class="md-ws__tool" title="新建目录" aria-label="新建目录" @click="() => createDir('')">
+              <MdIcon name="folder" :size="14" />
             </button>
             <!-- 选文件与选目录是两个不同的系统选择器，只能分两条入口 -->
             <el-dropdown trigger="click" placement="bottom-start" @command="onImportCommand">
-              <button type="button" class="md-ws__tool" title="导入 Markdown、压缩包（zip）或整个目录">
-                <MdIcon name="upload" :size="14" /> 导入
-                <MdIcon name="chevron-down" :size="12" class="md-ws__tool-caret" />
+              <button type="button" class="md-ws__tool" title="导入 Markdown、压缩包（zip）或整个目录" aria-label="导入">
+                <MdIcon name="upload" :size="14" />
               </button>
               <template #dropdown>
                 <el-dropdown-menu>

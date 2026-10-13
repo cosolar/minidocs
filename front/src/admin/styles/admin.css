@@ -712,45 +712,58 @@
   background: var(--md-sidebar); border-right: 1px solid var(--md-border);
 }
 /*
- * 面板头部：两行，第一行是标题 + 图标动作，第二行是搜索框 + 三个写操作。
+ * 面板头部：第一行是标题 + 五颗图标钮，第二行是搜索框。
  *
- * <p>一行装不下：226px 的侧栏里，「文档目录」四个字加两颗图标钮就占了大半，
- * 再塞三个带文字的按钮必然折行成「新建文 / 档」这种断字。分成两行反而更好读 ——
- * 第一行只做状态与图标动作，第二行把搜索与写操作并排。</p>
+ * <p>搜索框用 flex: 1 1 100% 独占第二行 —— 它是这一栏里唯一需要宽度的控件，
+ * 而第一行的图标钮都是定宽小块，两者挤在一行只会把搜索框压成几十像素。</p>
  *
- * <p>不再显示篇数：那个数字（截图里的 231）与标题并排时读者猜不出是「篇数」还是
- * 「未读数」，而搜索框的占位符已经说明这一栏是什么。</p>
+ * <p>标题可缩：226px 里「文档目录」加五颗图标钮接近满员，面板拖窄时标题先让位
+ * （截断加省略号），图标钮保持可点。</p>
+ *
+ * <p>不再显示篇数：那个数字与标题并排时读者猜不出是「篇数」还是「未读数」，
+ * 而搜索框的占位符已经说明这一栏是什么。</p>
  */
 .md-ws__side-head {
   display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px;
   padding: 12px 12px 10px 14px;
 }
-.md-ws__side-title { font-size: 13px; font-weight: 650; letter-spacing: .02em; }
-/* 计数：右侧大纲栏与（曾经的）左栏篇数共用。上限两位数，再长就只显示数字本体 */
+.md-ws__side-title {
+  font-size: 13px; font-weight: 650; letter-spacing: .02em;
+  min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+/* 计数：右侧大纲栏在用，不能随左栏一起去掉 */
 .md-ws__count {
   min-width: 18px; height: 18px; padding: 0 6px; border-radius: 9px;
   background: var(--md-surface-2); color: var(--md-text-3);
   font-size: 11px; display: inline-flex; align-items: center; justify-content: center;
 }
-/* 第二行：搜索与三个按钮。gap 与第一行一致，两行才像同一组而不是两块 */
+/* 第二行：搜索框。order 只给它一个，工具组不设 order（按 DOM 顺序跟在图标钮后） */
 .md-ws__side-head > .md-ws__side-search {
   flex: 1 1 100%; min-width: 0; order: 10;
   padding: 0 0 2px;
 }
-.md-ws__side-head > .md-ws__side-tools {
-  flex: 0 1 auto; order: 11; min-width: 0;
-  display: flex; align-items: center; gap: 6px;
-}
 /*
- * 头部里的按钮比独占一排时小一档：高度 30 → 26、字号 12 → 11.5、去掉水平内边距。
- * 这里是图标动作区，不是主操作区 —— 与两颗图标钮同规格才不会显得比刷新还重要。
+ * 三个写操作收成一组，跟在刷新 / 折叠之后（第一行）。
+ *
+ * <p>不设 order：DOM 里它们就在两颗图标钮后面，自然落在第一行。曾经给过
+ * order: 11，把它们排到搜索框之后去了 —— 那不是想要的位置。</p>
+ */
+.md-ws__side-tools {
+  display: flex; align-items: center; gap: 6px; min-width: 0;
+}
+/* 下拉容器是 flex 项，摊平 */
+.md-ws__side-tools > .el-dropdown { min-width: 0; display: flex; }
+/*
+ * 纯图标方块：与旁边两颗 .md-ws__icon-btn 同规格（26px 高、8px 圆角）。
+ * 带文字时高度要 30px 才不局促，纯图标 26px 就够 —— 与相邻图标钮一致，
+ * 这一行看起来才是「一排图标动作」，而不是「两颗图标加三颗按钮」。
  */
 .md-ws__side-head .md-ws__tool {
   width: auto; height: 26px; padding: 0 8px;
   font-size: 11.5px; gap: 4px;
 }
 .md-ws__side-head .md-ws__tool .md-icon { width: 13px; height: 13px; }
-/* 「新建文档」仍是主行动，但底色收敛成软色：头部这一行整体都该轻 */
+/* 「新建文档」仍是主行动，但描边收敛到 45%：头部这一行整体都该轻 */
 .md-ws__side-head .md-ws__tool--primary {
   border-color: color-mix(in srgb, var(--md-primary) 45%, transparent);
   background: var(--md-primary-soft);
@@ -758,17 +771,6 @@
 /* 搜索框在 head 外面时（右栏大纲）保留自己的左右内边距；head 内的那条由 flex 全宽接管 */
 .md-ws__side-search { padding: 0 12px 8px; }
 .md-ws__side-search .el-input__prefix { color: var(--md-text-3); }
-/*
- * 三个写操作收成一组，落在头部第二行（order 见上面的 .md-ws__side-head 规则）。
- *
- * <p>原来是独立一栏的三等分网格，并进头部后改成横排即可 —— 226px 的侧栏放三颗
- * 26px 高的按钮还有富余，不需要再让它们各自撑满。</p>
- */
-.md-ws__side-tools {
-  display: flex; align-items: center; gap: 6px; min-width: 0;
-}
-/* 下拉容器是 flex 项，摊平；里面的按钮不再撑满，宽度由文字决定 */
-.md-ws__side-tools > .el-dropdown { min-width: 0; display: flex; }
 .md-ws__tool {
   width: 100%; min-width: 0; height: 30px;
   display: inline-flex; align-items: center; justify-content: center; gap: 5px;
