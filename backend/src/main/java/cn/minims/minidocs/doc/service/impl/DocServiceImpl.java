@@ -36,12 +36,14 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -200,6 +202,67 @@ public class DocServiceImpl implements DocService {
 
     private static boolean sameToTheSecond(LocalDateTime left, LocalDateTime right) {
         return left.truncatedTo(ChronoUnit.SECONDS).equals(right.truncatedTo(ChronoUnit.SECONDS));
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public int batchDelete(Long kbId, List<String> paths, LoginUser user) {
+        /*
+         * 权限只校验一次，不是每项一次。
+         *
+         * <p>DOC_DELETE 是库级动作（「这个库里的文档能不能删」），同一个库里勾十篇和
+         * 勾一篇是同一个权利。逐项校验会让 N 次请求打成 N 次权限查询，而界面已经
+         * 因为「可写才显示勾选」把这批人筛过一遍了。</p>
+         *
+         * <p>仍然要校验：直接调接口的人没经过那道前端筛。</p>
+         */
+        KnowledgeBase kb = accessService.requireKb(kbId, KbAction.DOC_DELETE, user);
+        if (paths == null || paths.isEmpty()) {
+            return 0;
+        }
+        Path root = vaultFileService.rootOf(kb.getStorageKey());
+        /*
+         * 归一 + 去重 + 去掉被父目录覆盖的那些。
+         *
+         * <p>作者在树上勾了「docs」又勾了「docs/a.md」时，后者会被前者的递归删除
+         * 一起带走。不提前去掉的话，删完父目录再删子项会抛「文件不存在」，
+         * 于是整个批量操作回滚 —— 用户看到的是「一项都没删掉」。</p>
+         *
+         * <p>按路径长度排序后逐个判断是否被已接受的路径覆盖，O(n log n)。</p>
+         */
+        List<String> targets = new ArrayList<>();
+        for (String raw : paths) {
+            if (raw == null || raw.isBlank()) {
+                continue;
+            }
+            String normalized = PathGuard.normalizeRelative(raw);
+            if (!targets.contains(normalized)) {
+                targets.add(normalized);
+            }
+        }
+        targets.sort(Comparator.comparingInt(String::length));
+        List<String> accepted = new ArrayList<>();
+        for (String candidate : targets) {
+            boolean covered = false;
+            for (String kept : accepted) {
+                if (kept.equals(candidate) || candidate.startsWith(kept + "/")) {
+                    covered = true;
+                    break;
+                }
+            }
+            if (!covered) {
+                accepted.add(candidate);
+            }
+        }
+        for (String path : accepted) {
+            vaultFileService.delete(root, path);
+        }
+        markdownService.invalidateKnowledgeBase(kbId);
+        knowledgeBaseService.touch(kbId);
+        for (String path : accepted) {
+            eventPublisher.publishEvent(DocumentChangedEvent.deleted(kbId, path));
+        }
+        return accepted.size();
     }
 
     @Override
@@ -480,6 +543,16 @@ public class DocServiceImpl implements DocService {
         }
     }
 
+    /**
+     * 还原压缩包：目录结构与文件一并落库。
+     *
+     * <p>条目的相对路径（剥掉统一外壳目录后）即库内路径，Markdown 按文本写、图片等资源按字节写，
+     * 因此 {@code notes/a.md} 与 {@code notes/img/pic.png} 落在同一相对位置，渲染时
+     * {@code MarkdownService} 按文档目录解析出的正是原路径，图片可以直接显示。</p>
+     *
+     * <p>不进库的只有：非法路径条目、系统 / 隐藏条目（.git、node_modules、.minidocs.json 等，
+     * 后者是库级配置，被包内旧副本覆盖会抹掉排序与隐藏规则）、超限文件。</p>
+     */
     private void importZip(Path root, String baseDir, MultipartFile file, Counter counter,
                            List<String> messages, int alreadyCounted) {
         String wrapper = zipWrapperDir(file);
@@ -497,7 +570,7 @@ public class DocServiceImpl implements DocService {
                     addMessage(messages, "已跳过非法路径：" + entry.getName());
                     continue;
                 }
-                if (!FileNameUtil.isMarkdown(entryName)) {
+                if (isSystemZipEntry(entryName)) {
                     counter.skipped++;
                     ignored++;
                     continue;
@@ -508,8 +581,28 @@ public class DocServiceImpl implements DocService {
                 }
                 try {
                     String target = PathGuard.join(baseDir, stripZipWrapper(entryName, wrapper));
-                    byte[] bytes = zip.readAllBytes();
-                    vaultFileService.write(root, target, new String(bytes, StandardCharsets.UTF_8));
+                    if (FileNameUtil.isMarkdown(entryName)) {
+                        byte[] bytes = zip.readAllBytes();
+                        vaultFileService.write(root, target, new String(bytes, StandardCharsets.UTF_8));
+                    } else if (FileNameUtil.isImage(entryName)) {
+                        byte[] bytes = readZipEntryBytes(zip, properties.getImageMaxSize());
+                        if (bytes == null) {
+                            counter.skipped++;
+                            addMessage(messages, "已跳过超过大小限制的图片：" + entryName);
+                            continue;
+                        }
+                        // 与编辑器上传同一套校验：扩展名 + 魔数，SVG 净化后再落盘
+                        vaultFileService.writeBytes(root, target,
+                                imageValidator.validateAndSanitize(entryName, bytes, properties.getImageMaxSize()));
+                    } else {
+                        byte[] bytes = readZipEntryBytes(zip, properties.getImportMaxSize());
+                        if (bytes == null) {
+                            counter.skipped++;
+                            addMessage(messages, "已跳过超过大小限制的文件：" + entryName);
+                            continue;
+                        }
+                        vaultFileService.writeBytes(root, target, bytes);
+                    }
                     counter.imported++;
                 } catch (Exception e) {
                     counter.failed++;
@@ -521,8 +614,36 @@ public class DocServiceImpl implements DocService {
             addMessage(messages, "压缩包解析失败：" + file.getOriginalFilename());
         }
         if (ignored > 0) {
-            addMessage(messages, "压缩包内 " + ignored + " 个非 Markdown 文件已跳过（图片等资源不会导入）");
+            addMessage(messages, "压缩包内 " + ignored + " 个系统 / 隐藏文件已跳过（如 .git、node_modules）");
         }
+    }
+
+    /**
+     * 读压缩包条目字节；超过 {@code maxSize} 即放弃读取并返回 {@code null}。
+     *
+     * <p>按「上限 + 1 个字节」去读：压缩比能把 50MB 的包撑成几十 GB，等 readAllBytes 吃完再判大小，
+     * 内存早就爆了。</p>
+     */
+    private byte[] readZipEntryBytes(ZipInputStream zip, long maxSize) {
+        try {
+            byte[] bytes = zip.readNBytes((int) Math.min(maxSize + 1, Integer.MAX_VALUE));
+            return bytes.length > maxSize ? null : bytes;
+        } catch (IOException e) {
+            throw new UncheckedIOException("读取压缩包条目失败", e);
+        }
+    }
+
+    /**
+     * 不该进库的压缩包条目：任一级隐藏文件 / 目录（.git、.obsidian、.minidocs.json……）与
+     * {@code node_modules}。{@code assets} 不拦 —— 编辑器上传的图片就放在那里，Obsidian 附件也常用这个目录名。
+     */
+    private boolean isSystemZipEntry(String entryName) {
+        for (String segment : entryName.split("/")) {
+            if (segment.startsWith(".") || "node_modules".equals(segment)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**

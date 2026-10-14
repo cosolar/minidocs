@@ -952,6 +952,40 @@ body.is-col-resizing .md-ws__bytemd-resizer::after { background: var(--md-primar
 }
 .md-ad-tree__row:hover { background: var(--md-surface-2); }
 .md-ad-tree__row.is-active { background: var(--md-primary-soft); }
+/* 多选模式下勾中的行：淡主色底 + 左侧一道实心标记，只靠底色在密集树里不够醒目 */
+.md-ad-tree__row.is-checked { background: var(--md-primary-soft); }
+.md-ad-tree__row.is-checked::before {
+  content: ''; position: absolute; left: -2px; top: 4px; bottom: 4px;
+  width: 3px; border-radius: 2px; background: var(--md-primary);
+}
+/*
+ * 勾选框。
+ *
+ * <p>用 span + role=checkbox 而不是原生 input：树里已经有一个可点的行了，
+ * 再嵌一个原生控件会让 Tab 顺序多出一堆 stop，而键盘用户其实用「行 + 空格」
+ * 就够了（这个项目暂时没做那层键盘支持，先保证鼠标与触屏）。</p>
+ */
+.md-ad-tree__check {
+  width: 15px; height: 15px; flex-shrink: 0; margin-left: 1px;
+  display: grid; place-items: center;
+  border: 1.5px solid var(--md-border-strong); border-radius: 4px;
+  color: transparent; cursor: pointer;
+  transition: border-color .14s ease, background-color .14s ease, color .14s ease;
+}
+.md-ad-tree__check:hover { border-color: var(--md-primary); }
+.md-ad-tree__check.is-on {
+  background: var(--md-primary); border-color: var(--md-primary); color: #fff;
+}
+/* 半选：只填底色 + 一道横线，与「全选」的打勾区分 */
+.md-ad-tree__check.is-mixed {
+  background: color-mix(in srgb, var(--md-primary) 30%, transparent);
+  border-color: var(--md-primary);
+}
+.md-ad-tree__check.is-mixed::after {
+  content: ''; width: 7px; height: 2px; border-radius: 1px; background: #fff;
+}
+/* 勾选框挤占了原来Toggle 的位置，多选时Toggle 收窄一点保持行高一致 */
+.md-ad-tree__row:has(.md-ad-tree__check) { padding-left: 4px; }
 /* 拖拽：拿起来的那行淡出，落点那行描一圈实线。只靠变色在密集的树里分不清「拿的」和「放的」 */
 .md-ad-tree__row.is-dragging { opacity: .45; }
 .md-ad-tree__row.is-drop-target {

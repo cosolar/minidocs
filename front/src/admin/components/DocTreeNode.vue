@@ -37,6 +37,30 @@ const props = defineProps<{
    * 在叶子节点里发请求既做不到也毫无意义。</p>
    */
   showMdSuffix?: boolean
+  /**
+   * 多选模式开关。开启后点击行不再打开文档，而是切换勾选。
+   *
+   * <p>做成显式模式而不是「长按 / Ctrl 点击」：后者在触屏上完全没有对应物，
+   * 而这个项目是给非技术作者用的。</p>
+   */
+  selectMode?: boolean
+  /** 本级是否已勾选 */
+  checked?: boolean
+  /**
+   * 本级「部分子项被勾选」。父目录没被勾但子项有勾时显示半选态，
+   * 否则用户会以为「勾了子项、父目录不知道」。
+   */
+  indeterminate?: boolean
+  /**
+   * 全量勾选集合，由工作区持有并按 path 下发。
+   *
+   * <p>不在每个节点上各自存一份布尔：勾父目录要连带勾全部子孙，逐个节点递归
+   * 同步会漏（折叠着的目录根本没渲染出子节点）。由顶层持集合、按 path 查询，
+   * 折叠与否都不影响正确性。</p>
+   */
+  checkedSet?: Set<string>
+  /** 半选集合：该路径自身没被勾，但有后代被勾 */
+  mixedSet?: Set<string>
 }>()
 
 const emit = defineEmits<{
@@ -44,6 +68,7 @@ const emit = defineEmits<{
   (e: 'action', payload: { action: string; node: DocNode }): void
   (e: 'move', payload: { path: string; targetDir: string }): void
   (e: 'reorder', payload: { path: string; targetPath: string; position: 'before' | 'after' }): void
+  (e: 'check', payload: { path: string; checked: boolean; node: DocNode }): void
 }>()
 
 /**
@@ -170,17 +195,27 @@ function toggle() {
 /**
  * 点行名。
  *
- * <p><b>目录是展开/收起，文档与图片才是打开。</b>此前一律 emit select，而工作区那边
- * 只处理 doc 与image，目录落空什么都不做 —— 于是「点目录名展开」这个所有文件树的
- * 基本行为在这里不成立，用户只能去点那个16px 的小箭头，看起来就是「点击没反应」。
- * 目录名与箭头是两个入口，但语义必须一致：箭头能展开，名字也该能。</p>
+ * <p>多选模式下不打开文档，只切勾选 —— 否则「勾选时不小心点到名字就跳走了」，
+ * 选区还没建完人就到了另一篇。</p>
+ *
+ * <p>非多选时：目录是展开/收起，文档与图片才是打开。目录名与箭头是两个入口，
+ * 但语义必须一致：箭头能展开，名字也该能。</p>
  */
 function onSelect() {
+  if (props.selectMode) {
+    onCheck()
+    return
+  }
   if (props.node.type === 'dir') {
     toggle()
     return
   }
   emit('select', props.node)
+}
+
+/** 勾选切换。父目录照常派发，由工作区决定「勾父是否连带勾全部子项」 */
+function onCheck() {
+  emit('check', { path: props.node.path, checked: !props.checked, node: props.node })
 }
 
 function onAction(action: string) {
@@ -298,7 +333,8 @@ function onDrop(event: DragEvent) {
         'is-dragging': isDragging,
         'is-drop-target': dropActive,
         'is-drop-before': dropZone === 'before',
-        'is-drop-after': dropZone === 'after'
+        'is-drop-after': dropZone === 'after',
+        'is-checked': props.selectMode && props.checked
       }"
       :draggable="canDrag"
       @dragstart="onDragStart"
@@ -309,6 +345,25 @@ function onDrop(event: DragEvent) {
     >
       <span v-if="dropZone === 'before'" class="md-ad-tree__drop-line is-before" aria-hidden="true" />
       <span v-if="dropZone === 'after'" class="md-ad-tree__drop-line is-after" aria-hidden="true" />
+      <!--
+        勾选框：只在多选模式出现。
+        <p>点它自己也会切勾选（不.stop），因为多选模式下「点行」与「点勾选框」
+        是同一个意图，分开两种行为只会让人踩空。</p>
+      -->
+      <span
+        v-if="props.selectMode"
+        class="md-ad-tree__check"
+        :class="{ 'is-on': props.checked, 'is-mixed': props.indeterminate && !props.checked }"
+        role="checkbox"
+        :aria-checked="props.indeterminate && !props.checked ? 'mixed' : String(!!props.checked)"
+        @click="onCheck"
+      >
+        <!--
+          勾号用图标，半选的横线用 ::after 画（见 admin.css 的 .is-mixed）——
+          图标库里没有 minus，而为了一个横线加一个图标不值当。
+        -->
+        <MdIcon v-if="!(props.indeterminate && !props.checked)" name="check" :size="11" />
+      </span>
       <button
         v-if="node.type === 'dir'"
         type="button"
@@ -381,10 +436,14 @@ function onDrop(event: DragEvent) {
         :collapse-all="collapseAll"
         :perms="perms"
         :show-md-suffix="showMdSuffix"
+        :select-mode="selectMode"
+        :checked="checkedSet.has(child.path)"
+        :indeterminate="mixedSet.has(child.path)"
         @select="emit('select', $event)"
         @action="emit('action', $event)"
         @move="emit('move', $event)"
         @reorder="emit('reorder', $event)"
+        @check="emit('check', $event)"
       />
     </ul>
   </li>

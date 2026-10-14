@@ -2,6 +2,7 @@ package cn.minims.minidocs.doc.dto;
 
 import cn.minims.minidocs.common.util.PathEncoder;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.Size;
 
 import java.time.LocalDateTime;
@@ -91,6 +92,18 @@ public final class DocDtos {
 
     public record CreateDirRequest(
             @NotBlank(message = "路径不能为空") String path) {
+    }
+
+    /**
+     * 批量删除。
+     *
+     * @param paths 待删除的路径清单。目录会连带其下全部内容，所以勾了父目录时不必
+     *              再把子项也列进来 —— 列了也没事，后端会去掉被父路径覆盖的那些
+     */
+    public record BatchDeleteRequest(
+            @NotEmpty(message = "没有要删除的路径")
+            @Size(max = 200, message = "单次最多删除 200 项")
+            List<String> paths) {
     }
 
     /**

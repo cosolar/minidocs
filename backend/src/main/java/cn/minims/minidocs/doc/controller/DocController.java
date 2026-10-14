@@ -6,6 +6,7 @@ import cn.minims.minidocs.common.context.TenantContext;
 import cn.minims.minidocs.common.context.UserContext;
 import cn.minims.minidocs.common.web.AppPaths;
 import cn.minims.minidocs.doc.dto.DocDtos.CreateDirRequest;
+import cn.minims.minidocs.doc.dto.DocDtos.BatchDeleteRequest;
 import cn.minims.minidocs.doc.dto.DocDtos.CreateDocRequest;
 import cn.minims.minidocs.doc.dto.DocDtos.DocContentVO;
 import cn.minims.minidocs.doc.dto.DocDtos.DocNode;
@@ -117,6 +118,22 @@ public class DocController {
     public ApiResponse<Void> delete(@PathVariable String slug, @RequestParam String path) {
         docService.delete(locate(slug), path, UserContext.require());
         return ApiResponse.ok();
+    }
+
+    /**
+     * 批量删除。
+     *
+     * <p>走 POST 而不是 DELETE：要带请求体（路径清单），而部分代理与浏览器对
+     * DELETE + body 支持不一致。</p>
+     *
+     * <p>返回删除成功的条数：前端要显示「已删除 12 项」，而「删了几个」只有后端
+     * 数得准（目录算一项但它底下可能有很多篇）。</p>
+     */
+    @Operation(summary = "批量删除文档或目录")
+    @PostMapping("/doc/batch-delete")
+    public ApiResponse<Integer> batchDelete(@PathVariable String slug,
+                                            @Valid @RequestBody BatchDeleteRequest request) {
+        return ApiResponse.ok(docService.batchDelete(locate(slug), request.paths(), UserContext.require()));
     }
 
     @Operation(summary = "重命名")

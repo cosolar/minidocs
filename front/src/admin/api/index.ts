@@ -157,6 +157,17 @@ export const docApi = {
     kbUrl(kbSlug, `/lock?path=${encodeURIComponent(path)}`),
   remove: (kbSlug: string, path: string) =>
     request<void>({ url: `${kbPath(kbSlug)}/doc`, method: 'delete', params: { path } }),
+  /**
+   * 批量删除。
+   *
+   * <p>走 POST 而不是 DELETE：要带路径清单，而 DELETE + body 在部分代理与浏览器上
+   * 行为不一致。</p>
+   *
+   * <p>返回实际删除的项数：目录算一项但它底下可能有很多篇，前端要显示「已删除 N 项」，
+   * 而这个数只有后端数得准。</p>
+   */
+  batchRemove: (kbSlug: string, paths: string[]) =>
+    request<number>({ url: `${kbPath(kbSlug)}/doc/batch-delete`, method: 'post', data: { paths } }),
   rename: (kbSlug: string, data: { path: string; name: string }) =>
     request<PathChangeVO>({ url: `${kbPath(kbSlug)}/doc/rename`, method: 'post', data }),
   move: (kbSlug: string, data: { path: string; targetDir: string }) =>

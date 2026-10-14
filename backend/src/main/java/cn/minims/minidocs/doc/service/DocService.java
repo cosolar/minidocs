@@ -49,6 +49,13 @@ public interface DocService {
 
     void delete(Long kbId, String path, LoginUser user);
 
+    /**
+     * 批量删除。
+     *
+     * @return 实际删除的项数（目录算一项，但连带其下全部内容）
+     */
+    int batchDelete(Long kbId, List<String> paths, LoginUser user);
+
     PathChangeVO rename(Long kbId, String path, String name, LoginUser user);
 
     PathChangeVO move(Long kbId, String path, String targetDir, LoginUser user);

@@ -76,6 +76,56 @@ const loading = ref(true)
 const treeLoading = ref(false)
 const keyword = ref('')
 const collapseAll = ref(false)
+
+/**
+ * 多选（批量删除）模式。
+ *
+ * <p>做成显式开关而不是「Ctrl 点击多选」：后者在触屏上完全没有对应物，
+ * 而这个工作区是给非技术作者用的。开关放在面板头部，与刷新/折叠并排。</p>
+ */
+const selectMode = ref(false)
+
+/**
+ * 已勾选的路径集合。
+ *
+ * <p>只存被显式勾中的项，不展开成「所有叶子」：勾一个父目录时集合里就一条记录，
+ * 否则勾一下顶层目录会往集合里灌进几百个路径，界面要显示「已选 N 项」时还得
+ * 再数一遍真实文件数 —— 那个数只有树知道。</p>
+ */
+const checkedPaths = ref<Set<string>>(new Set())
+
+/**
+ * 勾选集合的派生视图：勾中的项 + 半选（自身没勾但有后代被勾）的项。
+ *
+ * <p>半选要单独算：折叠着的目录不会渲染子节点，但用户仍应看到「这个目录底下
+ * 有东西被选中了」—— 否则他会以为选区只包含看得见的那几个。</p>
+ */
+const mixedPaths = computed(() => {
+  const out = new Set<string>()
+  if (checkedPaths.value.size === 0) return out
+  const all = new Set<string>()
+  const walk = (nodes: DocNode[]) => {
+    for (const n of nodes) {
+      all.add(n.path)
+      if (n.children?.length) walk(n.children)
+    }
+  }
+  walk(tree.value)
+  for (const p of checkedPaths.value) {
+    // 每个祖先都算半选；path 里的 / 分隔足够定位层级
+    let idx = p.lastIndexOf('/')
+    while (idx > 0) {
+      const parent = p.slice(0, idx)
+      out.add(parent)
+      idx = parent.lastIndexOf('/')
+    }
+  }
+  // 只保留真实存在的目录：勾中的可能是图片，它的「祖先」未必在树里
+  for (const p of Array.from(out)) {
+    if (!all.has(p)) out.delete(p)
+  }
+  return out
+})
 // 窄屏初始收起两栏：抽屉默认开着会直接盖住编辑区
 const showTree = ref(!isMobile.value)
 const showToc = ref(!isMobile.value)
@@ -1132,6 +1182,124 @@ function toggleCollapseAll() {
   collapseAll.value = !collapseAll.value
 }
 
+/* ------------------------------------------------------------------ 多选 / 批量删除 */
+
+/** 面板头部那个勾选开关：进入或退出多选模式 */
+function toggleSelectMode() {
+  selectMode.value = !selectMode.value
+  checkedPaths.value = new Set()
+}
+
+/**
+ * 勾选 / 取消勾选某一项。
+ *
+ * <p>勾父目录连带勾全部子孙，取消父目录连带取消全部子孙 —— 这是所有文件树的
+ * 一致行为（VS Code、Finder、GitHub 都是）。只勾中自己、不动子孙的话，
+ * 用户看到「父目录勾上了」会以为整个目录都在选区里，删的时候才发现只剩一篇。</p>
+ */
+function onTreeCheck(payload: { path: string; checked: boolean; node: DocNode }) {
+  const next = new Set(checkedPaths.value)
+  const affected = [payload.path]
+  // 先收集全部子孙，再统一增删：边遍历边改集合会让递归判断失效
+  const walk = (nodes: DocNode[]) => {
+    for (const n of nodes) {
+      affected.push(n.path)
+      if (n.children?.length) walk(n.children)
+    }
+  }
+  if (payload.node.children?.length) walk(payload.node.children)
+  if (payload.checked) {
+    affected.forEach((p) => next.add(p))
+  } else {
+    affected.forEach((p) => next.delete(p))
+  }
+  checkedPaths.value = next
+}
+
+/**
+ * 全选 / 取消全选。
+ *
+ * <p>用未过滤的 {@link tree} 而不是 {@link visibleTree}：后者被关键字裁剪过，
+ * 搜索状态下「全选」会漏掉一批，而用户以为选的是全部。</p>
+ *
+ * <p>折叠状态不参与判断：它只影响渲染，勾选集合本身与折叠无关。折叠着的目录
+ * 照样进选区 —— 这也正是半选标记要存在的原因。</p>
+ */
+function toggleSelectAll() {
+  const all: string[] = []
+  const walk = (nodes: DocNode[]) => {
+    for (const n of nodes) {
+      all.push(n.path)
+      if (n.children?.length) walk(n.children)
+    }
+  }
+  walk(tree.value)
+  const allOn = all.length > 0 && all.every((p) => checkedPaths.value.has(p))
+  const next = new Set(checkedPaths.value)
+  if (allOn) all.forEach((p) => next.delete(p))
+  else all.forEach((p) => next.add(p))
+  checkedPaths.value = next
+}
+
+/** 退出多选模式（删除完成后调用，避免选区指向已不存在的路径） */
+function exitSelectMode() {
+  selectMode.value = false
+  checkedPaths.value = new Set()
+}
+
+/**
+ * 批量删除。二次确认放在这里，且把后果说清楚。
+ *
+ * <p>「确定要删除 12 项吗」不够：勾选里可能有目录，而一个目录底下是几十篇。
+ * 所以这里数出真实的文件总量，写「将删除 47 个文件（含 3 个目录）」——
+ * 用户点下确定前必须知道这个数。</p>
+ */
+async function batchDelete() {
+  const picked = Array.from(checkedPaths.value)
+  if (picked.length === 0) {
+    ElMessage.warning('先勾选要删除的文件或目录')
+    return
+  }
+  // 只数「文档与图片」，目录单独计：把目录也数成文件会让数字虚高
+  let files = 0
+  let dirs = 0
+  const walk = (nodes: DocNode[]) => {
+    for (const n of nodes) {
+      if (!checkedPaths.value.has(n.path)) continue
+      if (n.type === 'dir') {
+        dirs++
+        if (n.children?.length) walk(n.children)
+      } else {
+        files++
+      }
+    }
+  }
+  walk(tree.value)
+  const detail = dirs > 0 ? `（含 ${dirs} 个目录）` : ''
+  try {
+    await ElMessageBox.confirm(
+      `将删除 ${files} 个文件${detail}，删除后无法恢复。`,
+      '批量删除',
+      { type: 'warning', confirmButtonText: '删除', cancelButtonText: '取消' }
+    )
+  } catch {
+    return
+  }
+  try {
+    const removed = await docApi.batchRemove(kbSlug.value, picked)
+    ElMessage.success(`已删除 ${removed} 项`)
+    // 当前打开的那篇如果也在选区里，先清掉再重取目录：否则正文区还显示着已删除的内容，
+    if (currentPath.value && checkedPaths.value.has(currentPath.value)) {
+      currentPath.value = ''
+    }
+    exitSelectMode()
+    await loadTree()
+    await loadKb()
+  } catch {
+    /* 拦截器已提示 */
+  }
+}
+
 /* ------------------------------------------------------------------ 拖拽移动 */
 /** 拖到树的空白处＝移到根目录 */
 const rootDropActive = ref(false)
@@ -1950,6 +2118,16 @@ onBeforeUnmount(() => {
           <button
             type="button"
             class="md-ws__icon-btn"
+            :class="{ 'is-on': selectMode }"
+            :title="selectMode ? '退出多选' : '多选（批量删除）'"
+            :aria-pressed="selectMode"
+            @click="toggleSelectMode"
+          >
+            <MdIcon name="list" :size="15" />
+          </button>
+          <button
+            type="button"
+            class="md-ws__icon-btn"
             :title="collapseAll ? '展开全部' : '折叠全部'"
             @click="toggleCollapseAll"
           >
@@ -1963,6 +2141,20 @@ onBeforeUnmount(() => {
             <p>用 wrapper 把三个收成一组：只读成员看不到它们时，第一行其余图标钮的
             位置不受影响。</p>
           -->
+          <!--
+            多选模式下的操作条：全选 + 删除。
+            <p>只在多选模式出现，且与三个写操作同一行 —— 面板只有 226px，
+            再多一排会挤掉目录树。</p>
+          -->
+          <template v-if="selectMode">
+            <button type="button" class="md-ws__tool" title="全选 / 取消全选" aria-label="全选或取消全选" @click="toggleSelectAll">
+              <MdIcon name="list" :size="14" />
+            </button>
+            <button type="button" class="md-ws__tool md-ws__tool--primary" title="删除所选" aria-label="删除所选" @click="batchDelete">
+              <MdIcon name="trash" :size="14" />
+            </button>
+          </template>
+
           <div v-if="canWriteKb" class="md-ws__side-tools">
             <button type="button" class="md-ws__tool md-ws__tool--primary" title="新建文档" aria-label="新建文档" @click="() => createDoc('')">
               <MdIcon name="plus" :size="14" />
@@ -2021,10 +2213,14 @@ onBeforeUnmount(() => {
                      :collapse-all="collapseAll"
                   :perms="kb?.myPermissions"
                    :show-md-suffix="kb?.showMdSuffix"
+                     :select-mode="selectMode"
+                     :checked-set="checkedPaths"
+                     :mixed-set="mixedPaths"
               @select="onTreeSelect"
               @action="onTreeAction"
               @move="onTreeMove"
               @reorder="onTreeReorder"
+              @check="onTreeCheck"
             />
           </ul>
         </div>
