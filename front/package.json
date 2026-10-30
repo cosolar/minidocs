@@ -18,10 +18,10 @@
     "bytemd": "^1.22.0",
     "element-plus": "^2.9.3",
     "highlight.js": "^11.11.1",
-    "katex": "^0.16.21",
+    "katex": "^0.19.1",
     "mermaid": "^11.4.1",
     "pinia": "^2.3.0",
-    "remark-cjk-friendly": "^2.3.2",
+    "remark-cjk-friendly": "^2.3.3",
     "vue": "^3.5.13",
     "vue-router": "^4.5.0"
   },
