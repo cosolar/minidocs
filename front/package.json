@@ -23,7 +23,7 @@
     "pinia": "^2.3.0",
     "remark-cjk-friendly": "^2.3.2",
     "vue": "^3.5.13",
-    "vue-router": "^4.5.0"
+    "vue-router": "^5.4.0"
   },
   "devDependencies": {
     "@types/node": "^26.6.4",
