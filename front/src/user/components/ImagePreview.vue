@@ -9,7 +9,7 @@
  * <p>不自己实现缩放：{@code enhanceMarkdown} 已有成熟的灯箱（滚轮缩放 / 拖拽 / 双指 / 旋转），
  * 这里只负责「选中哪张图」与外壳，复用那套交互，避免出现第二份手势逻辑。</p>
  */
-import { computed } from 'vue'
+import { computed, ref, watch } from 'vue'
 import Icon from '@/user/components/Icon.vue'
 
 const props = defineProps<{
@@ -27,6 +27,20 @@ const src = computed(() => {
   const encoded = props.path.split('/').map((s) => encodeURIComponent(s)).join('/')
   return `${props.assetPrefix}${encoded}`
 })
+
+/*
+ * 加载失败要说出来。
+ *
+ * <p>不加这一层时，失败的图只剩浏览器给的「裂图 + alt」—— 而这里的 alt 正是文件名，
+ * 看起来就像「这张图本来就是一段文字」，读者无从判断是图坏了还是自己点错了。
+ * 后端遇到读不到的图会留占位说明，这里对齐同一套：把失败讲清楚，并把真实地址摆出来
+ * 供排查（多半是前缀少了一段，或文件已不在库里）。</p>
+ *
+ * <p>必须 watch {@code path}：切换预览对象时组件是原地复用而不是重建（父层的
+ * {@code v-if} 只从 false 变 true 一次），不重置的话，上一张的失败会一直挂在下一张上。</p>
+ */
+const failed = ref(false)
+watch(() => props.path, () => { failed.value = false })
 </script>
 
 <template>
@@ -43,7 +57,13 @@ const src = computed(() => {
       </button>
     </div>
     <div class="md-asset-view__stage">
-      <img :src="src" :alt="name" class="md-zoomable">
+      <div v-if="failed" class="md-asset-view__fail">
+        <Icon name="image" :size="24" />
+        <strong>图片加载失败</strong>
+        <p>文件可能已不在库里，或资源地址不对。</p>
+        <code :title="src">{{ src }}</code>
+      </div>
+      <img v-else :src="src" :alt="name" class="md-zoomable" @error="failed = true">
     </div>
   </div>
 </template>
@@ -114,6 +134,34 @@ const src = computed(() => {
   object-fit: contain;
   border-radius: 6px;
   box-shadow: 0 2px 12px rgba(24, 29, 51, 0.12);
+}
+.md-asset-view__fail {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  max-width: 520px;
+  padding: 20px 24px;
+  border: 1px dashed var(--md-border);
+  border-radius: 10px;
+  background: var(--md-surface-1, transparent);
+  color: var(--md-text-2);
+  text-align: center;
+}
+.md-asset-view__fail strong {
+  color: var(--md-text-1);
+  font-size: 14px;
+  font-weight: 600;
+}
+.md-asset-view__fail p {
+  margin: 0;
+  font-size: 13px;
+}
+/* 地址要能换行，长路径不能把卡片撑破；同时也方便直接选中复制去排查 */
+.md-asset-view__fail code {
+  max-width: 100%;
+  font-size: 12px;
+  overflow-wrap: anywhere;
 }
 </style>
 

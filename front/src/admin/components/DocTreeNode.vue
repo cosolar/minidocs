@@ -355,7 +355,7 @@ function onDrop(event: DragEvent) {
         class="md-ad-tree__check"
         :class="{ 'is-on': props.checked, 'is-mixed': props.indeterminate && !props.checked }"
         role="checkbox"
-        :aria-checked="props.indeterminate && !props.checked ? 'mixed' : String(!!props.checked)"
+        :aria-checked="props.indeterminate && !props.checked ? 'mixed' : !!props.checked"
         @click="onCheck"
       >
         <!--
@@ -437,8 +437,8 @@ function onDrop(event: DragEvent) {
         :perms="perms"
         :show-md-suffix="showMdSuffix"
         :select-mode="selectMode"
-        :checked="checkedSet.has(child.path)"
-        :indeterminate="mixedSet.has(child.path)"
+        :checked="props.checkedSet?.has(child.path) ?? false"
+        :indeterminate="props.mixedSet?.has(child.path) ?? false"
         @select="emit('select', $event)"
         @action="emit('action', $event)"
         @move="emit('move', $event)"

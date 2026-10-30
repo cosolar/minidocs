@@ -193,17 +193,12 @@ const asideTree = computed<DocNode[]>(() => {
 })
 
 /**
- * 左栏这一栏的标题：全库时说「全部文档」，收窄时说清是哪个菜单项的范围。
+ * 全库 ↔ 栏目范围来回切。
  *
- * <p>收窄后的目录凭空少了大半篇数，不说清范围，读者会以为这个库就这么大。</p>
+ * <p>这个开关现在只有顶栏那颗知识库按钮一个入口了：左栏顶部原先还有一条
+ * 「全部文档 · N 篇」的范围说明，点它也能回全库，但读者在两处对着同一个开关，
+ * 而那一行最值钱的位置只用来显示一个点不得的篇数。已删，见 ReadBody 的左栏注释。</p>
  */
-const scopeLabel = computed(() => {
-  if (allMode.value) return `全部文档 · ${view.value?.docCount ?? 0} 篇`
-  const active = menu.value.find((item) => item.path === activeMenuPath.value)
-  return active ? active.name || active.path : '全部文档'
-})
-
-/** 顶栏知识库按钮：全库 ↔ 栏目范围来回切 */
 function toggleAll() {
   if (!menu.value.length) return
   allTree.value = !allTree.value
@@ -274,9 +269,6 @@ function pickMenu(item: NavMenuItem) {
         :view="view"
         :switching="switching"
         :tree="asideTree"
-        :scope-label="scopeLabel"
-        :scope-all="allMode"
-        @scope-all="allTree = true"
       />
       <ShareStatusBar
         :kb-name="view.kbName"

@@ -69,8 +69,25 @@ public class MiniDocsProperties {
     /** 头像图上限 */
     private long avatarMaxSize = 2L * 1024 * 1024;
 
-    private int importMaxFiles = 200;
+    /**
+     * 单次导入的条目数上限。
+     *
+     * <p><b>这是防滥用的安全阀，不是产品限制。</b>真正该管的是字节数（见
+     * {@link #importMaxUncompressedSize}）——「一个压缩包里有几篇文档」跟「这次上传有多大」
+     * 是两回事，按篇数拦会把正常的大目录挡在门外。这个值只用来兜住「几十万个空条目」
+     * 这类极端包（解压后 0 字节，体积闸门看不见），所以给得很宽。</p>
+     */
+    private int importMaxFiles = 5000;
+    /** 单次上传的体积上限。压缩包算的是<b>压缩后</b>的大小。 */
     private long importMaxSize = 50L * 1024 * 1024;
+    /**
+     * 压缩包解压后的总体积上限。
+     *
+     * <p>比 {@link #importMaxSize} 宽松：文本的压缩比常见 3–5 倍，50MB 的包解出 200MB
+     * 完全正常，拿压缩后的数去卡解压后的量会误伤。真正要防的是「小包解出几十 GB」的
+     * 压缩炸弹，这里按<b>实际写盘的字节</b>累加，读多少算多少。</p>
+     */
+    private long importMaxUncompressedSize = 200L * 1024 * 1024;
 
     /** 目录层级上限 */
     private int maxDepth = 6;

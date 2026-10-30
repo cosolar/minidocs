@@ -95,8 +95,11 @@ minidocs:
   doc-max-size: 2097152
   image-max-size: 20971520
   cover-max-size: 2097152
-  import-max-files: 200
+  # 条目数只是防「几十万个空条目」的安全阀，正常导入不该撞到它；
+  # 压缩包真正的闸门是解压后的总体积（文本压缩比常见 3–5 倍，所以给得比 import-max-size 宽）。
+  import-max-files: 5000
   import-max-size: 52428800
+  import-max-uncompressed-size: 209715200
   max-depth: 6
   render-cache-size: 50
   tree-cache-size: 20

@@ -86,6 +86,15 @@ const tagInputRef = ref<HTMLInputElement | null>(null)
 const TAG_MAX = 5
 const TAG_LEN_MAX = 12
 
+/**
+ * 打开编辑弹窗时的仓库地址与分支。
+ *
+ * <p>只为了「保存后给哪句提示」：地址/分支真变了，后端会清空工作副本重新克隆，
+ * 这时候回一句「已保存」是不诚实的 —— 读者以为改完了，其实后台正在重拉。
+ * 判定本身仍以后端为准（它会再比一次），这里只影响文案。</p>
+ */
+const gitOrigin = ref({ url: '', branch: '' })
+
 const shareVisible = ref(false)
 const shareTarget = ref<KbVO | null>(null)
 
@@ -196,6 +205,7 @@ function openEdit(kb: KbVO) {
     gitToken: '',
     gitTokenSet: Boolean(kb.git?.tokenSet)
   })
+  gitOrigin.value = { url: kb.git?.url || '', branch: kb.git?.branch || 'main' }
   resetTagEditor()
   formVisible.value = true
 }
@@ -253,7 +263,7 @@ async function submitForm() {
     return
   }
   const isCreate = formMode.value === 'create'
-  const cloud = isCreate && form.sourceType === 'git'
+  const cloud = form.sourceType === 'git' && (isCreate || formMode.value === 'edit')
   if (cloud && !form.gitUrl.trim()) {
     ElMessage.warning('请填写 Git 仓库地址')
     return
@@ -276,7 +286,21 @@ async function submitForm() {
       // 空令牌不发：后端把「没填」与「填了空串」都当没配，多发一个空字段只会让请求看起来像要清空凭证
       payload.gitToken = form.gitToken.trim() || undefined
     }
+  } else if (cloud) {
+    /*
+     * 编辑态也把 git 这几项带上：地址 / 分支变了后端会重新克隆，只改凭证则就地更新。
+     * 令牌留空**不发** —— 语义是「沿用原来那个」，而不是「清空」。
+     * 地址与分支无条件发：后端自己比对，值没变就不会触发重克隆，前端不必再维护一份「改没改」的判断。
+     */
+    payload.gitUrl = form.gitUrl.trim()
+    payload.gitBranch = form.gitBranch.trim() || undefined
+    payload.gitUsername = form.gitUsername.trim() || undefined
+    payload.gitToken = form.gitToken.trim() || undefined
   }
+  // 只影响下面那句提示；真正的判定在后端 rebindGit 里
+  const repoRebound =
+    !isCreate && cloud &&
+    (form.gitUrl.trim() !== gitOrigin.value.url || (form.gitBranch.trim() || 'main') !== gitOrigin.value.branch)
   try {
     const kb = isCreate ? await kbApi.create(payload) : await kbApi.update(form.slug, payload)
     if (form.coverFile) {
@@ -298,13 +322,15 @@ async function submitForm() {
       })
     }
     ElMessage.success(
-      isCreate && form.sourceType === 'git'
-        ? '云端知识库已创建，正在后台拉取仓库，可在工作区查看进度'
-        : isCreate && form.maintainScope === 'members'
-          ? '知识库已创建。维护名单还是空的，记得在「权限」里添加可写的人。'
-          : isCreate
-            ? '知识库已创建，尚未发布到门户 —— 需要对外分享请点这一行的「分享」'
-            : '已保存'
+      repoRebound
+        ? '已保存，正在按新地址重新克隆仓库，进度可在「工作区」查看'
+        : isCreate && form.sourceType === 'git'
+          ? '云端知识库已创建，正在后台拉取仓库，可在工作区查看进度'
+          : isCreate && form.maintainScope === 'members'
+            ? '知识库已创建。维护名单还是空的，记得在「权限」里添加可写的人。'
+            : isCreate
+              ? '知识库已创建，尚未发布到门户 —— 需要对外分享请点这一行的「分享」'
+              : '已保存'
     )
     formVisible.value = false
     await load()
@@ -784,14 +810,42 @@ watch(org, () => {
           </template>
         </section>
 
+        <!--
+          编辑态：仓库地址可以改（迁仓库是真实会发生的），但来源类型（本地 / 云端）不能改 ——
+          那条仍然只属于建库，换来源等于把整个内容基底换掉。
+          地址或分支一变，后端会清掉旧工作副本重新克隆，所以下面给一条明确的后果提示。
+        -->
         <section v-else-if="formMode === 'edit' && form.sourceType === 'git'" class="md-kb-group">
           <h4 class="md-kb-group__title">云端仓库</h4>
-          <el-form-item label="仓库地址">
-            <el-input :model-value="form.gitUrl" disabled />
+          <el-form-item label="仓库地址（HTTPS）">
+            <el-input v-model="form.gitUrl" maxlength="512" placeholder="https://github.com/your-org/your-repo.git" />
+          </el-form-item>
+          <div class="md-kb-cols">
+            <el-form-item label="分支">
+              <el-input v-model="form.gitBranch" maxlength="128" placeholder="main" />
+            </el-form-item>
+            <el-form-item label="用户名">
+              <el-input v-model="form.gitUsername" maxlength="128" placeholder="公开仓库可留空" />
+            </el-form-item>
+          </div>
+          <el-form-item label="访问令牌">
+            <el-input
+              v-model="form.gitToken"
+              type="password"
+              show-password
+              maxlength="512"
+              :placeholder="form.gitTokenSet ? '已配置，留空则不修改' : '私有仓库必填'"
+            />
             <div class="md-form-hint">
-              分支 {{ form.gitBranch }} · 访问令牌{{ form.gitTokenSet ? '已配置' : '未配置' }} · 来源在建库时确定，之后不可更改
+              令牌加密后落库，保存后不再回显。留空表示沿用原来那个。
             </div>
           </el-form-item>
+          <el-alert
+            type="warning"
+            :closable="false"
+            show-icon
+            title="改地址或分支会清空当前工作副本、按新地址重新克隆；工作区有未提交改动时会被拒绝。只改用户名或令牌不会重新克隆。"
+          />
         </section>
 
         <section class="md-kb-group">

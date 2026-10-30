@@ -16,6 +16,22 @@
     <version>1.2.0</version>
     <name>minidocs</name>
     <description>MiniDocs 极简知识库平台</description>
+    <url>https://github.com/cosolar/minidocs</url>
+
+    <licenses>
+        <license>
+            <name>Apache License, Version 2.0</name>
+            <url>https://www.apache.org/licenses/LICENSE-2.0</url>
+            <distribution>repo</distribution>
+        </license>
+    </licenses>
+
+    <scm>
+        <url>https://github.com/cosolar/minidocs</url>
+        <connection>scm:git:https://github.com/cosolar/minidocs.git</connection>
+        <developerConnection>scm:git:ssh://git@github.com/cosolar/minidocs.git</developerConnection>
+        <tag>HEAD</tag>
+    </scm>
 
     <properties>
         <java.version>17</java.version>

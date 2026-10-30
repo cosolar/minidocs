@@ -407,6 +407,20 @@ export interface ShareVO {
   canGovern?: boolean
   /** 导航菜单配置；整库分享才有，单篇分享与未配置时为空数组 */
   menu?: NavMenuItem[]
+  /**
+   * 开源仓库地址；分享页顶栏的 git 按钮跳到这里。未配置时为 undefined。
+   *
+   * <p>后端在写入口已用 @Pattern 挡掉非 http/https 协议，这里拿到的一定是
+   * 可直接进 href 的绝对地址。</p>
+   */
+  repoUrl?: string
+  /**
+   * 顶栏是否显示仓库按钮。
+   *
+   * <p>与 {@link repoUrl} 分开：作者可以先把地址配好、审阅期间先藏起来。
+   * 后端保证「没地址时这一项恒为 false」，所以前端只要看它就行。</p>
+   */
+  showRepo?: boolean
   createdAt?: string
   updatedAt?: string
 }

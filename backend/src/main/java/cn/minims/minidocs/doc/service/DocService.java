@@ -25,6 +25,18 @@ public interface DocService {
     /** 目录树（需可读权限）。 */
     List<DocNode> tree(Long kbId, LoginUser user);
 
+    /**
+     * 丢弃缓存后重扫目录树（需可读权限）。
+     *
+     * <p>给工作区左栏那颗「刷新」用。正文是磁盘上的文件，作者完全可能绕过本服务直接增删
+     * （rsync、Git 客户端、外部编辑器），而目录树是<b>进程内缓存</b>的，只有应用内的写操作
+     * 才会失效 —— 于是「删了文件点刷新，列表照旧」。没有这个显式入口，外部改动就只能等重启。</p>
+     *
+     * <p>门用读权而不是写权：它不改动任何内容，只是把「本来就谁都能看的目录树」重算一遍。
+     * 只读成员一样会遇到「磁盘变了、列表没变」，堵住他们只会把人逼去刷新整页。</p>
+     */
+    List<DocNode> refreshTree(Long kbId, LoginUser user);
+
     /** 读取原文（需可读权限）。 */
     DocContentVO read(Long kbId, String path, LoginUser user);
 

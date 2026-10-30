@@ -345,6 +345,26 @@ public class KnowledgeBaseServiceImpl extends ServiceImpl<KnowledgeBaseMapper, K
     }
 
     /**
+     * 事务提交后，按新地址重新克隆。
+     *
+     * <p>与 {@link #cloneWhenCommitted} 同一个理由（异步线程要能读到已提交的新地址），
+     * 区别是它会先把旧工作副本清掉 —— 所以必须等提交之后再做：事务回滚时那条清目录的指令
+     * 不该已经执行过，否则库记录还是旧地址，目录却已经没了。</p>
+     */
+    private void recloneWhenCommitted(Long kbId) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            gitCloneWorker.recloneAsync(kbId);
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                gitCloneWorker.recloneAsync(kbId);
+            }
+        });
+    }
+
+    /**
      * 把「已排队、正在拉取」写进状态列。
      *
      * <p>{@code git_last_sync_ok} 留空表示「进行中」——这个字段本来是 {@code Boolean}，而项目里
@@ -382,7 +402,22 @@ public class KnowledgeBaseServiceImpl extends ServiceImpl<KnowledgeBaseMapper, K
         if (request.coverUrl() != null) {
             kb.setCoverUrl(trimToNull(request.coverUrl()));
         }
+        // 换仓库地址 / 分支要清掉旧工作副本重新克隆，必须在写库之前判定完（脏工作区要当场拒绝）
+        GitChange git = rebindGit(kb, request);
         persistMeta(kb);
+        // persistMeta 只覆盖元信息那几列，git 绑定得单独落（只换凭证时也走这里，但不重克隆）
+        if (git.touched()) {
+            persistGitBinding(kb);
+        }
+        if (git.reclone()) {
+            markQueued(kb);
+            recloneWhenCommitted(kb.getId());
+            // 换内容来源是治理级动作：事后要能查到「这个库在什么时候被指向了哪个仓库」。
+            // 地址不是秘密（令牌另有加密列，不进这里），所以原样记下来。
+            auditService.record(KbAction.KB_EDIT_META, actor.id(), kb.getTenantId(), kb.getId(), null,
+                    Map.of("gitUrl", String.valueOf(kb.getGitUrl()),
+                            "gitBranch", String.valueOf(kb.getGitBranch())));
+        }
         if (visibilityChanged) {
             // 可见性是读轴，改它等于改「谁能看见」，与名单变更同等需要留痕（F9）
             auditService.record(KbAction.KB_SET_VISIBILITY, actor.id(), kb.getTenantId(), kb.getId(), null,
@@ -683,6 +718,15 @@ public class KnowledgeBaseServiceImpl extends ServiceImpl<KnowledgeBaseMapper, K
         int changed = 0;
         for (KnowledgeBase kb : list()) {
             long count = countDocsSafely(kb);
+            /*
+             * 顺手把目录树缓存也清掉。
+             *
+             * <p>这条任务本就是为「有人直接动了磁盘」兜底的，可它只改 doc_count —— 而篇数是
+             * {@code countDocs} 实时扫盘算出来的，目录树却是缓存的。两个读数出自不同来源又一起
+             * 显示在界面上，就会出现「篇数已经是 2、文件列表还挂着十几篇」这种自相矛盾。
+             * 既然这一趟已经全量扫过盘了，就把树一起作废，让两边回到同一份事实。</p>
+             */
+            vaultFileService.invalidateTree(vaultFileService.rootOf(kb.getStorageKey()));
             if (kb.getDocCount() == null || kb.getDocCount() != count) {
                 KnowledgeBase update = new KnowledgeBase();
                 update.setId(kb.getId());
@@ -910,6 +954,83 @@ public class KnowledgeBaseServiceImpl extends ServiceImpl<KnowledgeBaseMapper, K
     /** 取回明文令牌。密文损坏或密钥已变更时抛 500 —— 那是需要人重新填一次令牌的状态，不能静默当没配。 */
     private String decryptToken(KnowledgeBase kb) {
         return CryptoUtil.decrypt(kb.getGitToken(), properties.getJwtSecret());
+    }
+
+    /**
+     * 换绑仓库（改地址 / 分支 / 凭证）的结果。
+     *
+     * @param touched  请求里带了 git 字段 —— 无论变没变，都要把绑定落库
+     * @param reclone  地址或分支真的变了 —— 旧工作副本作废，需要重新克隆
+     */
+    private record GitChange(boolean touched, boolean reclone) {
+
+        static final GitChange NONE = new GitChange(false, false);
+    }
+
+    /**
+     * 换绑仓库（改地址 / 分支 / 凭证）。
+     *
+     * <p><b>为什么要分开处理凭证与地址。</b>克隆一次要几十秒，而「换个令牌」根本不改内容 ——
+     * 一并重新克隆是白等，还会把工作区里正常的本地状态推倒重来。所以只有地址或分支真的变了才重克隆。</p>
+     *
+     * <p><b>为什么脏工作区要拒绝而不是强制覆盖。</b>工作区里的未提交改动是作者的东西，
+     * 换仓库时把它清掉，等于让一次「改配置」的动作顺手毁掉别人的草稿，而且事后无从恢复
+     * （旧目录整个删了）。宁可让用户先提交并推送，再回来换 —— 这条错误信息里会明说要先做什么。</p>
+     *
+     * <p>没有 git 字段（全为 null）时返回 {@link GitChange#NONE}：老前端、以及只改名字/标签的请求
+     * 都走这条，行为与改动前完全一致。</p>
+     */
+    private GitChange rebindGit(KnowledgeBase kb, UpdateRequest request) {
+        boolean touched = request.gitUrl() != null || request.gitBranch() != null
+                || request.gitUsername() != null || request.gitToken() != null;
+        if (!touched) {
+            return GitChange.NONE;
+        }
+        if (!kb.isGit()) {
+            throw BizException.of(ErrorCode.GIT_NOT_BOUND, "只有云端 Git 知识库才能配置仓库地址");
+        }
+        String url = request.gitUrl() == null ? kb.getGitUrl() : sanitizeGitUrl(request.gitUrl());
+        if (url == null) {
+            throw BizException.of(ErrorCode.GIT_PARAM_INVALID, "仓库地址不能为空");
+        }
+        String branch = request.gitBranch() == null ? kb.getGitBranch() : branchOrDefault(request.gitBranch());
+        boolean contentChanged = !url.equals(kb.getGitUrl()) || !branch.equals(kb.getGitBranch());
+
+        if (contentChanged) {
+            Path root = vaultFileService.rootOf(kb.getStorageKey());
+            RepoStatus status = gitVaultService.status(root, kb.getGitBranch());
+            if (status.present() && !status.clean()) {
+                throw BizException.of(ErrorCode.GIT_DIRTY,
+                        "工作区还有 " + status.changedCount() + " 处未提交的改动。换仓库会重新克隆、这些改动会丢，"
+                                + "请先在「工作区」里提交并推送，再回来改地址。");
+            }
+            kb.setGitUrl(url);
+            kb.setGitBranch(branch);
+        }
+        // 凭证可以单独更新；令牌留空表示「沿用原来那个」，与建库时同一套语义
+        if (request.gitUsername() != null) {
+            kb.setGitUsername(trimToNull(request.gitUsername()));
+        }
+        if (request.gitToken() != null && !request.gitToken().isBlank()) {
+            kb.setGitToken(CryptoUtil.encrypt(request.gitToken().trim(), properties.getJwtSecret()));
+        }
+        return new GitChange(true, contentChanged);
+    }
+
+    /**
+     * 落 git 绑定那四列。
+     *
+     * <p>与 {@code persistMeta} 分开：那个方法被多处复用，语义是「改元信息」；
+     * 顺手把凭证也写进去会让「改个描述」变成一次凭证写操作，看不出意图。</p>
+     */
+    private void persistGitBinding(KnowledgeBase kb) {
+        update(Wrappers.<KnowledgeBase>lambdaUpdate()
+                .eq(KnowledgeBase::getId, kb.getId())
+                .set(KnowledgeBase::getGitUrl, kb.getGitUrl())
+                .set(KnowledgeBase::getGitBranch, kb.getGitBranch())
+                .set(KnowledgeBase::getGitUsername, kb.getGitUsername())
+                .set(KnowledgeBase::getGitToken, kb.getGitToken())
+                .set(KnowledgeBase::getUpdatedAt, TimeUtil.now()));
     }
 
     private String normalizeSourceType(String sourceType) {

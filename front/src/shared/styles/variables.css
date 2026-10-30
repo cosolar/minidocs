@@ -54,6 +54,15 @@
   /* 正文字体：默认值与 reader.css 的 body 字体栈保持一致，分享页换字体时被 readerFont.ts 覆写 */
   --md-read-font: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB',
     'Microsoft YaHei', 'Helvetica Neue', Arial, sans-serif;
+  /*
+   * 正文字体的视觉尺寸补偿系数（默认 1，即不补偿）。
+   *
+   * 有些字体的字面在同一 font-size 下明显偏小，行距就显得格外大 —— 实测霞鹜文楷的
+   * 墨迹只占 em 的 87%，而系统字体占 94%，于是「行距这么大」。补偿做法是字号乘它、
+   * 行高除以它，行盒高度原地不动，只把字面放大到与基准字体相当。
+   * 取值依据见 readerFont.ts 里那款字体的注释。
+   */
+  --md-read-scale: 1;
 
   /* 分享页顶栏导航字体：固定思源黑体，不跟读者正文字体偏好走（理由见 docs/DESIGN.md）。家族名三种叫法兜住，后面接系统字体栈 */
   --md-share-nav-font: 'Noto Sans SC', 'Source Han Sans SC', 'Source Han Sans CN', '思源黑体',
@@ -67,10 +76,40 @@
   --md-vis-org: #7c3aed;
   --md-vis-org-bg: rgba(139, 92, 246, .15);
 
+  /*
+   * 正文语义色：Markdown 正文里「不同种类的内容用不同颜色」的那组。
+   *
+   * 为什么不直接用 --md-primary / --md-accent / --md-success 那几个：
+   * 那几个是照**小面积、短时间**看的场景调的（按钮、徽标、状态点），当**大面积、长时间**
+   * 阅读的正文颜色就不合格 —— #14b8a6 当文字压在白底上对比度只有 2.6:1，#16a34a 也偏亮。
+   * 这一组统一取「能在白底上当正文文字安全阅读」的那一档（对比度 ≥ 4.5:1）。
+   *
+   * 用法固定成对：--md-ink-* 给文字与描边，底色一律用 color-mix(ink N%, transparent) 现算，
+   * 不另立 soft 变量 —— 同一个色相只维护一个值，改色相时底色自动跟着走。
+   */
+  --md-ink-blue: #1d4ed8;
+  --md-ink-teal: #0f766e;
+  --md-ink-violet: #6d28d9;
+  --md-ink-amber: #a16207;
+  --md-ink-rose: #be123c;
+  --md-ink-green: #15803d;
+
+  /* 高亮 ==文字== 的底色。它需要单独成对，是因为**透明度也得跟着主题变**：
+     同一个 24% 的浅琥珀，掺在白底上是淡黄，掺在 #0f1117 上就发橄榄绿 ——
+     色相没变，但透明度在深底上丢失的饱和度远多于浅底。所以这里不写成
+     color-mix(... 24% ...) 让两个主题共用，而是各给一档。 */
+  --md-mark-bg: color-mix(in srgb, var(--md-ink-amber) 24%, transparent);
+
   --md-code-bg: #f6f8fa;
   --md-code-text: #24292f;
   --md-code-border: #e3e6ee;
 
+  /* 代码高亮令牌。分工见 markdown.css 顶部那张表 —— 这里只记两条取值原则：
+     1. `type` 必须和 `title` 拉开：Java/TS 里 `User`（类）和 `change`（方法）
+        是两种东西，同色就等于没区分。这里给青，与 number/builtin 的蓝、
+        title 的紫都不同族，且与正文行内代码的青色同源，整页是连着的。
+     2. `attr` 同时承担 JSON 键、Java 参数表、JS 对象属性三种「附着在主体上的
+        次级名字」，所以它是暖色里最中性的一档。 */
   --md-tk-keyword: #cf222e;
   --md-tk-string: #0a3069;
   --md-tk-comment: #6e7781;
@@ -78,7 +117,7 @@
   --md-tk-title: #8250df;
   --md-tk-attr: #953800;
   --md-tk-builtin: #0550ae;
-  --md-tk-type: #953800;
+  --md-tk-type: #0f766e;
   --md-tk-meta: #6e7781;
 
   color-scheme: light;
@@ -120,6 +159,19 @@
   --md-vis-org: #a78bfa;
   --md-vis-org-bg: rgba(139, 92, 246, .22);
 
+  /* 正文语义色的暗色档：深底上要的是「亮而不刺」。
+     直接沿用亮色档会全部糊进背景（#1d4ed8 压在 #0f1117 上对比度不到 2:1），
+     所以整组换成高明度低饱和的同色相，底色仍由 color-mix 现算，不用改。 */
+  --md-ink-blue: #93b4ff;
+  --md-ink-teal: #5eead4;
+  --md-ink-violet: #c4b5fd;
+  --md-ink-amber: #fcd34d;
+  --md-ink-rose: #fda4af;
+  --md-ink-green: #86efac;
+
+  /* 暗底上要更浓一档才保得住琥珀色相（理由见 :root 里那条） */
+  --md-mark-bg: color-mix(in srgb, var(--md-ink-amber) 34%, transparent);
+
   --md-tk-keyword: #ff7b72;
   --md-tk-string: #a5d6ff;
   --md-tk-comment: #8b949e;
@@ -127,7 +179,7 @@
   --md-tk-title: #d2a8ff;
   --md-tk-attr: #ffa657;
   --md-tk-builtin: #79c0ff;
-  --md-tk-type: #ffa657;
+  --md-tk-type: #5eead4;
   --md-tk-meta: #8b949e;
 
   color-scheme: dark;
@@ -153,10 +205,18 @@
 }
 *::-webkit-scrollbar-corner { background: transparent; }
 
-/* 代码块主题（6 种，按 data-code-theme 切换） */
-[data-code-theme='github'] { --md-tk-keyword:#cf222e; --md-tk-string:#0a3069; --md-tk-comment:#6e7781; --md-tk-number:#0550ae; --md-tk-title:#8250df; --md-tk-attr:#953800; }
-[data-code-theme='github-dark'] { --md-tk-keyword:#ff7b72; --md-tk-string:#a5d6ff; --md-tk-comment:#8b949e; --md-tk-number:#79c0ff; --md-tk-title:#d2a8ff; --md-tk-attr:#ffa657; }
-[data-code-theme='atom-one-light'] { --md-tk-keyword:#a626a4; --md-tk-string:#50a14f; --md-tk-comment:#a0a1a7; --md-tk-number:#986801; --md-tk-title:#4078f2; --md-tk-attr:#986801; }
-[data-code-theme='atom-one-dark'] { --md-tk-keyword:#c678dd; --md-tk-string:#98c379; --md-tk-comment:#5c6370; --md-tk-number:#d19a66; --md-tk-title:#61afef; --md-tk-attr:#d19a66; }
-[data-code-theme='monokai'] { --md-tk-keyword:#f92672; --md-tk-string:#e6db74; --md-tk-comment:#75715e; --md-tk-number:#ae81ff; --md-tk-title:#a6e22e; --md-tk-attr:#fd971f; }
-[data-code-theme='nord'] { --md-tk-keyword:#81a1c1; --md-tk-string:#a3be8c; --md-tk-comment:#616e88; --md-tk-number:#b48ead; --md-tk-title:#88c0d0; --md-tk-attr:#d08770; }
+/*
+ * 代码块主题（6 种，按 data-code-theme 切换）。
+ *
+ * 每条必须给**全部 9 个令牌**，不能只写常用的那几个：这组规则挂在与 :root /
+ * [data-theme='dark'] 同一层，只覆盖了一部分的话，剩下的会回落到「浅色底上的
+ * github 值」—— 选 Monokai 时会看到大部分 token 是粉绿黄、少数几个仍是
+ * #0550ae 这种深蓝，压在 #272822 底上几乎读不出来。
+ * 新增令牌（比如 type）时，这里 6 条要一起补，漏一条就是同样的病。
+ */
+[data-code-theme='github'] { --md-tk-keyword:#cf222e; --md-tk-string:#0a3069; --md-tk-comment:#6e7781; --md-tk-number:#0550ae; --md-tk-title:#8250df; --md-tk-attr:#953800; --md-tk-builtin:#0550ae; --md-tk-type:#0f766e; --md-tk-meta:#6e7781; }
+[data-code-theme='github-dark'] { --md-tk-keyword:#ff7b72; --md-tk-string:#a5d6ff; --md-tk-comment:#8b949e; --md-tk-number:#79c0ff; --md-tk-title:#d2a8ff; --md-tk-attr:#ffa657; --md-tk-builtin:#79c0ff; --md-tk-type:#5eead4; --md-tk-meta:#8b949e; }
+[data-code-theme='atom-one-light'] { --md-tk-keyword:#a626a4; --md-tk-string:#50a14f; --md-tk-comment:#a0a1a7; --md-tk-number:#986801; --md-tk-title:#4078f2; --md-tk-attr:#986801; --md-tk-builtin:#c18401; --md-tk-type:#0e7490; --md-tk-meta:#a0a1a7; }
+[data-code-theme='atom-one-dark'] { --md-tk-keyword:#c678dd; --md-tk-string:#98c379; --md-tk-comment:#5c6370; --md-tk-number:#d19a66; --md-tk-title:#61afef; --md-tk-attr:#d19a66; --md-tk-builtin:#e6c07b; --md-tk-type:#56b6c2; --md-tk-meta:#abb2bf; }
+[data-code-theme='monokai'] { --md-tk-keyword:#f92672; --md-tk-string:#e6db74; --md-tk-comment:#75715e; --md-tk-number:#ae81ff; --md-tk-title:#a6e22e; --md-tk-attr:#fd971f; --md-tk-builtin:#a6e22e; --md-tk-type:#66d9ef; --md-tk-meta:#75715e; }
+[data-code-theme='nord'] { --md-tk-keyword:#81a1c1; --md-tk-string:#a3be8c; --md-tk-comment:#616e88; --md-tk-number:#b48ead; --md-tk-title:#88c0d0; --md-tk-attr:#d08770; --md-tk-builtin:#88c0d0; --md-tk-type:#8fbcbb; --md-tk-meta:#616e88; }

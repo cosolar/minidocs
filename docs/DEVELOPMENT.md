@@ -259,8 +259,8 @@ ReaderService.build(kb, ReadRequest)
 
 | 文件 | 管什么 |
 | --- | --- |
-| `shared/styles/variables.css` | 设计变量（颜色、圆角、尺寸）与明暗两套主题 |
-| `shared/styles/markdown.css` | Markdown 正文渲染（标题、列表、代码、表格、提示块、公式、图表、灯箱） |
+| `shared/styles/variables.css` | 设计变量（颜色、圆角、尺寸）、明暗两套主题、正文语义色 `--md-ink-*` |
+| `shared/styles/markdown.css` | Markdown 正文渲染与配色（标题、列表、代码、表格、引用、高亮、提示块、公式、图表、灯箱） |
 | `user/styles/reader.css` | 门户 / 阅读页 / 分享页骨架与响应式 |
 | `user/styles/portal.css` | 门户专属（统计卡、筛选、卡片网格） |
 | `admin/styles/admin.css` | 管理端（含登录 / 注册页、分享面板、编辑器外壳） |
@@ -329,6 +329,44 @@ ReaderService.build(kb, ReadRequest)
 
 后端在 `markdown/` 的扩展解析里加；样式加到 `markdown.css` 的 `.md-admonition--*` 一族。
 只想在浏览器端做也行（放 `enhanceMarkdown.ts`），但要记得幂等。
+颜色请取 `variables.css` 的 `--md-ink-*` 令牌，不要写十六进制字面量 ——
+写死的色在暗色主题下会糊进背景，而且得再补一条 `[data-theme='dark']` 特例。
+
+**加一种代码高亮语言 / 改高亮配色**
+
+语言：`enhanceMarkdown.ts` 顶部 `import` + 加进 `LANGUAGES`。作者写惯了的别名
+（`env` / `plain` / `jsonl` 这类 hljs 认不出的）加进 `LANG_ALIASES`，
+**别名指向的语言必须真的注册了**，否则等于白映射。加之前先跑
+`.verify/md/_langcheck.mjs` 看库里实际用哪些围栏名、哪些在静默不亮。
+
+配色：色值在 `variables.css` 的 `--md-tk-*`，分工表在 `markdown.css` 顶部。
+加令牌时**`data-code-theme` 那 6 套要一起补**，漏一套就会让那套主题回落到浅色值。
+改完跑 `.verify/md/_tokcheck.mjs`（每个真实 class 都要有落点）与 `_csscheck.mjs`
+（计算值断言）。写选择器注意 hljs 的 scope 带点：`title.function` 渲染成
+`class="hljs-title function_"`，写 `.hljs-title.function` 永远匹配不到也不报错。
+
+**加一个正文里的行内语法**（如 `==高亮==`）
+
+放 `enhanceMarkdown.ts`。**只有一条流水线**——阅读页 / 分享页 / 后台预览都调它，
+挂一次三处都有（早先预览另有一条 `enhancePreview`，已合并掉，别再分叉）。
+护栏按 `enhanceMarks` 那三条来（不跨行、首尾不留空白、跳过 `code / pre / a`），
+再往 `_marktest.ts` 里补几条「不该匹配」的用例。
+加完跑 `node .verify/md/_hosts.mjs`：它会要求三个宿主的 DOM 结构逐项相同。
+
+**改正文样式的验证流程**
+
+`.verify/md/` 下是一套能复现的验证台，顺序别颠倒：
+
+1. **改之前**先跑 `node .verify/md/_snapshot.mjs` 冻结「改前」基线
+   （`before-markdown.css` / `before-variables.css`）。在生成对照页时才快照是错的 ——
+   那一刻「当前」已经改过了，「改前」会等于「改后」，差分检查全部恒真。
+2. 改样式。
+3. `node .verify/md/_gen.mjs` 生成对照页（分享页与后台预览各一套，暗色加 `?dark`）。
+4. `node .verify/md/_csscheck.mjs` 跑差分 + 计算值断言；`_tokcheck.mjs` 跑令牌落点断言。
+5. 挑一条被测规则**故意破坏**，确认检查真的会红，再还原。
+
+截图：`_shot.mjs <url> <out.png>` 拍整页，`_shotel.mjs <url> <selector> <out.png>` 按元素拍。
+不要用 `chrome --screenshot=`，本机沙箱下它写不出文件。
 
 **改主题配色**
 

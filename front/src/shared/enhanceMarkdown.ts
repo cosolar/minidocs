@@ -4,8 +4,8 @@
  * <p>由服务端渲染出的安全 HTML 直接 v-html 落地，这里只在其后做「锦上添花」的增强，
  * 增强失败不影响正文可读性（每一段都单独 try/catch）。</p>
  *
- * <p>门户阅读页 / 分享页走 {@link enhanceMarkdown}（全量增强）；后台编辑页的 bytemd 预览
- * 自带 gfm 与代码高亮，只需要补图表、灯箱与表格外壳，走 {@link enhancePreview}。</p>
+ * <p>三个宿主（门户阅读页 / 分享页 / 后台编辑页的 bytemd 预览）都走 {@link enhanceMarkdown}
+ * 这一条流水线 —— 只有一条，没有第二个入口。预览区所见即成品，靠的就是这一点。</p>
  */
 import hljs from 'highlight.js/lib/core'
 import bash from 'highlight.js/lib/languages/bash'
@@ -15,6 +15,8 @@ import csharp from 'highlight.js/lib/languages/csharp'
 import css from 'highlight.js/lib/languages/css'
 import dockerfile from 'highlight.js/lib/languages/dockerfile'
 import go from 'highlight.js/lib/languages/go'
+import http from 'highlight.js/lib/languages/http'
+import ini from 'highlight.js/lib/languages/ini'
 import java from 'highlight.js/lib/languages/java'
 import javascript from 'highlight.js/lib/languages/javascript'
 import json from 'highlight.js/lib/languages/json'
@@ -24,10 +26,12 @@ import markdown from 'highlight.js/lib/languages/markdown'
 import nginx from 'highlight.js/lib/languages/nginx'
 import php from 'highlight.js/lib/languages/php'
 import plaintext from 'highlight.js/lib/languages/plaintext'
+import powershell from 'highlight.js/lib/languages/powershell'
 import properties from 'highlight.js/lib/languages/properties'
 import python from 'highlight.js/lib/languages/python'
 import ruby from 'highlight.js/lib/languages/ruby'
 import rust from 'highlight.js/lib/languages/rust'
+import scala from 'highlight.js/lib/languages/scala'
 import sql from 'highlight.js/lib/languages/sql'
 import typescript from 'highlight.js/lib/languages/typescript'
 import xml from 'highlight.js/lib/languages/xml'
@@ -35,9 +39,9 @@ import yaml from 'highlight.js/lib/languages/yaml'
 import renderMathInElement from 'katex/contrib/auto-render'
 
 const LANGUAGES = {
-  bash, c, cpp, csharp, css, dockerfile, go, java, javascript, json, kotlin,
-  lua, markdown, nginx, php, plaintext, properties, python, ruby, rust, sql,
-  typescript, xml, yaml
+  bash, c, cpp, csharp, css, dockerfile, go, http, ini, java, javascript, json,
+  kotlin, lua, markdown, nginx, php, plaintext, powershell, properties, python,
+  ruby, rust, scala, sql, typescript, xml, yaml
 }
 
 /*
@@ -45,9 +49,32 @@ const LANGUAGES = {
  * 漏掉这一步的表现很隐蔽：hljs.highlight 会先 console.error 一句
  * 「Could not find the language 'java', did you forget to load/include a language module?」，
  * 再抛异常，而下面的 try/catch 把异常吞了——控制台刷满报错，代码块却全无高亮。
+ *
+ * 注册清单是照着库里真实用过的围栏名定的（`.verify/md/_real.mjs` 跑全库统计）：
+ * 前 10 名是 python / java / bash / text / sql / mermaid / yaml / json / sh / markdown，
+ * http、powershell、ini(toml) 各二十来个块，也一并加上。
+ * x86asm 没加：21 KB 只换 1 个块，不划算。
  */
 for (const [name, definition] of Object.entries(LANGUAGES)) {
   hljs.registerLanguage(name, definition)
+}
+
+/*
+ * 别名：作者写惯了的围栏名，hljs 自己认不出来的那些。
+ *
+ * 只收**看过实际内容**、能确定语义的。没放进去的两个是有意的：
+ *   - `conf`：库里那三块其实是 Redis 配置（`io-threads 4`），不是 nginx 配置，
+ *     映射到 nginx 语法会给出错误的着色，不如保持不亮；
+ *   - `redis`：highlight.js 压根没有 redis 语法（整个包里搜不到），无从映射。
+ * 其余别名（js / ts / yml / sh / html / txt …）是各语言模块自带的，不用在这里重复。
+ */
+const LANG_ALIASES: Record<string, string> = {
+  plain: 'plaintext',
+  env: 'properties',
+  dotenv: 'properties',
+  jsonl: 'json',
+  // Spark 那两块是 Scala DSL（`val df = spark.read...`），不是 PySpark
+  spark: 'scala'
 }
 
 /* ------------------------------------------------------------------ 代码块 */
@@ -56,7 +83,9 @@ function enhanceCodeBlocks(root: ParentNode) {
     const pre = code.parentElement as HTMLPreElement
     if (!pre) return
     const match = /language-([\w+#-]+)/.exec(code.className || '')
-    const lang = match ? match[1].toLowerCase() : ''
+    const fence = match ? match[1].toLowerCase() : ''
+    // 先过别名：作者写的 `env` / `plain` / `jsonl` 这些名字 hljs 自己认不出来
+    const lang = LANG_ALIASES[fence] || fence
 
     // 用 getLanguage 判存在，而不是查自己那张表：js / ts / py / sh / yml / c++ 这类别名
     // 由各语言模块自带，自己维护一份迟早和 highlight.js 的清单对不上。
@@ -75,9 +104,11 @@ function enhanceCodeBlocks(root: ParentNode) {
     wrap.className = 'md-code-wrap'
     const head = document.createElement('div')
     head.className = 'md-code-head'
+    // 标签显示作者**自己写的**围栏名，不显示解析后的语言：写 `env` 却标成 `properties`
+    // 会让人以为是系统改了他的文档。
     head.innerHTML =
       '<span class="md-code-dots"><i></i><i></i><i></i></span>' +
-      `<span class="md-code-lang">${lang || 'text'}</span>` +
+      `<span class="md-code-lang">${fence || 'text'}</span>` +
       '<button type="button" class="md-code-copy">复制</button>'
     pre.parentElement?.insertBefore(wrap, pre)
     wrap.appendChild(head)
@@ -127,6 +158,71 @@ function enhanceAdmonitions(root: ParentNode) {
     while (quote.firstChild) box.appendChild(quote.firstChild)
     quote.remove()
   })
+}
+
+/* ------------------------------------------------------------------ 行内高亮 */
+/**
+ * `==文字==` → `<mark>`。
+ *
+ * <p>为什么要在前端做，而不是让后端出：后端渲染是 {@code SUPPRESS_HTML + ESCAPE_HTML}，
+ * 作者写不了任何原生标签；flexmark 的扩展里也没有 mark 这一项（只有 Tables / Strikethrough /
+ * TaskList / Autolink / Definition）。而正文里总得有地方能「由作者决定哪句上色」——
+ * 标题、代码、表格的色都是**结构**给的，不是重点。这一条补的就是这个缺口。</p>
+ *
+ * <p><b>护栏比功能本身重要。</b>技术文档里 {@code ==} 是常见的比较运算符，
+ * 一旦误判就会把正文啃出洞。三道限制：</p>
+ * <ol>
+ *   <li>内容不能以空白开头或结尾 —— {@code a == b == c} 这种带空格的比较式天然不匹配；</li>
+ *   <li>内容里不能出现 {@code =} —— 挡住 {@code ==} 连写的边角；</li>
+ *   <li>不在 {@code code / pre / a / mark / kbd} 里动手 —— 代码块里的 {@code ==} 一个都不能碰。</li>
+ * </ol>
+ *
+ * <p>幂等：替换出的 {@code <mark>} 在跳过名单里，重复调用（预览区每轮重渲染都会跑）
+ * 不会把已经高亮的内容再处理一遍。</p>
+ */
+const MARK_PATTERN = /==([^\s=][^=\n]*?)==/g
+const MARK_SKIP_TAGS = new Set(['CODE', 'PRE', 'A', 'MARK', 'KBD', 'SCRIPT', 'STYLE'])
+
+function enhanceMarks(root: ParentNode) {
+  const walker = document.createTreeWalker(root as Node, NodeFilter.SHOW_TEXT, {
+    acceptNode(node) {
+      const text = node.nodeValue
+      // 绝大多数文本节点连 == 都没有，先按内容淘汰，省掉后面的祖先遍历
+      if (!text || !text.includes('==')) return NodeFilter.FILTER_REJECT
+      for (let el = (node as Text).parentElement; el; el = el.parentElement) {
+        if (MARK_SKIP_TAGS.has(el.tagName)) return NodeFilter.FILTER_REJECT
+      }
+      return NodeFilter.FILTER_ACCEPT
+    }
+  })
+
+  // 先收集再改：边遍历边替换会让 TreeWalker 的游标失效
+  const targets: Text[] = []
+  for (let node = walker.nextNode(); node; node = walker.nextNode()) targets.push(node as Text)
+
+  for (const node of targets) {
+    const text = node.nodeValue || ''
+    const frag = document.createDocumentFragment()
+    let last = 0
+    let matched = false
+
+    MARK_PATTERN.lastIndex = 0
+    for (let hit = MARK_PATTERN.exec(text); hit; hit = MARK_PATTERN.exec(text)) {
+      const content = hit[1]
+      // 尾随空白不算高亮：`==a ==` 多半是随手写的比较式，不是标记
+      if (/\s$/.test(content)) continue
+      if (hit.index > last) frag.appendChild(document.createTextNode(text.slice(last, hit.index)))
+      const mark = document.createElement('mark')
+      mark.textContent = content
+      frag.appendChild(mark)
+      last = hit.index + hit[0].length
+      matched = true
+    }
+    if (!matched) continue
+
+    if (last < text.length) frag.appendChild(document.createTextNode(text.slice(last)))
+    node.parentNode?.replaceChild(frag, node)
+  }
 }
 
 /* ------------------------------------------------------------------ 表格 */
@@ -499,16 +595,46 @@ function isDarkTheme() {
 }
 
 /**
- * 全量增强：阅读页 / 分享页用。
+ * 正文增强：**三个宿主共用这一条流水线**（门户阅读页、分享页、后台编辑器预览）。
  *
- * @param root 正文容器（通常是 .md-markdown 所在元素）
+ * <p>顺序有依赖，不能随手调换：</p>
+ * <ol>
+ *   <li>Admonition 排在最前 —— 它要把首段的 {@code innerHTML} 整个读出来做字符串替换，
+ *       先插 {@code <mark>} 会让那次替换多绕一圈；</li>
+ *   <li>接着扫一遍文本节点做 {@code ==高亮==}；</li>
+ *   <li>表格套外壳、代码块高亮并套工具条；</li>
+ *   <li>图表与公式放在最后 —— 它们会把命中的代码块**整个替换掉**，
+ *       必须排在代码块处理之后，否则那一块会被白套一层工具条再被丢弃。</li>
+ * </ol>
+ *
+ * <p><b>为什么后台预览也走全量。</b>早先预览另有一条 {@code enhancePreview}，只做
+ * 「标记 / 表格 / 图表 / 灯箱」，把 Admonition、代码块工具条与公式当成「预览区里的多余改动」
+ * 省掉了。代价是预览不再等于成品：作者写 {@code > [!WARNING]} 看到的是裸文本 {@code [!WARNING]}，
+ * 写 {@code $x^2$} 看到的是美元符号，代码块也没有语言名 —— 而预览的全部意义就是
+ * 「看到读者会看到的东西」，省掉的恰恰是它唯一该做的事。</p>
+ *
+ * <p>两个入口还天然会漂移：样式表里改一处、另一个入口忘了跟，界面上就一半新一半旧
+ * （这个项目已经因为「两套渲染器」栽过一次）。所以只留这一条流水线，后台预览的调用点
+ * 也直接调它，不再有第二个入口。</p>
+ *
+ * <p>反复调用是安全的：每个子步骤都自带去重 —— Admonition 把 {@code blockquote} 整个换掉了、
+ * 表格与代码块认父节点、图表给命中块打 {@code dataset} 标记、灯箱给元素打标记。
+ * 后台预览每轮重渲染都会重跑一遍，靠的就是这一层。</p>
+ *
+ * @param root 正文容器。前台传的是 {@code .md-markdown} 本身，也可能传它的祖先；
+ *             后台传的是 bytemd 的 {@code .markdown-body}。这里统一认到真正的正文根上。
  */
 export async function enhanceMarkdown(root: HTMLElement | null | undefined): Promise<void> {
   if (!root) return
-  const markdownRoot = root.classList.contains('md-markdown') ? root : root.querySelector('.md-markdown')
+  const markdownRoot = isMarkdownRoot(root)
+    ? root
+    : root.querySelector<HTMLElement>('.md-markdown, .markdown-body')
   if (!markdownRoot) return
 
   enhanceAdmonitions(markdownRoot)
+  // 排在 Admonition 之后：那边要把首段的 innerHTML 整个读出来做替换，
+  // 先插 mark 会让它的字符串替换多绕一圈
+  enhanceMarks(markdownRoot)
   enhanceTables(markdownRoot)
   enhanceCodeBlocks(markdownRoot)
   await renderMermaid(markdownRoot, isDarkTheme())
@@ -516,19 +642,7 @@ export async function enhanceMarkdown(root: HTMLElement | null | undefined): Pro
   initLightbox(markdownRoot)
 }
 
-/**
- * 预览增强：后台编辑页的 bytemd 预览用。
- *
- * <p>bytemd 预览自带 gfm 与代码高亮，缺的是 ```mermaid 出图、图片/SVG 灯箱与表格外壳；全量增强还会给
- * 代码块再包一层工具条、做 Admonition 与公式，那些在预览区属于多余改动，所以这里只调
- * 图表、灯箱与表格三段。</p>
- *
- * <p>替换过的代码块已经变成图表容器，再次调用时选不中，因此预览反复重渲染也不会重复出图；
- * 灯箱靠元素上的 dataset 标记去重，表格外壳靠父节点判断，同样不会叠出第二层壳。</p>
- */
-export async function enhancePreview(root: HTMLElement | null | undefined): Promise<void> {
-  if (!root) return
-  enhanceTables(root)
-  await renderMermaid(root, isDarkTheme())
-  initLightbox(root)
+/** 正文根：前台是 {@code .md-markdown}，后台 bytemd 预览是 {@code .markdown-body} */
+function isMarkdownRoot(el: Element): boolean {
+  return el.classList.contains('md-markdown') || el.classList.contains('markdown-body')
 }

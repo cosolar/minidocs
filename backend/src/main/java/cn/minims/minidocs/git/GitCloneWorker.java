@@ -37,6 +37,9 @@ import java.nio.file.Path;
 @RequiredArgsConstructor
 public class GitCloneWorker {
 
+    /** 平台配置文件：目录顺序 / 隐藏规则 / 显示选项。不在版本控制里，换仓库时要自己搬。 */
+    private static final String PLATFORM_CONFIG = ".minidocs.json";
+
     private final KnowledgeBaseMapper kbMapper;
     private final GitVaultService gitVaultService;
     private final VaultFileService vaultFileService;
@@ -73,6 +76,78 @@ public class GitCloneWorker {
             markFinished(kbId, false, "克隆失败：" + reason);
             log.warn("后台克隆失败 kbId={} url={} reason={}", kbId, kb.getGitUrl(), reason, e);
             cleanUp(kb.getStorageKey());
+        }
+    }
+
+    /**
+     * 按当前绑定的地址重新克隆（换仓库地址 / 分支时用）。
+     *
+     * <p>与 {@link #cloneAsync} 的差别只有一件事：<b>先把旧工作副本清掉</b>。
+     * {@code cloneRepository} 要求目标目录为空，而换地址时那里正躺着一整份旧仓库。</p>
+     *
+     * <p><b>为什么要自己备份 {@code .minidocs.json}。</b>那是平台写的配置文件（目录顺序、
+     * 隐藏规则、显示选项），不在版本控制里，跟着工作副本一起被删掉就没了 —— 作者手工配的东西，
+     * 丢了他不会知道去哪找。拉取那边已经有同样的备份/还原（见 {@code GitVaultService.pull}），
+     * 换仓库这条路径同样不能例外。</p>
+     *
+     * <p>克隆失败时目录会被清空，状态落成失败原因 —— 读者可以在「工作区」点「拉取」按新地址重试，
+     * 不必删库重建。</p>
+     */
+    @Async(AsyncConfig.GIT_EXECUTOR)
+    public void recloneAsync(Long kbId) {
+        KnowledgeBase kb = kbId == null ? null : kbMapper.selectById(kbId);
+        if (kb == null || !kb.isGit()) {
+            log.warn("跳过重新克隆：知识库不存在或未绑定 Git，kbId={}", kbId);
+            return;
+        }
+        Path root = null;
+        byte[] config = null;
+        try {
+            root = vaultFileService.rootOf(kb.getStorageKey());
+            config = readPlatformConfig(root);
+
+            // 先删再建：cloneRepository 只接受空目录
+            vaultFileService.deleteRoot(kb.getStorageKey());
+            Files.createDirectories(root);
+
+            gitVaultService.cloneRepository(kb.getGitUrl(), kb.getGitBranch(), kb.getGitUsername(),
+                    CryptoUtil.decrypt(kb.getGitToken(), properties.getJwtSecret()), root);
+
+            restorePlatformConfig(root, config);
+            vaultFileService.invalidateTree(root);
+            long docs = vaultFileService.countDocs(root);
+            markFinished(kbId, true, "已切换到新仓库，分支 " + branchLabel(kb) + "，共 " + docs + " 篇文档");
+            log.info("重新克隆完成 kbId={} url={} docs={}", kbId, kb.getGitUrl(), docs);
+        } catch (Exception e) {
+            String reason = e.getMessage() == null || e.getMessage().isBlank() ? e.toString() : e.getMessage();
+            markFinished(kbId, false, "切换仓库失败：" + reason);
+            log.warn("重新克隆失败 kbId={} url={} reason={}", kbId, kb.getGitUrl(), reason, e);
+            cleanUp(kb.getStorageKey());
+        }
+    }
+
+    /** 读出平台配置；不存在或读不动都返回 null —— 它是可选配置，不能因为读不到就挡住换仓库。 */
+    private static byte[] readPlatformConfig(Path root) {
+        if (root == null) {
+            return null;
+        }
+        try {
+            Path file = root.resolve(PLATFORM_CONFIG);
+            return Files.isRegularFile(file) ? Files.readAllBytes(file) : null;
+        } catch (Exception e) {
+            log.warn("读取平台配置失败，按无配置继续：{}", root, e);
+            return null;
+        }
+    }
+
+    private static void restorePlatformConfig(Path root, byte[] config) {
+        if (root == null || config == null) {
+            return;
+        }
+        try {
+            Files.write(root.resolve(PLATFORM_CONFIG), config);
+        } catch (Exception e) {
+            log.warn("写回平台配置失败（不影响仓库内容）：{}", root, e);
         }
     }
 

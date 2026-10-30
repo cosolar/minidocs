@@ -53,12 +53,35 @@ public final class KbDtos {
             @Size(max = 512, message = "访问令牌过长") String gitToken) {
     }
 
+    /**
+     * 改库请求。
+     *
+     * <p>四个 git 字段是后加的：原先「来源在建库时确定，之后不可更改」，编辑态那一栏是只读的。
+     * 但仓库迁地址（组织改名、从 GitHub 挪到自建 GitLab、换一个镜像仓库）是真实会发生的事，
+     * 而当时的出路只有「删库重建」—— 那会把文档数、标签、分享链接、维护名单全部丢掉，
+     * 为了换一行 URL 付这个代价不成比例。</p>
+     *
+     * <p>语义按「变了什么」分开，不是一锅端：</p>
+     * <ul>
+     *   <li><b>地址或分支变了</b> → 内容来源变了，旧工作副本作废，<b>清掉重新克隆</b>；
+     *       工作区有未提交改动时直接拒绝（{@code GIT_DIRTY}），不替用户做「要不要丢」的决定。</li>
+     *   <li><b>只改了用户名 / 令牌</b> → 内容没变，就地更新凭证，不重新克隆
+     *       （克隆一次几十秒，纯属白等）。</li>
+     * </ul>
+     *
+     * <p>字段留 {@code null} 表示「这一项不动」，与名称、描述那几个字段同一套约定 ——
+     * 这样前端可以只发改过的那几项，不必每次把整份配置回传一遍。</p>
+     */
     public record UpdateRequest(
             @Size(max = 64, message = "名称长度不能超过 64") String name,
             @Size(max = 255, message = "描述长度不能超过 255") String description,
             @Pattern(regexp = "public|org|private", message = "可见性只能是 public / org / private") String visibility,
             List<String> tags,
-            String coverUrl) {
+            String coverUrl,
+            @Size(max = 512, message = "仓库地址过长") String gitUrl,
+            @Size(max = 128, message = "分支名过长") String gitBranch,
+            @Size(max = 128, message = "用户名过长") String gitUsername,
+            @Size(max = 512, message = "访问令牌过长") String gitToken) {
     }
 
     /**

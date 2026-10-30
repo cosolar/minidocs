@@ -8,7 +8,9 @@ import OutlineTree from './OutlineTree.vue'
 import { enhanceMarkdown } from '@/shared/enhanceMarkdown'
 import { appHref, stripAppBase } from '@/shared/appBase'
 import { flattenOutline, useScrollSpy } from '@/user/composables/useScrollSpy'
+import { isTreeAllExpanded, setTreeExpanded } from '@/user/composables/useTreeExpand'
 import ImagePreview from '@/user/components/ImagePreview.vue'
+import ReaderPrefsMenu from '@/user/components/ReaderPrefsMenu.vue'
 import type { DocNode, OutlineNode, ReadView } from '@/user/api/types'
 
 const props = defineProps<{
@@ -21,19 +23,13 @@ const props = defineProps<{
    * 分两次，所以由外层按当前菜单项收窄后传进来。门户阅读页没有菜单，照旧走 view.tree。</p>
    */
   tree?: DocNode[]
-  /**
-   * 左栏范围说明（仅分享页）。库名已经挪到顶栏，左栏不再重复标题，但收窄后必须说清
-   * 「这一栏只有这么多」，否则读者会以为整个库就这么大。
-   */
-  scopeLabel?: string
-  /** 左栏是不是全库范围：决定范围条用不用主色 */
-  scopeAll?: boolean
 }>()
-
-const emit = defineEmits<{ scopeAll: [] }>()
 
 /** 左栏实际渲染的树：外层给了就用外层的，否则用视图自带的那棵 */
 const treeNodes = computed(() => props.tree ?? props.view.tree)
+
+/** 是不是每一层目录都展开了 —— 决定那颗按钮写「全部折叠」还是「全部展开」 */
+const allExpanded = computed(() => isTreeAllExpanded(treeNodes.value))
 
 const router = useRouter()
 
@@ -118,6 +114,36 @@ watch(() => props.view.outline, () => outlineOverrides.clear())
 /** 分享页左栏是紧凑卡片，文案与门户不同；搜索也只在有树可搜时才有意义 */
 const isShare = computed(() => props.view.mode === 'share')
 const searchPlaceholder = computed(() => (isShare.value ? '搜索文档…' : '搜索本文档…'))
+
+/**
+ * 顶栏「返回」。
+ *
+ * <p>有来路就退一步，没有就回知识库列表。判据是 {@code history.state.back} ——
+ * 直接打开（分享链接、新标签页、书签）时它是空的，此时 {@code router.back()} 什么都不会发生，
+ * 读者按一下没反应，只会以为按钮坏了。</p>
+ *
+ * <p>用 {@code push('/')} 而不是 {@code replace}：读者退到列表后按浏览器前进，
+ * 应该还能回到刚才读的那篇。</p>
+ */
+function goBack() {
+  if (window.history.state?.back) router.back()
+  else void router.push('/')
+}
+
+/**
+ * 「打开分享页」的地址。
+ *
+ * <p>只在门户侧给：分享页自己就在分享页上，再放一颗跳自己的按钮是噪音。</p>
+ *
+ * <p>三个条件缺一不可 —— 是门户、库发布过（后端才回 token）、状态不是未发布。
+ * 未发布时后端不给 token，这里自然也是空串，按钮不渲染：给一个点开 404 的入口
+ * 比不给入口更糟。</p>
+ */
+const shareLink = computed(() => {
+  const v = props.view
+  if (v.mode !== 'portal' || !v.shareToken || v.shareStatus === 'unpublished') return ''
+  return `/share/${encodeURIComponent(v.shareToken)}`
+})
 
 /**
  * 左栏那颗胶囊答的是「进来要不要输密码」，所以读发布态（{@code shareStatus}），
@@ -246,30 +272,44 @@ function routerTo(link?: string) {
     <aside class="md-reading__aside">
       <div class="md-aside__card">
         <!--
-          分享页左栏顶部：库名与封面已经挪到顶栏（那里才是「我在哪个库」该待的地方），
-          这里只留一条范围说明 —— 收窄到某个菜单项时不说清范围，读者会以为整个库就这么大。
-          点它回全库，与顶栏那颗知识库按钮是同一个开关的两个入口。
+          分享页左栏顶部：一行「目录 + 全部展开/折叠」。原先这里是一条范围说明
+          「全部文档 · 56 篇」，两个字都删掉了：
+
+          <p><b>篇数删掉。</b>数字对读者没有可行动作 —— 不能点、不能筛、也不能拿来判断什么，
+          却占了左栏最宝贵的第一行，还和搜索框重复（搜一下就知道有多少篇）。</p>
+
+          <p><b>范围开关也删掉。</b>它和顶栏那颗知识库按钮是同一个开关的两个入口
+          （点它回全库），顶栏那颗一直在，左边的这颗是重复的；删掉不丢功能。</p>
+
+          <p><b>换成展开/折叠。</b>目录默认只展开当前文档的祖先链，几百篇的库一屏就那么几条。
+           「全部展开 / 全部折叠」是这条目录上唯一缺的动作 —— 想通览全库结构时，一层层点开要点到手酸。</p>
         -->
-        <button
-          v-if="isShare"
-          type="button"
-          class="md-aside__scope"
-          :class="{ 'is-all': scopeAll }"
-          :title="scopeAll ? '当前已是全部文档' : '点此展开全库所有文件'"
-          @click="!scopeAll && emit('scopeAll')"
-        >
-          <Icon name="books" :size="14" />
-          <span class="md-aside__scope-text">{{ scopeLabel || '全部文档' }}</span>
-          <Icon v-if="!scopeAll" class="md-aside__scope-more" name="grid" :size="13" />
-        </button>
+        <div v-if="isShare" class="md-aside__treebar">
+          <span class="md-aside__treebar-title">
+            <Icon name="books" :size="14" />
+            <span>目录</span>
+          </span>
+          <!-- 纯图标：文字去掉后靠 title / aria-label 说明含义，否则读者只能靠猜 -->
+          <button
+            type="button"
+            class="md-aside__treebar-btn"
+            :title="allExpanded ? '折叠所有目录' : '展开所有目录'"
+            :aria-label="allExpanded ? '折叠所有目录' : '展开所有目录'"
+            @click="setTreeExpanded(treeNodes, !allExpanded)"
+          >
+            <Icon :name="allExpanded ? 'collapseAll' : 'expandAll'" :size="16" />
+          </button>
+        </div>
 
         <template v-else>
-          <div class="md-aside__head">
-            <router-link class="md-aside__back" to="/">
-              <Icon name="chevronLeft" :size="14" />
-              <span>返回知识库</span>
-            </router-link>
-          </div>
+          <!--
+            左栏第一屏就是知识库卡片，不再放「返回知识库」。
+
+            <p>那颗按钮原本占着左栏最值钱的第一行，而它给的是「回门户首页」——
+            顶栏那颗 MiniDocs 品牌标志是同一个去处，读者认的是 logo 不是这行小字。
+            删掉之后上下都不补白：卡片直接贴在左栏内边距上，中间那一大块空档
+            原来就是按钮 + 它的下外边距撑出来的。</p>
+          -->
           <div class="md-aside__kb">
             <!--
               插画只做装饰垫底（pointer-events 关掉，不挡胶囊点击），右侧渐隐进来。
@@ -324,33 +364,96 @@ function routerTo(link?: string) {
 
     <!-- 正文 -->
     <!--
+      阅读条：**宽屏下横跨正文栏与右侧目录栏**，两栏顶部连成一条（见样式表那条注释）。
+      所以它现在是 .md-reading 的直接子元素、而不是 main 的子元素 —— 放在 main 里的话，
+      它永远只能铺满正文那一栏，右边一到把手就断掉。
+      分享页整个隐藏（.md-reading[data-mode='share'] .md-reading__bar{display:none}），两颗按钮已挪出。
+    -->
+    <div class="md-reading__bar">
+      <button type="button" class="md-icon-btn md-only-mobile" aria-label="目录" @click="drawer = 'tree'">
+        <Icon name="books" :size="16" />
+      </button>
+      <nav class="md-breadcrumb">
+        <span>{{ view.kbName }}</span>
+        <span>/</span>
+        <span>{{ view.currentName }}</span>
+      </nav>
+      <div class="md-reading__bar-actions">
+        <span v-if="switching" class="md-reading__switching" role="status">
+          <i class="md-reading__spinner" aria-hidden="true" />载入中…
+        </span>
+        <!--
+          返回：退出这篇文档。分享页不放 —— 访客是从外部链接进来的，
+          「返回」退出去就是离开站点，那是浏览器的事，不该由页面替他决定。
+        -->
+        <button
+          v-if="!isShare"
+          type="button"
+          class="md-icon-btn"
+          title="返回"
+          aria-label="返回"
+          @click="goBack"
+        >
+          <Icon name="arrowLeft" :size="16" />
+        </button>
+        <!--
+          阅读设置：门户阅读条上的入口。分享页那颗在 ShareTopBar 里，这里不能也放一个 ——
+          两个宿主共用 ReadBody，分享页会因此出现两颗设置钮。
+
+          <p>为什么门户原先没有：这个面板早先只挂在分享页顶栏，而「正文字体」写的是
+          {@code --md-read-font} 这个**设备偏好**，三个宿主的正文都吃得到。面板却只出现在
+          一处，于是读者在门户里换了篇长文想换个顺眼的字体，翻遍顶栏也找不到入口 ——
+          偏好在生效，却没有人能改它，比没有这个设置更让人困惑。</p>
+        -->
+        <ReaderPrefsMenu v-if="!isShare" context="portal" />
+        <!--
+          编辑：纯图标，与右边「大纲」同一档。带「编辑」两个字时工具条四种形态混排
+          （胶囊 / 图标钮 / 文字链），工具栏该是同一类控件的等距排列 ——
+          而且两个字不如图标一眼认得出，标题与 aria-label 里都留了「编辑」。
+        -->
+        <router-link
+          v-if="manageLink"
+          class="md-icon-btn md-icon-btn--violet"
+          :to="manageLink"
+          title="编辑"
+          aria-label="编辑"
+        >
+          <Icon name="edit" :size="16" />
+        </router-link>
+        <!--
+          打开分享页：新标签页打开，所以用 <a target="_blank"> 而不是 router-link ——
+          读者点它是「另开一个地方看」，不是「离开当前这篇」。
+          库没发布过时 shareLink 为空，这颗按钮整个不渲染。
+        -->
+        <a
+          v-if="shareLink"
+          class="md-icon-btn md-icon-btn--blue"
+          :href="shareLink"
+          target="_blank"
+          rel="noopener"
+          title="打开分享页"
+          aria-label="打开分享页"
+        >
+          <Icon name="externalLink" :size="16" />
+        </a>
+        <button
+          type="button"
+          class="md-icon-btn md-icon-btn--teal md-only-outline-mobile"
+          aria-label="大纲"
+          title="大纲"
+          @click="drawer = 'outline'"
+        >
+          <Icon name="list" :size="16" />
+        </button>
+      </div>
+    </div>
+
+    <!--
       data-md-scroll 把这一栏声明成滚动区（门户阅读页与分享页宽屏都是它自己在滚，
       窄屏时样式表把它退回文档流，scrollRegion 会按计算样式判回来）。
       大纲联动、回到顶部、前进后退的位置恢复都靠它找到该滚谁，不要再写死 #md-view。
     -->
     <main class="md-reading__main" data-md-scroll="" :class="{ 'is-switching': switching }">
-      <div class="md-reading__bar">
-        <button type="button" class="md-icon-btn md-only-mobile" aria-label="目录" @click="drawer = 'tree'">
-          <Icon name="books" :size="16" />
-        </button>
-        <nav class="md-breadcrumb">
-          <span>{{ view.kbName }}</span>
-          <span>/</span>
-          <span>{{ view.currentName }}</span>
-        </nav>
-        <div class="md-reading__bar-actions">
-          <span v-if="switching" class="md-reading__switching" role="status">
-            <i class="md-reading__spinner" aria-hidden="true" />载入中…
-          </span>
-          <router-link v-if="manageLink" class="md-btn md-btn--sm md-btn--soft" :to="manageLink">
-            <Icon name="edit" :size="14" />编辑
-          </router-link>
-          <button type="button" class="md-icon-btn md-only-outline-mobile" aria-label="大纲" @click="drawer = 'outline'">
-            <Icon name="list" :size="16" />
-          </button>
-        </div>
-      </div>
-
       <article v-if="!view.empty" class="md-doc">
         <!--
           正文页不再渲染任何 frontmatter 元信息：标签与分享有效期属于文档属性，不是正文，

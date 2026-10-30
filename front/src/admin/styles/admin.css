@@ -588,6 +588,9 @@
 }
 .md-ws__icon-btn:hover { background: var(--md-surface-2); color: var(--md-text); }
 .md-ws__icon-btn.is-on { background: var(--md-primary-soft); color: var(--md-primary); }
+/* 重扫期间禁用（防连点）。连 hover 的高亮也一起收掉，否则「点不动」看起来像坏了 */
+.md-ws__icon-btn:disabled { cursor: default; }
+.md-ws__icon-btn:disabled:hover { background: none; color: var(--md-text-3); }
 
 /* ------------------------------------------------ 顶部操作栏 */
 .md-ws__top {
@@ -698,7 +701,10 @@
 
 /* 转起来的是「保存中」的那枚圆形箭头，不额外引图标 */
 .md-ws__btn .md-icon.is-spin,
-.md-ws__save-state .md-icon.is-spin { animation: md-spin 1s linear infinite; }
+.md-ws__save-state .md-icon.is-spin,
+/* 左栏刷新：同一枚箭头，落在纯图标钮里。这里靠动画本身表达「正在重扫磁盘」，
+   不换图标 —— 换图标会让按钮宽度抖一下 */
+.md-ws__icon-btn .md-icon.is-spin { animation: md-spin 1s linear infinite; }
 @keyframes md-spin { to { transform: rotate(360deg); } }
 
 /* ------------------------------------------------ 主体三栏 */
@@ -712,13 +718,15 @@
   background: var(--md-sidebar); border-right: 1px solid var(--md-border);
 }
 /*
- * 面板头部：第一行是标题 + 五颗图标钮，第二行是搜索框。
+ * 面板头部：第一行是标题 + 动作条，第二行是搜索框。
  *
  * <p>搜索框用 flex: 1 1 100% 独占第二行 —— 它是这一栏里唯一需要宽度的控件，
- * 而第一行的图标钮都是定宽小块，两者挤在一行只会把搜索框压成几十像素。</p>
+ * 而第一行的按钮都是定宽小块，两者挤在一行只会把搜索框压成几十像素。</p>
  *
- * <p>标题可缩：226px 里「文档目录」加五颗图标钮接近满员，面板拖窄时标题先让位
- * （截断加省略号），图标钮保持可点。</p>
+ * <p>标题与动作条的分工：动作条是 flex: 1 1 0，宽度只由容器决定，所以标题<b>始终
+ * 保住自己的宽度</b>，不会为了多塞一颗按钮而被截成「文档…」；放不下时由动作条自己
+ * 收进「更多」。标题只在面板窄到连它自己都装不下时才走 ellipsis。
+ * （早先是反过来的：标题先让位、按钮硬挤。有了「更多」这条出口就没必要再牺牲标题。）</p>
  *
  * <p>不再显示篇数：那个数字与标题并排时读者猜不出是「篇数」还是「未读数」，
  * 而搜索框的占位符已经说明这一栏是什么。</p>
@@ -743,16 +751,63 @@
   padding: 0 0 2px;
 }
 /*
- * 三个写操作收成一组，跟在刷新 / 折叠之后（第一行）。
+ * 头部动作条：一排图标钮，放不下就收进「更多」。
  *
- * <p>不设 order：DOM 里它们就在两颗图标钮后面，自然落在第一行。曾经给过
- * order: 11，把它们排到搜索框之后去了 —— 那不是想要的位置。</p>
+ * <p>{@code flex: 1 1 0} 让它的宽度<b>只由容器决定、与内容无关</b>。这一点是必须的：
+ * 量宽、隐藏项都不会反过来改变它的宽度，也就不会和 ResizeObserver 形成
+ * 「量一次→变一次→再量一次」的回环。basis 取 0 还有个好处 —— 内容再多也顶不动
+ * 这个 flex 项（父级是 flex-wrap:wrap），标题因此能保住自己的宽度，只在极窄时才让位。</p>
+ *
+ * <p>{@code justify-content: flex-end} 让按钮靠右（原先靠一颗 .md-spacer 顶开）。
+ * 万一还是溢出，被裁掉的是最左边那几项，「更多」这颗入口始终留在最右边 ——
+ * 它是这一行唯一的兜底出口，任何情况下都不该被裁掉。</p>
  */
-.md-ws__side-tools {
-  display: flex; align-items: center; gap: 6px; min-width: 0;
+.md-ws__side-acts {
+  flex: 1 1 0; min-width: 0; position: relative;
+  display: flex; align-items: center; justify-content: flex-end; gap: 6px;
+  overflow: hidden;
 }
-/* 下拉容器是 flex 项，摊平 */
-.md-ws__side-tools > .el-dropdown { min-width: 0; display: flex; }
+/* 下拉容器是 flex 项，摊平：否则行内会多出几像素的基线间隙，与镜像量出来的宽度对不上 */
+.md-ws__side-acts > .el-dropdown { display: flex; }
+/*
+ * 行内项一律不压缩。
+ *
+ * <p>.md-ws__icon-btn 自带 flex-shrink:0，但 .md-ws__tool 没有 —— 放不下时它会被
+ * 压窄而不是溢出，于是「放不下」这件事在视觉上消失（按钮只是变瘦），
+ * 与「收进更多」的判定也对不上。统一钉死，让溢出老实发生、由 JS 决定收哪几个。</p>
+ */
+.md-ws__side-acts > * { flex-shrink: 0; }
+/*
+ * 量宽镜像：绝对定位 + visibility:hidden，只用来量宽度。
+ *
+ * <p><b>不能用 display:none</b> —— 那样 offsetWidth 恒为 0，什么也量不到。
+ * visibility:hidden 的元素仍参与布局计算，offsetWidth 是真实值。</p>
+ *
+ * <p>{@code width: max-content} 是关键：绝对定位元素的宽度默认按「收缩到适应」
+ * 计算，会被包含块（这一行）的宽度夹住，夹住之后内部 flex 项就开始收缩，
+ * 量出来的就<b>不是天然宽度</b>而是「挤过之后的宽度」—— 越放不下越量不准。
+ * 配上子项 flex-shrink:0 双保险。</p>
+ *
+ * <p>它会被父级的 overflow:hidden 裁掉，但裁剪不影响 offsetWidth，所以照样准。
+ * 再配 pointer-events:none，免得这条不可见的影子抢走点击。</p>
+ */
+.md-ws__side-acts-mirror {
+  position: absolute; top: 0; left: 0; width: max-content;
+  display: flex; align-items: center; gap: 6px;
+  visibility: hidden; pointer-events: none; white-space: nowrap;
+}
+.md-ws__side-acts-mirror > * { flex-shrink: 0; }
+/* 「更多」菜单：文字占满剩余宽度，激活项的勾因此被推到最右 */
+.md-ws__more-label { flex: 1; }
+/*
+ * 勾在菜单里居右且用主色。
+ * <p>选择器写成 .el-dropdown-menu__item 开头是为了压过上面那条
+ * `.el-dropdown-menu__item .md-icon { margin-right: 7px }`（同特异性，靠顺序取胜）——
+ * 那颗勾是行尾元素，再给它留 7px 右边距只会让它离右边缘远一截。</p>
+ */
+.el-dropdown-menu__item .md-ws__more-check {
+  margin-right: 0; margin-left: 10px; color: var(--md-primary);
+}
 /*
  * 纯图标方块：与旁边两颗 .md-ws__icon-btn 同规格（26px 高、8px 圆角）。
  * 带文字时高度要 30px 才不局促，纯图标 26px 就够 —— 与相邻图标钮一致，
@@ -762,11 +817,24 @@
   width: auto; height: 26px; padding: 0 8px;
   font-size: 11.5px; gap: 4px;
 }
-.md-ws__side-head .md-ws__tool .md-icon { width: 13px; height: 13px; }
 /* 「新建文档」仍是主行动，但描边收敛到 45%：头部这一行整体都该轻 */
 .md-ws__side-head .md-ws__tool--primary {
   border-color: color-mix(in srgb, var(--md-primary) 45%, transparent);
   background: var(--md-primary-soft);
+}
+/*
+ * 「删除所选」用红系而不是主色。
+ *
+ * <p>它原本是 {@code --primary}：与同一行的「新建文档」同为软色底 + 主色描边，
+ * 两个蓝块挨在一起，破坏性动作看起来和新建一样安全。</p>
+ *
+ * <p>底色用 10% 的 color-mix 而不是写死淡红：浅色下是极淡的粉，暗色下自动压在
+ * 深底上不刺眼，一套值跟主题走。</p>
+ */
+.md-ws__side-head .md-ws__tool--danger {
+  border-color: color-mix(in srgb, var(--md-danger) 45%, transparent);
+  background: color-mix(in srgb, var(--md-danger) 10%, transparent);
+  color: var(--md-danger);
 }
 /* 搜索框在 head 外面时（右栏大纲）保留自己的左右内边距；head 内的那条由 flex 全宽接管 */
 .md-ws__side-search { padding: 0 12px 8px; }
@@ -787,6 +855,11 @@
 .md-ws__tool--primary:hover {
   background: var(--md-primary); border-color: var(--md-primary); color: #fff;
   box-shadow: 0 2px 10px color-mix(in srgb, var(--md-primary) 35%, transparent);
+}
+/* 悬停实心：与 --primary 同规格，只是色相换成红 */
+.md-ws__side-head .md-ws__tool--danger:hover {
+  background: var(--md-danger); border-color: var(--md-danger); color: #fff;
+  box-shadow: 0 2px 10px color-mix(in srgb, var(--md-danger) 35%, transparent);
 }
 /* 「导入」尾巴上的下拉箭头比主图标轻一档，免得和文字抢注意力 */
 .md-ws__tool-caret { opacity: .6; }

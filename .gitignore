@@ -36,7 +36,11 @@
 .DS_Store
 Thumbs.db
 /.workbuddy/
+/.workbuddy-ai/
 /.vscode/
+
+# 本地 AI 助手导览（仅本机使用，含环境信息，不随仓库分发）
+/AGENT.md
 
 # 容器部署：.env 是明文口令，data/ 是数据卷挂载点（文档、头像、日志、SQLite）
 /deploy/.env

@@ -74,6 +74,21 @@ public class DocController {
         return ApiResponse.ok(docService.tree(locate(slug), UserContext.require()));
     }
 
+    /**
+     * 清掉目录树缓存后重扫磁盘，返回最新目录树。
+     *
+     * <p>走 POST 而不是 GET：它有副作用（作废进程内的树缓存与渲染缓存），而 GET 会被浏览器、
+     * CDN 与反向代理当成可缓存的幂等读请求 —— 那正好把「强制重扫」这个意图抹掉。</p>
+     *
+     * <p>返回整棵树而不是 204：前端刷新完必须立刻拿到新树，否则要再发一次 GET /tree，
+     * 而这中间完全可能被别的请求重新灌进一份缓存。</p>
+     */
+    @Operation(summary = "刷新目录树（清缓存后重扫磁盘）")
+    @PostMapping("/tree/refresh")
+    public ApiResponse<List<DocNode>> refreshTree(@PathVariable String slug) {
+        return ApiResponse.ok(docService.refreshTree(locate(slug), UserContext.require()));
+    }
+
     @Operation(summary = "读取文档原文（响应体带 size / modifiedAt 作为保存基线）")
     @GetMapping("/doc")
     public ApiResponse<DocContentVO> read(@PathVariable String slug, @RequestParam String path) {

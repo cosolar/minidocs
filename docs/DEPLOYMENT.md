@@ -529,6 +529,13 @@ DRUID_MONITOR_PASSWORD=换成强密码
 | `minidocs.doc-max-size` | 2MB | — |
 | `minidocs.image-max-size` | 20MB | — |
 | `minidocs.import-max-size` | 50MB | — |
+| `minidocs.import-max-uncompressed-size` | 200MB | — |
+| `minidocs.import-max-files` | 5000 | — |
+
+> 压缩包的两道闸门各管一件事：`import-max-uncompressed-size` 是**解压后**写盘的总字节数
+> （文本压缩比常见 3–5 倍，所以给得比压缩后的 `import-max-size` 宽），`import-max-files`
+> 只是防「几十万个空条目」的安全阀，正常导入撞不到。撞上体积闸门是**停止并如实汇报**，
+> 不是报错回滚——文件已经写进磁盘了，磁盘不受事务回滚。
 
 ---
 

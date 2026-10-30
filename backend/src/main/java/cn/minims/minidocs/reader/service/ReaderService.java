@@ -13,6 +13,7 @@ import cn.minims.minidocs.markdown.model.MarkdownModels.RenderContext;
 import cn.minims.minidocs.markdown.model.MarkdownModels.RenderResult;
 import cn.minims.minidocs.markdown.model.MarkdownModels.Variant;
 import cn.minims.minidocs.reader.model.ReadView;
+import cn.minims.minidocs.share.entity.Share;
 import cn.minims.minidocs.share.support.SharePublicationSupport;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -86,7 +87,8 @@ public class ReaderService {
         view.setVisibility(kb.getVisibility());
         view.setPublicKb(kb.isPublic());
         // 阅读页左栏那颗「共享 / 加密」胶囊的数据源。与 visibility 正交，别混用。
-        view.setShareStatus(SharePublicationSupport.publishStatusOf(publicationSupport.find(kb.getId())));
+        Share publication = publicationSupport.find(kb.getId());
+        view.setShareStatus(SharePublicationSupport.publishStatusOf(publication));
         view.setDocCount(docPaths.size());
           view.setTagCount(splitTags(kb.getTags()).size());
                 // 目录树要不要显示 .md 后缀。缺省 true，老仓库的 .minidocs.json 里没有这一项。
@@ -94,6 +96,21 @@ public class ReaderService {
         view.setShowTree(request.includeTree());
         view.setSingleDoc(request.singleDoc());
         view.setShareToken(request.shareToken());
+        /*
+         * 门户阅读页要给一颗「打开分享页」的按钮，那就得知道这个库的分享 token。
+         *
+         * <p>必须写在上面那句**之后**：那句在门户侧会把 shareToken 显式置成 null
+         *（门户的 request 没有 token），先写就会被覆盖掉。</p>
+         *
+         * <p>只在门户侧补：分享页自己的 request 里已经带着当前 token，这里再写一次可能把它
+         * 换成同一个库的另一个分享（一个库可以建多条分享），读者点「返回」就跑到别的链接上去了。</p>
+         *
+         * <p>没发布过（publication 为空）就不填 —— 前端据此不显示那颗按钮，
+         * 免得给一个点开是 404 的入口。</p>
+         */
+        if (request.shareToken() == null && publication != null) {
+            view.setShareToken(publication.getToken());
+        }
         view.setExpiresText(request.expiresText());
         view.setViews(request.views());
         view.setAssetPrefix(request.assetPrefix());

@@ -17,6 +17,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 
@@ -61,6 +62,32 @@ public class ImageValidator {
 
     public String validate(MultipartFile file) {
         return validate(file, properties.getImageMaxSize());
+    }
+
+    /**
+     * 校验内存中的图片字节并返回（SVG 为净化后的）内容。
+     *
+     * <p>压缩包导入没有 {@link MultipartFile}，但校验标准与上传完全一致：
+     * 扩展名在白名单内、大小不超限、文件头魔数与扩展名相符，SVG 额外净化 ——
+     * 少任何一道，导入的「图片」就可能带着脚本经 /asset/ 原样吐出。</p>
+     */
+    public byte[] validateAndSanitize(String fileName, byte[] content, long maxSize) {
+        if (content == null || content.length == 0) {
+            throw BizException.param("图片内容为空");
+        }
+        String extension = FileNameUtil.extensionOf(fileName == null ? "" : fileName);
+        if (!MiniDocsProperties.IMAGE_EXTENSIONS.contains(extension)) {
+            throw BizException.of(ErrorCode.FILE_TYPE_NOT_ALLOWED, "不支持的图片类型：" + extension);
+        }
+        if (content.length > maxSize) {
+            throw BizException.of(ErrorCode.FILE_TOO_LARGE,
+                    "图片超过 " + (maxSize / 1024 / 1024) + "MB 限制");
+        }
+        byte[] head = content.length > HEAD_LENGTH ? Arrays.copyOf(content, HEAD_LENGTH) : content;
+        if (!magicMatches(extension, head)) {
+            throw BizException.of(ErrorCode.FILE_TYPE_NOT_ALLOWED, "文件内容与扩展名不符");
+        }
+        return "svg".equals(extension) ? sanitizeSvg(content) : content;
     }
 
     private byte[] readHead(MultipartFile file) {

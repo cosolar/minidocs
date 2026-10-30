@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 使用与部署文档
+    url: https://github.com/cosolar/minidocs/tree/main/docs
+    about: 本地启动、部署、使用与设计说明都在这里，提 issue 前先查一遍。
+  - name: 安全问题私下报告
+    url: https://github.com/cosolar/minidocs/blob/main/SECURITY.md
+    about: 请勿在公开 issue 中披露漏洞细节，按 SECURITY.md 的流程私下联系维护者。

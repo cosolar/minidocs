@@ -44,10 +44,8 @@ import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
@@ -78,6 +76,24 @@ public class DocServiceImpl implements DocService {
     public List<DocNode> tree(Long kbId, LoginUser user) {
         KnowledgeBase kb = accessService.requireKb(kbId, KbAction.DOC_READ, user);
         return vaultFileService.tree(vaultFileService.rootOf(kb.getStorageKey()));
+    }
+
+    @Override
+    public List<DocNode> refreshTree(Long kbId, LoginUser user) {
+        KnowledgeBase kb = accessService.requireKb(kbId, KbAction.DOC_READ, user);
+        Path root = vaultFileService.rootOf(kb.getStorageKey());
+        // 外部改动只落在磁盘上，缓存里的旧树不会自己作废，必须显式清一次再重扫
+        vaultFileService.invalidateTree(root);
+        /*
+         * 正文渲染缓存一并作废。
+         *
+         * <p>外部改动很少只动文件名：改名 / 覆盖 / 删除往往同时改了正文。只清目录树的话会出现
+         * 「左栏是新的、点进去还是旧 HTML」。渲染缓存的键里带了 mtime 与 size，正常情况下正文一变
+         * 就自己失效；但「同秒内改写且长度恰好不变」这类边界会漏，而既然是用户主动点的刷新，
+         * 就按「一切以磁盘为准」整库作废 —— 代价只是一次冷渲染。</p>
+         */
+        markdownService.invalidateKnowledgeBase(kbId);
+        return vaultFileService.tree(root);
     }
 
     @Override
@@ -417,6 +433,9 @@ public class DocServiceImpl implements DocService {
         int failed = 0;
         List<String> messages = new ArrayList<>();
         long totalSize = 0L;
+        // 压缩包解压后已写盘的字节数，跨多个包累加：体积闸门必须按「解压后」算，
+        // 拿压缩后的 50MB 去卡，一个正常的文本包就能被误伤
+        long totalUncompressed = 0L;
         int totalFiles = 0;
 
         MultipartFile[] incoming = files == null ? new MultipartFile[0] : files;
@@ -427,7 +446,8 @@ public class DocServiceImpl implements DocService {
             }
             totalSize += file.getSize();
             if (totalSize > properties.getImportMaxSize()) {
-                throw BizException.of(ErrorCode.FILE_TOO_LARGE, "导入内容超过 50MB 限制");
+                throw BizException.of(ErrorCode.FILE_TOO_LARGE,
+                        "导入内容超过 " + humanSize(properties.getImportMaxSize()) + " 限制");
             }
             String originalName = file.getOriginalFilename() == null ? "" : file.getOriginalFilename();
             /*
@@ -447,20 +467,45 @@ public class DocServiceImpl implements DocService {
             }
             if ("zip".equals(extension)) {
                 Counter counter = new Counter();
-                importZip(root, PathGuard.join(baseDir, subDir), file, counter, messages, totalFiles);
+                importZip(root, PathGuard.join(baseDir, subDir), file, counter, messages,
+                        totalFiles, totalUncompressed);
                 imported += counter.imported;
                 skipped += counter.skipped;
                 failed += counter.failed;
                 totalFiles += counter.total;
+                totalUncompressed += counter.bytes;
             } else if (FileNameUtil.isMarkdown(baseName)) {
                 totalFiles++;
                 if (totalFiles > properties.getImportMaxFiles()) {
-                    throw BizException.param("单次导入文件数不能超过 " + properties.getImportMaxFiles() + " 个");
+                    throw BizException.param("单次导入条目数超过安全上限 "
+                            + properties.getImportMaxFiles() + "，请分批导入");
                 }
                 try {
                     String name = FileNameUtil.validateName(baseName);
                     String target = PathGuard.join(baseDir, PathGuard.join(subDir, FileNameUtil.ensureMarkdownExt(name)));
                     vaultFileService.write(root, target, new String(file.getBytes(), StandardCharsets.UTF_8));
+                    imported++;
+                } catch (Exception e) {
+                    failed++;
+                    addMessage(messages, "导入失败：" + originalName + " - " + e.getMessage());
+                }
+            } else if (FileNameUtil.isImage(baseName)) {
+                /*
+                 * 图片单独走一条：以前只有「压缩包里的图片」会被收下，直接选一张图会被归到
+                 * 「不支持的文件」里跳掉 —— 而导入入口的文案明明写着支持图片。
+                 * 校验与落盘照 writeZipEntry 那套来（扩展名 + 魔数，SVG 先净化），
+                 * 不能因为「是单张选的」就绕过安全检查。
+                 */
+                totalFiles++;
+                if (totalFiles > properties.getImportMaxFiles()) {
+                    throw BizException.param("单次导入条目数超过安全上限 "
+                            + properties.getImportMaxFiles() + "，请分批导入");
+                }
+                try {
+                    String name = FileNameUtil.validateName(baseName);
+                    String target = PathGuard.join(baseDir, PathGuard.join(subDir, name));
+                    vaultFileService.writeBytes(root, target,
+                            imageValidator.validateAndSanitize(name, file.getBytes(), properties.getImageMaxSize()));
                     imported++;
                 } catch (Exception e) {
                     failed++;
@@ -546,16 +591,28 @@ public class DocServiceImpl implements DocService {
     /**
      * 还原压缩包：目录结构与文件一并落库。
      *
-     * <p>条目的相对路径（剥掉统一外壳目录后）即库内路径，Markdown 按文本写、图片等资源按字节写，
-     * 因此 {@code notes/a.md} 与 {@code notes/img/pic.png} 落在同一相对位置，渲染时
+     * <p><b>按普通解压的语义走</b> —— 包里是什么结构，库里就是什么结构，<b>包括最外层那个
+     * 文件夹</b>。这里曾经会剥掉「统一外壳目录」（压一个文件夹时打出来的那层），理由是
+     * 「选目录导入」也不带根目录名；但那等于替用户改结构：包里的 {@code 场景设计题/}
+     * 落库后凭空消失，用户只会觉得「目录没给我解压出来」。多一层自己删得掉，少一层找不回来。</p>
+     *
+     * <p>条目的相对路径即库内路径，Markdown 按文本写、图片等资源按字节写，因此
+     * {@code notes/a.md} 与 {@code notes/img/pic.png} 落在同一相对位置，渲染时
      * {@code MarkdownService} 按文档目录解析出的正是原路径，图片可以直接显示。</p>
      *
      * <p>不进库的只有：非法路径条目、系统 / 隐藏条目（.git、node_modules、.minidocs.json 等，
      * 后者是库级配置，被包内旧副本覆盖会抹掉排序与隐藏规则）、超限文件。</p>
+     *
+     * <p><b>两道闸门各管一件事</b>：字节数（{@code importMaxUncompressedSize}）管体积，
+     * 条目数（{@code importMaxFiles}）只作安全阀。只按条目数拦是错的 —— 一个 50MB 的包
+     * 可以塞几十万个空条目，解压后 0 字节，体积闸门看不见它；反过来「一个包里有多少篇文档」
+     * 跟「这次上传有多大」本就不是一回事，按篇数拦会把正常的大目录挡在门外。</p>
+     *
+     * <p>撞上体积闸门是<b>停止并如实汇报</b>，不抛异常：文件已经写进磁盘了，磁盘不受事务回滚，
+     * 抛出去只会留下「报错说没导成功、其实进去了一半」的更糟状态。</p>
      */
     private void importZip(Path root, String baseDir, MultipartFile file, Counter counter,
-                           List<String> messages, int alreadyCounted) {
-        String wrapper = zipWrapperDir(file);
+                           List<String> messages, int alreadyCounted, long alreadyBytes) {
         int ignored = 0;
         try (InputStream inputStream = file.getInputStream();
              ZipInputStream zip = new ZipInputStream(inputStream, StandardCharsets.UTF_8)) {
@@ -577,32 +634,23 @@ public class DocServiceImpl implements DocService {
                 }
                 counter.total++;
                 if (alreadyCounted + counter.total > properties.getImportMaxFiles()) {
-                    throw BizException.param("单次导入文件数不能超过 " + properties.getImportMaxFiles() + " 个");
+                    throw BizException.param("单次导入条目数超过安全上限 "
+                            + properties.getImportMaxFiles() + "，请分批导入");
                 }
                 try {
-                    String target = PathGuard.join(baseDir, stripZipWrapper(entryName, wrapper));
-                    if (FileNameUtil.isMarkdown(entryName)) {
-                        byte[] bytes = zip.readAllBytes();
-                        vaultFileService.write(root, target, new String(bytes, StandardCharsets.UTF_8));
-                    } else if (FileNameUtil.isImage(entryName)) {
-                        byte[] bytes = readZipEntryBytes(zip, properties.getImageMaxSize());
-                        if (bytes == null) {
-                            counter.skipped++;
-                            addMessage(messages, "已跳过超过大小限制的图片：" + entryName);
-                            continue;
-                        }
-                        // 与编辑器上传同一套校验：扩展名 + 魔数，SVG 净化后再落盘
-                        vaultFileService.writeBytes(root, target,
-                                imageValidator.validateAndSanitize(entryName, bytes, properties.getImageMaxSize()));
-                    } else {
-                        byte[] bytes = readZipEntryBytes(zip, properties.getImportMaxSize());
-                        if (bytes == null) {
-                            counter.skipped++;
-                            addMessage(messages, "已跳过超过大小限制的文件：" + entryName);
-                            continue;
-                        }
-                        vaultFileService.writeBytes(root, target, bytes);
+                    byte[] bytes = readZipEntryBytes(zip, entrySizeLimitOf(entryName));
+                    if (bytes == null) {
+                        counter.skipped++;
+                        addMessage(messages, "已跳过超过大小限制的文件：" + entryName);
+                        continue;
                     }
+                    if (alreadyBytes + counter.bytes + bytes.length > properties.getImportMaxUncompressedSize()) {
+                        addMessage(messages, "压缩包解压后超过 "
+                                + humanSize(properties.getImportMaxUncompressedSize()) + "，其余条目未导入");
+                        break;
+                    }
+                    writeZipEntry(root, PathGuard.join(baseDir, entryName), entryName, bytes);
+                    counter.bytes += bytes.length;
                     counter.imported++;
                 } catch (Exception e) {
                     counter.failed++;
@@ -616,6 +664,41 @@ public class DocServiceImpl implements DocService {
         if (ignored > 0) {
             addMessage(messages, "压缩包内 " + ignored + " 个系统 / 隐藏文件已跳过（如 .git、node_modules）");
         }
+    }
+
+    /**
+     * 单个条目的读取上限：Markdown 跟单篇上限走，图片跟图片上限走，其余按整包上限。
+     *
+     * <p>必须<b>先限量再读</b>，不能 {@code readAllBytes} 读完再判大小 —— 压缩比能把 50MB 的包
+     * 撑成几十 GB，吃完再判内存早爆了。</p>
+     */
+    private long entrySizeLimitOf(String entryName) {
+        if (FileNameUtil.isMarkdown(entryName)) {
+            return properties.getDocMaxSize();
+        }
+        if (FileNameUtil.isImage(entryName)) {
+            return properties.getImageMaxSize();
+        }
+        return properties.getImportMaxSize();
+    }
+
+    /** 落盘一个压缩包条目：Markdown 走文本写（顺带过一遍大小校验），图片先净化，其余原样写字节。 */
+    private void writeZipEntry(Path root, String target, String entryName, byte[] bytes) {
+        if (FileNameUtil.isMarkdown(entryName)) {
+            vaultFileService.write(root, target, new String(bytes, StandardCharsets.UTF_8));
+        } else if (FileNameUtil.isImage(entryName)) {
+            // 与编辑器上传同一套校验：扩展名 + 魔数，SVG 净化后再落盘
+            vaultFileService.writeBytes(root, target,
+                    imageValidator.validateAndSanitize(entryName, bytes, properties.getImageMaxSize()));
+        } else {
+            vaultFileService.writeBytes(root, target, bytes);
+        }
+    }
+
+    /** 把字节数写成「200MB」这种人话，只用于导入上限的提示。 */
+    private static String humanSize(long bytes) {
+        long gb = 1024L * 1024 * 1024;
+        return bytes >= gb ? (bytes / gb) + "GB" : (bytes / (1024L * 1024)) + "MB";
     }
 
     /**
@@ -644,52 +727,6 @@ public class DocServiceImpl implements DocService {
             }
         }
         return false;
-    }
-
-    /**
-     * 压缩包那层「外壳文件夹」的名字；没有外壳时返回空串。
-     *
-     * <p>「压缩成 zip」打出来的包，条目一律带外层目录名（面试手册/a.md）。选目录导入时前端已经
-     * 把这层剥掉了（见 {@code relativeOf}），压缩包得跟上，否则同一个文件夹打包后导入会凭空多一级。</p>
-     *
-     * <p>判定看全部文件条目：出现一个落在根上的条目，说明压的是「文件夹里的内容」；首段不止一种，
-     * 说明本来就没有统一外壳 —— 这两种情况都原样保留路径。</p>
-     */
-    private String zipWrapperDir(MultipartFile file) {
-        Set<String> roots = new LinkedHashSet<>();
-        try (InputStream inputStream = file.getInputStream();
-             ZipInputStream zip = new ZipInputStream(inputStream, StandardCharsets.UTF_8)) {
-            ZipEntry entry;
-            while ((entry = zip.getNextEntry()) != null) {
-                if (entry.isDirectory()) {
-                    continue;
-                }
-                String entryName = normalizeZipEntry(entry.getName());
-                if (entryName == null) {
-                    continue;
-                }
-                int slash = entryName.indexOf('/');
-                if (slash < 0) {
-                    return "";
-                }
-                roots.add(entryName.substring(0, slash));
-                if (roots.size() > 1) {
-                    return "";
-                }
-            }
-        } catch (IOException e) {
-            log.warn("读取压缩包目录结构失败，按原路径导入：{} - {}", file.getOriginalFilename(), e.getMessage());
-            return "";
-        }
-        return roots.size() == 1 ? roots.iterator().next() : "";
-    }
-
-    private String stripZipWrapper(String entryName, String wrapper) {
-        if (wrapper.isEmpty()) {
-            return entryName;
-        }
-        String prefix = wrapper + "/";
-        return entryName.startsWith(prefix) ? entryName.substring(prefix.length()) : entryName;
     }
 
     private String normalizeZipEntry(String rawName) {
@@ -755,5 +792,7 @@ public class DocServiceImpl implements DocService {
         private int skipped;
         private int failed;
         private int total;
+        /** 实际写盘的字节数（解压后），供体积闸门累加 */
+        private long bytes;
     }
 }

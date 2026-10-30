@@ -4,7 +4,14 @@
 
 <h1 align="center">MiniDocs 知识库</h1>
 
-MiniDocs 是一款开源知识分享服务平台打造的轻量化、高性能知识库，主打多知识库独立管理、树形文档架构、原生 Markdown 创作、精细化分类标签与权限管控能力。无需复杂部署，即可快速为个人博主、小型团队、工作室搭建专属结构化知识库，完美适配笔记归档、项目文档、教程手册、团队协作资料等各类内容场景，丰富 Halo 平台知识库文档管理相关插件库。
+<p align="center">
+  <a href="https://github.com/cosolar/minidocs/actions/workflows/ci.yml"><img src="https://github.com/cosolar/minidocs/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-blue.svg" alt="License: Apache-2.0"></a>
+  <img src="https://img.shields.io/badge/Java-17%2B-orange.svg" alt="Java 17+">
+  <img src="https://img.shields.io/badge/Node.js-20%2B-339933.svg" alt="Node.js 20+">
+</p>
+
+MiniDocs 是一款开源知识分享服务平台打造的轻量化、高性能知识库，主打多知识库独立管理、树形文档架构、原生 Markdown 创作、精细化分类标签与权限管控能力。无需复杂部署，即可快速为个人博主、小型团队、工作室搭建专属结构化知识库，完美适配笔记归档、项目文档、教程手册、团队协作资料等各类内容场景。
 
 
 > 轻量、可私有部署的 Markdown 知识库平台 —— 写作、阅读、分享、权限一条线。
@@ -20,7 +27,8 @@ MiniDocs 面向「自己维护一批文档、并且要把它分享出去」的�
 **写作**
 
 - Markdown（GFM）编辑与实时预览：表格、任务列表、代码块语法高亮 + 一键复制
-- Mermaid 图、KaTeX 公式、Admonition 提示块（`!!! NOTE` / `WARNING` / `TIP` …）
+- Mermaid 图、KaTeX 公式、Admonition 提示块（`> [!NOTE]` / `[!WARNING]` / `[!TIP]` …）
+- 正文行内高亮 `==文字==`，正文配色按元素分工（代码 / 表格 / 引用 / 标题各有其色）
 - 目录树与标签、frontmatter 元信息、正文大纲（TOC）与锚点跳转
 - 多人协作：编辑锁（60s 续期，超时自动让位）、乐观并发（基线 size/mtime，冲突返回 412）
 
@@ -135,7 +143,7 @@ java -jar target/minidocs.jar \
 
 **写一篇文档**
 
-支持 GFM 表格与任务列表、代码块、引用、`!!! NOTE` 类提示块、`mermaid` 图、`$$` 公式；
+支持 GFM 表格与任务列表、代码块、引用、`> [!NOTE]` 类提示块、`==高亮==`、`mermaid` 图、`$$` 公式；
 文档顶部可选写 frontmatter（标题、标签等），目录结构与左侧文档树一一对应。
 
 **分享出去**
@@ -207,9 +215,22 @@ cd front  && npm run build    # 产出 front/dist
 
 其余业务阈值见 `application.yml` 的 `minidocs.*`（文档 2MB、图片 20MB、封面上限、层级 6 层、导入上限等）。
 
+## 文档
+
+- [开发指南](docs/DEVELOPMENT.md) —— 本地启动、仓库地图、六条硬约定、提交前检查清单
+- [部署指南](docs/DEPLOYMENT.md) —— 三种部署形态、Nginx、备份与升级、故障排查
+- [使用手册](docs/USAGE.md) —— 注册登录、组织成员、写作、分享与权限模型
+- [产品需求分析](docs/产品设计需求分析.md) —— 产品定位、角色、验收场景
+- [设计取舍](docs/DESIGN.md) —— 视觉层级、色相体系、阅读版面等设计理由（含试过但行不通的做法）
+- [权限与功能规范](docs/多租户知识库权限与功能规范.md) —— 角色、可见性、维护范围与不变式
+- [开发计划（历史）](docs/开发计划-M5.md) —— v2 施工顺序与验收记录
+
 ## 贡献
 
-欢迎 issue 与 PR。对齐规范与既有设计后再动手，有两条约定值得先知道：
+欢迎 issue 与 PR。开始之前请先读 [贡献指南](CONTRIBUTING.md) 与
+[行为准则](CODE_OF_CONDUCT.md)；安全问题请按 [SECURITY.md](SECURITY.md) 私下报告，不要开公开 issue。
+
+对齐规范与既有设计后再动手，有三条约定值得先知道：
 
 - 权限判定只写在 `permission/AccessService` 一处，业务代码不得自行比较角色或 owner（测试里有静态守卫）
 - 改动分享、渲染、目录树等共享逻辑时，同步更新 `docs/` 下的规范文档
@@ -217,4 +238,5 @@ cd front  && npm run build    # 产出 front/dist
 
 ## License
 
-⚠️ 仓库暂未包含 LICENSE 文件。正式对外发布前请补上（例如 MIT 或 Apache-2.0），并在上面替换本节说明。
+本项目以 [Apache License 2.0](LICENSE) 发布，可自由使用、修改与分发（含商业用途），
+需保留版权与许可声明。除非另有说明，提交到本仓库的贡献默认按 Apache-2.0 授权。

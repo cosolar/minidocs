@@ -55,7 +55,7 @@ class NullWritebackTest extends MiniDocsTestBase {
         Tenant team = org(owner);
         Long id = kb(team, owner, "带上过简介的库", "旧简介", "covers/old.png");
 
-        kbService.update(id, new UpdateRequest(null, "", null, List.of("v2"), ""), owner);
+        kbService.update(id, new UpdateRequest(null, "", null, List.of("v2"), "", null, null, null, null), owner);
 
         KnowledgeBase reloaded = kbService.getById(id);
         assertThat(reloaded.getDescription()).isNull();
@@ -71,7 +71,7 @@ class NullWritebackTest extends MiniDocsTestBase {
         Tenant team = org(owner);
         Long id = kb(team, owner, "只改名字的库", "要留下的简介", "covers/keep.png");
 
-        kbService.update(id, new UpdateRequest("改过名", null, null, null, null), owner);
+        kbService.update(id, new UpdateRequest("改过名", null, null, null, null, null, null, null, null), owner);
 
         KnowledgeBase reloaded = kbService.getById(id);
         assertThat(reloaded.getName()).isEqualTo("改过名");

@@ -24,9 +24,12 @@ import { portalKbUrl } from '@/shared/portal'
 import { appHref } from '@/shared/appBase'
 import KbGlyph from '@/shared/components/KbGlyph.vue'
 import { maintainScopeHint, maintainScopeLabel, publishStatusChipClass, publishStatusHint, publishStatusLabel, visibilityChipClass, visibilityHint, visibilityLabel } from '@/shared/visibility'
-import { enhancePreview } from '@/shared/enhanceMarkdown'
+import { enhanceMarkdown } from '@/shared/enhanceMarkdown'
 import { frontmatterStrip } from '@/shared/bytemdFrontmatter'
+// 只用解析期：预览不往回序列化，parseOnly 的依赖面小一圈
+import remarkCjkFriendly from 'remark-cjk-friendly/parseOnly'
 import { useIsMobile } from '@/admin/composables/useIsMobile'
+import { useOverflowRow } from '@/admin/composables/useOverflowRow'
 import type { DocContentVO, DocNode, GitStatusVO, KbActionName, KbVO, LockVO } from '@/shared/api/types'
 
 /** 编辑区展示形态：仅编辑 / 仅预览 */
@@ -43,7 +46,20 @@ interface OutlineItem {
  * 因此这里也只挂 gfm + 代码高亮，避免编辑态预览出现阅读页渲染不出来的内容。
  * frontmatterStrip 只影响预览：frontmatter 是文档属性，不该出现在正文里。
  */
-const plugins = [gfm({ locale: gfmZhHans }), highlight(), frontmatterStrip()]
+const plugins = [
+  gfm({ locale: gfmZhHans }),
+  highlight(),
+  frontmatterStrip(),
+  /*
+   * CJK 紧邻加粗：`把**加粗**弄好` 这种写法，CommonMark 的左右侧规则判定不出来
+   *（收尾的 ** 前后都是汉字，既算左也算右，于是既不能开也不能合），会原样显示 ** 字面量。
+   *
+   * <p>后端 flexmark 0.64 对这条做了宽松处理（实测能渲染），预览这条链走 remark、
+   * 严格按 CommonMark 来，于是**预览不渲染、门户却渲染** —— 同一篇文档两个入口两副样子。
+   * 这个插件把 micromark 的 CJK 友好扩展接进来，两条链的判定就对齐了。</p>
+   */
+  { remark: (p: unknown) => (p as { use: (x: unknown) => unknown }).use(remarkCjkFriendly) },
+]
 
 /* ------------------------------------------------------------------ 编辑锁常量 */
 /** 锁 TTL 由后端下发（60s），心跳取 TTL/3：连续两次续期失败也还没过期 */
@@ -74,6 +90,13 @@ const kb = ref<KbVO | null>(null)
 const tree = ref<DocNode[]>([])
 const loading = ref(true)
 const treeLoading = ref(false)
+/**
+ * 「刷新」是否正在跑。
+ *
+ * <p>与 {@link treeLoading} 分开：后者会在切换库、保存后重取树时也亮起来（整块树蒙一层 loading），
+ * 而刷新是用户主动点的一次动作，只需要按钮自己转起来 —— 蒙住整棵树反而看不清它在变。</p>
+ */
+const treeRefreshing = ref(false)
 const keyword = ref('')
 const collapseAll = ref(false)
 
@@ -135,7 +158,46 @@ const docInfo = ref<DocContentVO | null>(null)
 const content = ref('')
 /** 最近一次「已落盘」的正文：用它与编辑区比对得出未保存状态 */
 const savedText = ref('')
-const dirty = ref(false)
+
+/**
+ * 两份正文是否「实质相同」—— 比对前先把行尾归一化。
+ *
+ * <p><b>不这么做就会一直误报未保存。</b>CodeMirror 在 {@code setValue} 时把 CRLF 折成 LF，
+ * 而 bytemd 紧接着把编辑器里的值原样外发（{@code editor.on("change", () => dispatch("change",
+ * { value: editor.getValue() }))}，见 {@code bytemd/dist/index.mjs}）—— 于是打开一篇 CRLF 文档时，
+ * {@code content} 已经是 LF，{@code savedText} 还是磁盘上那份 CRLF，两者永不相等，
+ * {@code dirty} 恒为 true。表现正是用户报的「文件没有任何修改，却一直弹未保存」，
+ * 而且**只发生在 CRLF 的文件上**（库里两种行尾都有，混在一起时最难看出规律）。</p>
+ *
+ * <p>只用于比对，不写回 {@code savedText}：磁盘上确实是 CRLF，抹平它会让「已落盘内容」
+ * 名不副实。真正的落盘形态由 {@link #loadedCrlf} 在保存时还原。</p>
+ */
+function sameText(a: string, b: string) {
+  return a === b || a.replace(/\r\n?/g, '\n') === b.replace(/\r\n?/g, '\n')
+}
+
+/**
+ * 打开这篇文档时，磁盘上的原文是不是 CRLF。
+ *
+ * <p>编辑器只会给出 LF（见 {@link #sameText}），保存时若原样写回，用户「只改一个字」
+ * 也会让整个文件的行尾翻掉 —— 而这个库是 Git 托管的，那会变成一整篇的 diff。
+ * 所以记下原风格，写盘时还原；新建的文档没有原风格，按 LF 走。</p>
+ */
+const loadedCrlf = ref(false)
+
+/**
+ * 未保存状态：正文与「最近一次落盘的内容」实时比对。
+ *
+ * <p><b>做成 computed 而不是手工维护的 ref。</b>手工版要在「输入」「加载新文档」
+ * 「保存成功」三处各自赋值，任何一处漏掉、或多触发一次 {@code onContentChange}，
+ * 就与真实状态脱钩 —— 而脱钩的表现正是用户看到的「已经点过保存，切换文档时
+ * 还弹未保存提示」：{@code savedText} 已经换成新内容，{@code dirty} 却还是 true。</p>
+ *
+ * <p>computed 顺带保留了原本想要的那个语义：保存请求往返期间用户又敲了字，
+ * 那几个字没进这次请求，{@code dirty} 依然是 true，下一次自动保存会重新排队
+ * （写成「保存成功就无条件清零」会把那几个字悄悄悬住）。</p>
+ */
+const dirty = computed(() => !sameText(content.value, savedText.value))
 const saving = ref(false)
 const savedAt = ref('')
 /** 最近一次落盘是自动保存还是手动点的：两者文案要分开，不然「自动保存」这四个字站不住 */
@@ -178,9 +240,6 @@ const words = ref(0)
 const lines = ref(0)
 
 const importInput = ref<HTMLInputElement | null>(null)
-/** 选目录用的另一个 input：webkitdirectory 与 multiple 是两个互斥的取数口径，只能各留一个 */
-const importDirInput = ref<HTMLInputElement | null>(null)
-
 /**
  * 锁倒计时的走字时刻。
  *
@@ -400,6 +459,44 @@ async function loadTree() {
   }
 }
 
+/** 树里是否存在这个路径（含子节点）。刷新后用它判断「当前打开的这篇还在不在磁盘上」。 */
+function treeHasPath(nodes: DocNode[], path: string): boolean {
+  for (const node of nodes) {
+    if (node.path === path) return true
+    if (node.children?.length && treeHasPath(node.children, path)) return true
+  }
+  return false
+}
+
+/**
+ * 左栏那颗「刷新」：让后端作废目录树缓存后重扫磁盘。
+ *
+ * <p>不能只重发 {@code GET /tree} —— 目录树是后端进程内缓存的，普通读请求命中的还是那份旧树，
+ * 于是「在系统里删了文件，点刷新还在」。必须走会清缓存的 refresh 接口。</p>
+ *
+ * <p>顺带重取库详情：头部那颗「N 篇文档」是后端实时扫盘算出来的，与树同源，一起刷新
+ * 才不会出现「列表是新的、篇数还是旧的」。</p>
+ */
+async function refreshTree() {
+  if (treeRefreshing.value) return
+  treeRefreshing.value = true
+  try {
+    tree.value = await docApi.refreshTree(kbSlug.value)
+    await loadKb()
+    /*
+     * 当前打开的这篇可能刚被外部删掉。只提示、不强制关掉编辑区：
+     * 手里可能还有没落盘的改动，替他关掉就等于替他丢掉。保存时会由基线校验兜住。
+     */
+    if (currentPath.value && !treeHasPath(tree.value, currentPath.value)) {
+      ElMessage.warning('已重新读取磁盘：当前打开的文档不在磁盘上了')
+    } else {
+      ElMessage.success('已重新读取磁盘')
+    }
+  } finally {
+    treeRefreshing.value = false
+  }
+}
+
 async function openDoc(path: string, discard = false, force = false) {
   if (!path) return
   const sameDoc = path === currentPath.value
@@ -413,10 +510,16 @@ async function openDoc(path: string, discard = false, force = false) {
         distinguishCancelAndClose: true,
         type: 'warning'
       })
-      // 预览模式不持锁（也可能锁已被他人接管）：要保存先把锁拿回来，拿不到就留在本篇，
-      // 绝不能让「保存并切换」在无锁时静默失败后继续切走、把未落盘的改动丢掉
-      if (!haveLock.value && !(await acquireLock(currentPath.value))) return
-      await save(true)
+      // 预览模式不持锁（也可能锁已被他人接管）：要保存先把锁拿回来。拿不到就明说，
+      // 不能静默 return —— 那一下弹窗关了、文档没切、改动也没存，用户只会看到
+      // 「又弹了一次」，无从判断是保存成功还是失败。
+      if (!haveLock.value && !(await acquireLock(currentPath.value))) {
+        ElMessage.error('没能拿回编辑锁，这篇还没保存，先留在当前文档')
+        return
+      }
+      // 保存失败就留在本篇：save 内部不抛错（冲突由它自己的弹窗接手），
+      // 不看返回值继续往下走，会把没落盘的改动丢在上一篇里
+      if (!(await save(true))) return
     } catch (action) {
       if (action === 'close') return
     }
@@ -441,10 +544,12 @@ async function openDoc(path: string, discard = false, force = false) {
     if (isMobile.value) showTree.value = false
     content.value = doc.content
     savedText.value = doc.content
+    // 记下磁盘上的行尾风格：编辑器只给 LF，保存时按它还原（见 loadedCrlf）
+    loadedCrlf.value = doc.content.includes('\r\n')
     activeOutlineKey.value = ''
     outline.value = []
     updateStats(doc.content)
-    dirty.value = false
+    // dirty 不再需要在这里清零：savedText 刚被赋成同一份正文，computed 自然为 false
     savedAt.value = ''
     savedAuto.value = false
     await nextTick()
@@ -501,8 +606,8 @@ function scheduleAutoSave() {
 
 function onContentChange(value: string) {
   const text = value ?? ''
+  // 只更新正文：dirty 是 computed，会自己跟着 content 与 savedText 的比对变
   content.value = text
-  dirty.value = text !== savedText.value
   updateStats(text)
   scheduleOutline()
   scheduleAutoSave()
@@ -626,24 +731,50 @@ function postProcessPreview() {
   host.querySelectorAll<HTMLImageElement>('img[src]').forEach((img) => {
     const src = (img.getAttribute('src') || '').trim()
     /*
+     * 已经是我们拼好的地址就不再动它。
+     *
+     * <p>这个后处理**本来就会被调用多次**（{@link #refreshPreview} 的 nextTick + 260ms 兜底、
+     * {@link #scheduleOutline} 的 400ms），而改写 src <b>不是幂等的</b>：第二遍会把第一遍的产物
+     * 当成「文档相对路径」再解析一次，拼出
+     * {@code /minidocs/api/console/…/asset/场景设计题/minidocs/api/console/…/asset/场景设计题/image/01/x.png}
+     * 这种双重前缀，后端 404，刚显示出来的图又裂回去。</p>
+     *
+     * <p>nginx 日志里这一对是挨着的：同一秒先一条 200（正确地址，大小与磁盘上一致），
+     * 紧接着一条 404（双重前缀）—— 图其实「加载成功过」，只是随即被改坏了。</p>
+     */
+    if (src.startsWith(assetPrefix.value)) return
+    /*
      * 库内图片要把地址补成走组织门的代理；外链与 data: 原样留着。
      *
      * <p><b>以前导 `/` 一律跳过，那是个错</b>：作者写库内图片时最自然的两种形式是
-     * {@code image/a.png}（不带斜杠）和 {@code /image/a.png}（带斜杠，表示库根）。
+     * {@code image/a.png}（不带斜杠）和 {@code /image/a.png}（带斜杠）。
      * 那条判断把后者也当成「已经是绝对地址」放过去，于是这类图片在预览里永远是坏的 ——
      * 而 Markdown 源码里看着完全正常。</p>
      *
      * <p>真正该跳过的是 {@code data:}、{@code http(s)://} 与 {@code //} 这三类：
      * 它们要么没有路径可补，要么本来就指向别处。所以这里改成「只要不是这三类，就补」，
-     * 并且补之前把开头的 `/` 去掉 —— 否则 {@code /asset/} 后面再拼一个 `/image/...}
+     * 并且补之前把开头的 `/` 去掉 —— 否则 {@code /asset/} 后面再拼一个 {@code /image/...}
      * 会变成双斜杠，后端按相对路径解析不出来。</p>
+     *
+     * <p>补的规则必须与后端 {@code MarkdownService.rewriteImages} 完全一致，顺序也一样：
+     * 砍锚点 → 解码 → 按<b>当前文档所在目录</b>解析 → 编码。少了「按文档目录解析」这一步，
+     * {@code image/01/x.png} 会被当成库根下的路径去取，子目录里的文档图片全裂；而阅读页
+     * 走的是后端那套，显示正常 —— 同一份源码两边不一致，最难查。</p>
      */
     if (!src || src.startsWith('data:') || /^([a-z][a-z0-9+.-]*:)?\/\//i.test(src)) return
-    img.setAttribute('src', kbApi.assetUrl(kbSlug.value, src.replace(/^\/+/, '')))
+    /*
+     * 前导 `/` 只剥掉一层，**不代表库根**：剥完照样按当前文档所在目录解析，与后端一致
+     * （{@code src.substring(1)} 之后同样进 resolveRelative）。这里别自作主张把它当站内
+     * 绝对地址，那会让子目录里的 `/image/x.png` 与阅读页显示出两张不同的图。
+     */
+    const candidate = src.startsWith('/') ? src.replace(/^\/+/, '') : src
+    const resolved = resolveRelativePath(safeDecode(stripAnchorAndQuery(candidate)))
+    img.setAttribute('src', kbApi.assetUrl(kbSlug.value, resolved))
   })
-  // bytemd 预览只挂了 gfm + 代码高亮，```mermaid 围栏得借阅读页那套图表增强才出图，
-  // 图片与 SVG 的灯箱也一并在这里挂上
-  void enhancePreview(markdownBody())
+  // 预览区跑的是与阅读页**完全相同**的那条增强流水线：Admonition、代码块工具条、公式、
+  // 图表、灯箱一个不少 —— 预览的全部意义就是「看到读者会看到的东西」。
+  // bytemd 自己只挂了 gfm + 代码高亮，其余全靠这一步补。
+  void enhanceMarkdown(markdownBody())
 }
 
 /** 预览区（含标题 id、图片地址）与大纲一起刷新 */
@@ -829,6 +960,12 @@ function onPreviewClick(event: MouseEvent) {
   void openDoc(resolveRelativePath(decodeURIComponent(filePart)))
 }
 
+/** 砍掉 `#锚点` 与 `?查询串`：两者都不属于路径，带进去后端会拿整串当文件名去找 */
+function stripAnchorAndQuery(value: string): string {
+  const cuts = [value.indexOf('#'), value.indexOf('?')].filter((index) => index >= 0)
+  return cuts.length ? value.slice(0, Math.min(...cuts)) : value
+}
+
 /** decodeURIComponent 对畸形百分号序列会抛，锚点里什么字符都可能有 */
 function safeDecode(value: string): string {
   try {
@@ -973,14 +1110,28 @@ function syncLockTimers() {
 }
 
 /* ------------------------------------------------------------------ 保存 */
-async function save(silent = false) {
-  if (!currentPath.value) return
+/**
+ * 保存当前文档。
+ *
+ * @param silent 自动保存 / 「保存并切换」这类不主动打扰的场景
+ * @returns 是否真的落盘了。**调用方必须看这个返回值**：保存失败时 {@link #save} 自己不抛，
+ *   失败只体现在返回 false 上。{@link #openDoc} 靠它决定「还该不该切走」——
+ *   不看就会把没落盘的改动丢在上一篇里。
+ */
+async function save(silent = false): Promise<boolean> {
+  if (!currentPath.value) return false
   if (!haveLock.value) {
     if (!silent) ElMessage.warning(lockText.value)
-    return
+    return false
   }
   const path = currentPath.value
-  const value = content.value
+  /*
+   * 编辑器给的是 LF，但原文可能是 CRLF。按载入时的风格还原再写盘：
+   * 不还原的话，用户只改一个字，整个文件的行尾就翻了，在 Git 里是一整篇的 diff。
+   * savedText 记「刚写进去的那份」（即还原后的形态），比对由 sameText 归一化行尾，
+   * 所以这里不必也不该把 savedText 折成 LF。
+   */
+  const value = loadedCrlf.value ? content.value.replace(/\r\n?/g, '\n').replace(/\n/g, '\r\n') : content.value
   saving.value = true
   try {
     await docApi.save(kbSlug.value, {
@@ -991,11 +1142,11 @@ async function save(silent = false) {
     })
     savedText.value = value
     /*
-     * 按「当前正文」重算，而不是无条件清 dirty：写请求往返期间用户可能又敲了几个字，
-     * 那几个字既没进这次请求，也不该被这次成功连坐成「已保存」。留着 dirty 还会顺带
-     * 让下一次自动保存重新排队（dirty 归零的话计时器到点也是空跑，改动就悄无声息地悬着了）。
+     * dirty 不再在这里赋值：它是 computed，savedText 一换就会自己重算。
+     * 原本想要的那个语义（写请求往返期间用户又敲了字，那几个字不算已保存）由
+     * computed 天然保证 —— content 与 savedText 不相等，dirty 就是 true，
+     * 下一次自动保存也会照常排队。
      */
-    dirty.value = content.value !== savedText.value
     savedAt.value = formatClock(new Date().toISOString())
     savedAuto.value = silent
     if (dirty.value) scheduleAutoSave()
@@ -1003,8 +1154,10 @@ async function save(silent = false) {
     await Promise.all([loadTree(), loadKb()])
     await adoptBaseline(path)
     refreshPreview()
+    return true
   } catch (error) {
     await onSaveError(error, silent)
+    return false
   } finally {
     saving.value = false
   }
@@ -1364,49 +1517,217 @@ function onRootDrop(event: DragEvent) {
   void onTreeMove({ path, targetDir: '' })
 }
 
-function onImportCommand(command: string) {
-  if (command === 'dir') importDirInput.value?.click()
-  else importInput.value?.click()
-}
-
 /**
  * 导入落点：跟在当前打开的文档走，它在哪个目录就导到哪个目录。
- * 选目录时文件自带相对路径（notes/sub/a.md），补上这个落点前缀即可还原整棵子树。
  */
 const importBaseDir = () =>
   currentPath.value.includes('/')
     ? currentPath.value.slice(0, currentPath.value.lastIndexOf('/'))
     : ''
 
+/* ------------------------------------------------------------------ 左栏头部动作条 */
+
 /**
- * 提取目录选择器里每个文件的知识库内相对路径。
+ * 头部动作按钮的声明式清单。
  *
- * <p>webkitRelativePath 是「选择器根目录」的相对路径，而选择器根目录本身不导入，
- * 只导入它里面的内容。所以剥掉第一段（根目录名），剩下的拼进落点。
- * 文件直接拖进选择器（无目录时）兼容为空的情况。</p>
+ * <p>以前这些按钮是直接写死在模板里的，好坏都直白；但「放不下就收进『更多』」要求
+ * 同一批按钮<b>渲染两遍</b>（行内一遍、量宽镜像一遍），写死就会出现两份必然走样的副本。
+ * 收成数据后，行内与镜像共用同一个 {@code v-for}，宽度天然一致。</p>
+ *
+ * <p>{@code kind} 决定行内形态：{@code icon} 是无底色的方形图标钮（实测 28px，窄屏 34px），
+ * {@code tool} 是带底色的小按钮（实测 32px）。两者宽度不同，镜像必须按真实形态渲染，
+ * 否则量出来的可用项数会偏。</p>
  */
-function relativeOf(file: File) {
-  const rel = (file as File & { webkitRelativePath?: string }).webkitRelativePath || ''
-  const slash = rel.indexOf('/')
-  return slash >= 0 ? rel.slice(slash + 1) : ''
+interface HeadAction {
+  key: string
+  kind: 'icon' | 'tool'
+  icon: string
+  /** 图标尺寸：图标钮 15、工具钮 14（CSS 里工具钮会再压到 13） */
+  size?: number
+  /** 溢出菜单里的文字 */
+  label: string
+  /** 行内悬停提示，不写就退回 label */
+  title?: string
+  variant?: 'primary' | 'danger'
+  /** 激活态（多选开关），菜单里会打一个勾 */
+  active?: boolean
+  disabled?: boolean
+  /** 转圈（刷新中） */
+  spin?: boolean
+  run?: () => void
 }
 
-/** 后端只认 Markdown 与 ZIP（见 DOC_EXTENSIONS），目录选择器却会把文件夹里的东西全交出来 */
-const IMPORTABLE_FILE = /\.(md|markdown|zip)$/i
+const headActions = computed<HeadAction[]>(() => {
+  const list: HeadAction[] = [
+    {
+      key: 'refresh',
+      kind: 'icon',
+      icon: 'refresh',
+      size: 15,
+      label: '刷新目录',
+      title: '刷新目录（清缓存后重扫磁盘）',
+      disabled: treeRefreshing.value,
+      spin: treeRefreshing.value,
+      run: () => void refreshTree(),
+    },
+    {
+      key: 'select',
+      kind: 'icon',
+      icon: 'checkbox',
+      size: 15,
+      label: selectMode.value ? '退出多选' : '多选',
+      title: selectMode.value ? '退出多选' : '多选（批量删除）',
+      active: selectMode.value,
+      run: toggleSelectMode,
+    },
+    {
+      key: 'collapse',
+      kind: 'icon',
+      icon: collapseAll.value ? 'chevron-right' : 'chevron-down',
+      size: 15,
+      label: collapseAll.value ? '展开全部' : '折叠全部',
+      run: toggleCollapseAll,
+    },
+  ]
+  // 多选模式下的批量动作：只在多选时出现，与三个写操作同一行
+  if (selectMode.value) {
+    list.push(
+      { key: 'select-all', kind: 'tool', icon: 'checklist', label: '全选', run: toggleSelectAll },
+      {
+        key: 'delete-selected',
+        kind: 'tool',
+        icon: 'trash',
+        label: '删除所选',
+        variant: 'danger',
+        run: () => void batchDelete(),
+      },
+    )
+  }
+  if (canWriteKb.value) {
+    list.push(
+      {
+        key: 'new-doc',
+        kind: 'tool',
+        icon: 'plus',
+        label: '新建文档',
+        variant: 'primary',
+        run: () => void createDoc(''),
+      },
+      { key: 'new-dir', kind: 'tool', icon: 'folder', label: '新建目录', run: () => void createDir('') },
+      {
+        /*
+         * 导入：一次点击直接开系统选择器，不套下拉。
+         *
+         * <p>原先这里有两条（「选择文件 / 压缩包」与「选择目录」），因为那是两个不同的系统选择器，
+         * 技术上只能分两个入口。但多一层下拉意味着每次导入都要多点一下，而「选整个目录」这条
+         * 完全可以由压缩包覆盖（把文件夹打成 zip 再导入，目录结构照样还原）——
+         * 为一条低频路径让高频路径多一跳，不划算。</p>
+         */
+        key: 'import',
+        kind: 'tool',
+        icon: 'upload',
+        label: '导入',
+        title: '导入 Markdown、图片或压缩包（zip）',
+        run: () => importInput.value?.click(),
+      },
+    )
+  }
+  return list
+})
+
+/**
+ * 与 CSS 里 .md-ws__side-acts 的 gap 严格一致，对不上就会差几个像素。
+ *
+ * <p>「更多」按钮的宽度不在这里写死：窄屏（≤900px）图标钮会从 28px 长到 34px，
+ * 写死就会少预留 6px，那一行右端会被裁掉一截。镜像里连「更多」一起渲染，
+ * 由 {@link useOverflowRow} 量出来。</p>
+ */
+const HEAD_ACTS_GAP = 6
+
+const sideActsRef = ref<HTMLElement | null>(null)
+const sideActsMirrorRef = ref<HTMLElement | null>(null)
+
+const { visibleCount: headVisibleCount, overflowing: headOverflowing } = useOverflowRow({
+  rowRef: sideActsRef,
+  mirrorRef: sideActsMirrorRef,
+  count: () => headActions.value.length,
+  gap: HEAD_ACTS_GAP,
+})
+
+/** 行内真正渲染的那几项 */
+const headRowActions = computed(() => headActions.value.slice(0, headVisibleCount.value))
+/** 收进「更多」的项 */
+const headMoreActions = computed(() => headActions.value.slice(headVisibleCount.value))
+
+/**
+ * 溢出菜单的条目。
+ *
+ * <p>以前这里还要把「导入」摊成「选择文件 / 选择目录」两条（行内是下拉）。导入改成一次点击
+ * 直接开选择器之后，所有动作都是同一种形状，这里就退化成一对一映射。</p>
+ */
+const headMoreItems = computed(() =>
+  headMoreActions.value.map((action) => ({
+    key: action.key,
+    icon: action.icon,
+    label: action.label,
+    active: !!action.active,
+    // 行内被禁用的（刷新进行中），菜单里也要禁用 —— 否则「更多」成了绕过禁用态的后门
+    disabled: !!action.disabled,
+    run: action.run,
+  }))
+)
+
+function onMoreCommand(key: string) {
+  headMoreItems.value.find((item) => item.key === key)?.run?.()
+}
+
+/** 行内按钮的 class：图标钮 / 工具钮，外加激活态与语义色 */
+function headActionClass(action: HeadAction) {
+  return [
+    action.kind === 'icon' ? 'md-ws__icon-btn' : 'md-ws__tool',
+    action.active ? 'is-on' : '',
+    action.variant ? `md-ws__tool--${action.variant}` : '',
+  ]
+}
+
+/**
+ * 每个文件在知识库内的相对路径。
+ *
+ * <p>现在只剩「选文件」一个入口，而它给出的 {@code webkitRelativePath} 恒为空串 ——
+ * 所以这个函数实际上总是返回空串，导入按文件名平铺到当前目录。</p>
+ *
+ * <p>仍然保留并照旧传给接口，而不是直接删掉：{@code paths} 是后端 {@code subDirOf} 的输入，
+ * 留着它，将来若要恢复「选整个目录导入」（需要另起一个 {@code webkitdirectory} 的 input），
+ * 接口这一侧不用再动。</p>
+ */
+function relativeOf(file: File) {
+  return (file as File & { webkitRelativePath?: string }).webkitRelativePath || ''
+}
+
+/**
+ * 选择器的 {@code accept}：Markdown / 图片 / 压缩包。
+ *
+ * <p>与后端白名单对齐（{@code DOC_EXTENSIONS} / {@code IMAGE_EXTENSIONS} / zip）——
+ * 多列一种在这里，用户选了却被服务端跳过，比一开始就选不到更让人困惑。</p>
+ */
+const IMPORT_ACCEPT = '.md,.markdown,.zip,.png,.jpg,.jpeg,.gif,.webp,.svg,.avif,.bmp,.ico'
+
+/** 前端先筛一遍再传，规则与上面的 accept、以及后端白名单保持一致 */
+const IMPORTABLE_FILE = /\.(md|markdown|zip|png|jpe?g|gif|webp|svg|avif|bmp|ico)$/i
 
 async function onImportChange(event: Event) {
   const input = event.target as HTMLInputElement
   const picked = Array.from(input.files || [])
   if (picked.length === 0) return
   /*
-   * 先筛再传：选目录时浏览器会把图片、二进制、node_modules 之类一并交出来，后端拿到只会逐条跳过，
+   * 先筛再传：多选时用户很容易顺手带进别的文件，后端拿到只会逐条跳过，
    * 白占带宽，还容易把请求顶过服务端的体积闸门换来一个 413。
    */
   const files = picked.filter((file) => IMPORTABLE_FILE.test(file.name))
   const ignored = picked.length - files.length
   if (files.length === 0) {
     input.value = ''
-    ElMessage.warning('所选内容里没有可导入的 Markdown 或 ZIP 文件')
+    ElMessage.warning('所选内容里没有可导入的 Markdown、图片或 ZIP 文件')
     return
   }
   const baseDir = importBaseDir()
@@ -1416,7 +1737,7 @@ async function onImportChange(event: Event) {
     if (result.messages?.length) {
       ElMessageBox.alert(result.messages.join('\n'), '导入明细', { confirmButtonText: '知道了' })
     }
-    if (ignored > 0) ElMessage.info(`已忽略 ${ignored} 个非 Markdown / ZIP 文件`)
+    if (ignored > 0) ElMessage.info(`已忽略 ${ignored} 个非 Markdown / 图片 / ZIP 文件`)
   } finally {
     input.value = ''
   }
@@ -1508,9 +1829,14 @@ function onTreeSelect(item: DocNode) {
   }
 }
 
-/** 后台的资源端点与门户同形，只是前缀挂在 /api/console 下 */
-const assetPrefix = computed(() => `/api/console/${encodeURIComponent(org.value)}/kbs/`
-  + `${encodeURIComponent(kbSlug.value)}/asset/`)
+/**
+ * 后台的资源端点与门户同形，只是前缀挂在 /api/console 下。
+ *
+ * <p>交给 {@code kbApi.assetPrefix} 而不是自己拼字符串：这段前缀里含后端 context-path
+ * （{@code /minidocs}），漏掉它浏览器就会去请求上下文之外的 {@code /api/console/...}，
+ * 被 Nginx 的 SPA 兜底接住、回一份 index.html —— 目录树里点开的图片于是永远裂着。</p>
+ */
+const assetPrefix = computed(() => kbApi.assetPrefix(kbSlug.value))
 /** 打开时顺带把文档树与库信息重取一次：隐藏规则一改，左栏与计数都会变 */
 async function onSettingsSaved(payload: { kb?: KbVO }) {
   if (payload.kb) kb.value = payload.kb
@@ -2100,80 +2426,88 @@ onBeforeUnmount(() => {
           @mousedown="sideResizer.start"
         />
         <!--
-          面板头部一行装完：标题、搜索、刷新/折叠、以及三个写操作。
+          面板头部一行装完：标题、动作条、搜索框。
 
           <p>按钮排在头部而不是单独一行：原先它们在搜索框下面自己占一排，226px 的
           侧栏里三颗按钮贴满一行、上下还各留一道空隙，竖向净增 40px 左右 —— 而左栏
           本来就是三栏里最窄的一栏，每多一排都在挤目录树。现在并进头部，竖向省一排。</p>
 
-          <p>三个按钮的标签必须短：写「新建文档」会折成「新建文 / 档」。加号图标
-          已经表达了「新建」，完整说法交给 title。</p>
+          <p><b>动作条放不下时自动收进「更多」。</b>换行要多占一整行高度（目录树最该省的
+          就是高度），横向滚动又把「有按钮被藏住了」彻底隐形 —— 滚动条在这里通常还被
+          刻意隐藏，用户只会以为按钮没了。收进「更多」是唯一能把「还有几个动作」说清楚的
+          做法。切分逻辑见 {@code @/admin/composables/useOverflowRow.ts}。</p>
+
+          <p>行内只给图标不给字：226px 的面头上，「文档目录」四个字加几颗图标钮已经占了
+          大半，再塞带文字的按钮必然折行。完整说法交给 title；而<b>「更多」菜单里是
+          图标 + 文字</b> —— 那里是用户主动展开来找动作的地方，只有图标反而要逐个悬停去猜。</p>
         -->
         <div class="md-ws__side-head">
           <span class="md-ws__side-title">文档目录</span>
-          <span class="md-spacer" />
-          <button type="button" class="md-ws__icon-btn" title="刷新目录" @click="loadTree">
-            <MdIcon name="refresh" :size="15" />
-          </button>
-          <button
-            type="button"
-            class="md-ws__icon-btn"
-            :class="{ 'is-on': selectMode }"
-            :title="selectMode ? '退出多选' : '多选（批量删除）'"
-            :aria-pressed="selectMode"
-            @click="toggleSelectMode"
-          >
-            <MdIcon name="list" :size="15" />
-          </button>
-          <button
-            type="button"
-            class="md-ws__icon-btn"
-            :title="collapseAll ? '展开全部' : '折叠全部'"
-            @click="toggleCollapseAll"
-          >
-            <MdIcon :name="collapseAll ? 'chevron-right' : 'chevron-down'" :size="15" />
-          </button>
-          <!--
-            写操作：三个图标钮，紧跟在刷新 / 折叠之后（第一行）。
-            <p>只要图标不要字：226px 的面头上，「文档目录」四个字加两颗图标钮已经占了
-            大半，再塞三个带文字的按钮必然折行。图标 + title 足够认出是谁，完整说法
-            悬停就有。</p>
-            <p>用 wrapper 把三个收成一组：只读成员看不到它们时，第一行其余图标钮的
-            位置不受影响。</p>
-          -->
-          <!--
-            多选模式下的操作条：全选 + 删除。
-            <p>只在多选模式出现，且与三个写操作同一行 —— 面板只有 226px，
-            再多一排会挤掉目录树。</p>
-          -->
-          <template v-if="selectMode">
-            <button type="button" class="md-ws__tool" title="全选 / 取消全选" aria-label="全选或取消全选" @click="toggleSelectAll">
-              <MdIcon name="list" :size="14" />
-            </button>
-            <button type="button" class="md-ws__tool md-ws__tool--primary" title="删除所选" aria-label="删除所选" @click="batchDelete">
-              <MdIcon name="trash" :size="14" />
-            </button>
-          </template>
+          <div ref="sideActsRef" class="md-ws__side-acts">
+            <!--
+              量宽镜像：绝对定位 + visibility:hidden，只为逐项量出天然宽度。
+              它用同一套 class 渲染，所以「图标钮 28px / 工具钮 32px」的差异自动被量进去；
+              既不参与排版，也不接受点击。
+              末尾固定多一颗「更多」按钮：它的宽度也要量（窄屏会变成 34px），
+              写死就会少预留。
+            -->
+            <div ref="sideActsMirrorRef" class="md-ws__side-acts-mirror" aria-hidden="true">
+              <button
+                v-for="action in headActions"
+                :key="action.key"
+                type="button"
+                :class="headActionClass(action)"
+                tabindex="-1"
+              >
+                <MdIcon :name="action.icon" :size="action.size ?? 14" />
+              </button>
+              <button type="button" class="md-ws__icon-btn" tabindex="-1">
+                <MdIcon name="more" :size="15" />
+              </button>
+            </div>
 
-          <div v-if="canWriteKb" class="md-ws__side-tools">
-            <button type="button" class="md-ws__tool md-ws__tool--primary" title="新建文档" aria-label="新建文档" @click="() => createDoc('')">
-              <MdIcon name="plus" :size="14" />
-            </button>
-            <button type="button" class="md-ws__tool" title="新建目录" aria-label="新建目录" @click="() => createDir('')">
-              <MdIcon name="folder" :size="14" />
-            </button>
-            <!-- 选文件与选目录是两个不同的系统选择器，只能分两条入口 -->
-            <el-dropdown trigger="click" placement="bottom-start" @command="onImportCommand">
-              <button type="button" class="md-ws__tool" title="导入 Markdown、压缩包（zip）或整个目录" aria-label="导入">
-                <MdIcon name="upload" :size="14" />
+            <!-- 行内动作条：每项都是一颗按钮。导入也不再是下拉，点一下直接开系统选择器 -->
+            <template v-for="action in headRowActions" :key="action.key">
+              <button
+                type="button"
+                :class="headActionClass(action)"
+                :title="action.title ?? action.label"
+                :aria-label="action.label"
+                :aria-pressed="action.active"
+                :disabled="action.disabled"
+                @click="action.run"
+              >
+                <MdIcon :name="action.icon" :size="action.size ?? 14" :class="{ 'is-spin': action.spin }" />
+              </button>
+            </template>
+
+            <!--
+              溢出菜单：图标 + 文字。
+              <p>导入改成一次点击直接开选择器之后，所有动作都是同一种形状，菜单里一对一列出来即可
+              —— 不再有需要摊平的子项。</p>
+              <p>激活项（多选开关）在右侧打勾：进菜单之前它是一颗会变色的图标钮，
+              进菜单后只剩文字，不给标记就看不出当前是开还是关。</p>
+            -->
+            <el-dropdown
+              v-if="headOverflowing"
+              trigger="click"
+              placement="bottom-end"
+              @command="onMoreCommand"
+            >
+              <button type="button" class="md-ws__icon-btn" title="更多" aria-label="更多操作">
+                <MdIcon name="more" :size="15" />
               </button>
               <template #dropdown>
                 <el-dropdown-menu>
-                  <el-dropdown-item command="files">
-                    <MdIcon name="file" :size="14" />选择文件 / 压缩包…
-                  </el-dropdown-item>
-                  <el-dropdown-item command="dir">
-                    <MdIcon name="folder" :size="14" />选择目录…
+                  <el-dropdown-item
+                    v-for="item in headMoreItems"
+                    :key="item.key"
+                    :command="item.key"
+                    :disabled="item.disabled"
+                  >
+                    <MdIcon :name="item.icon" :size="14" />
+                    <span class="md-ws__more-label">{{ item.label }}</span>
+                    <MdIcon v-if="item.active" name="check" :size="13" class="md-ws__more-check" />
                   </el-dropdown-item>
                 </el-dropdown-menu>
               </template>
@@ -2214,6 +2548,8 @@ onBeforeUnmount(() => {
                   :perms="kb?.myPermissions"
                    :show-md-suffix="kb?.showMdSuffix"
                      :select-mode="selectMode"
+                     :checked="checkedPaths.has(node.path)"
+                     :indeterminate="mixedPaths.has(node.path)"
                      :checked-set="checkedPaths"
                      :mixed-set="mixedPaths"
               @select="onTreeSelect"
@@ -2422,26 +2758,16 @@ onBeforeUnmount(() => {
       </aside>
     </div>
 
-    <!-- 选文件：可多选，支持 .md / .zip，落到当前所在目录 -->
+    <!--
+      导入：一次点击直接开系统选择器，收 Markdown / 图片 / 压缩包。
+      不再有「选目录」那个入口（那条要靠 webkitdirectory，与 multiple 互斥、只能另起一个 input）；
+      整棵目录仍然可以导入 —— 打成 zip 就行，压缩包内的相对路径会原样还原成目录结构。
+    -->
     <input
       ref="importInput"
       type="file"
       multiple
-      accept=".md,.markdown,.zip"
-      style="display: none"
-      @change="onImportChange"
-    />
-
-    <!--
-      选目录：webkitdirectory 是「整个文件夹」的取数口径，浏览器会把目录内的文件连同
-      子目录一并给出，每个文件带 webkitRelativePath（形如 notes/sub/a.md）。
-      它和 multiple 不能同时用，所以单独一个 input。
-    -->
-    <input
-      ref="importDirInput"
-      type="file"
-      webkitdirectory
-      multiple
+      :accept="IMPORT_ACCEPT"
       style="display: none"
       @change="onImportChange"
     />

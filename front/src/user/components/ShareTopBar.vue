@@ -3,7 +3,7 @@ import { computed, onBeforeUnmount, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import Icon from '@/user/components/Icon.vue'
 import ShareMenu from '@/user/components/ShareMenu.vue'
-import ShareSettingsMenu from '@/user/components/ShareSettingsMenu.vue'
+import ReaderPrefsMenu from '@/user/components/ReaderPrefsMenu.vue'
 import KbGlyph from '@/shared/components/KbGlyph.vue'
 import { useSiteStore } from '@/shared/stores/site'
 import type { NavMenuItem } from '@/shared/api/types'
@@ -195,8 +195,8 @@ async function share() {
         <span class="md-share__expiry-text">{{ expires }}</span>
       </span>
 
-      <!-- 阅读设置：外观（明亮/暗黑）+ 正文字体，只存在访客这台浏览器上 -->
-      <ShareSettingsMenu />
+      <!-- 阅读设置：外观（明亮/暗黑）+ 正文字体 + 正文宽度，只存在访客这台浏览器上 -->
+      <ReaderPrefsMenu context="share" />
 
       <!--
         开源仓库：放在设置之后、分享之前。位置有讲究 —— 它与设置一样是「关于这一页」

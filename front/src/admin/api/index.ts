@@ -108,6 +108,16 @@ export const kbApi = {
   clearCover: (kbSlug: string) => request<void>({ url: `${kbPath(kbSlug)}/cover`, method: 'delete' }),
   /** 库内图片等资源都要过的组织门代理（后端 coverSrc 已是绝对到 org 的地址） */
   assetUrl: (kbSlug: string, relativePath: string) => kbUrl(kbSlug, `/asset/${encodePath(relativePath)}`),
+  /**
+   * 库内资源的地址前缀，供脱离 axios 的 {@code <img src>} 自己拼地址。
+   *
+   * <p>存在的理由是**别在视图里手拼这段前缀**。{@code /api/console/...} 看着对，却少了
+   * {@code /minidocs} 这一层后端 context-path：浏览器会把它解析到上下文之外，撞上 Nginx 的
+   * SPA 兜底，拿回一份 {@code index.html}（200、{@code text/html}）—— 图片静默裂开，控制台
+   * 连报错都没有，只剩 alt 文本。后端有 {@code AppPaths} 统一补这一段，前端就靠这里与
+   * {@link assetUrl} 同源，谁也不必再自己记一遍前缀。</p>
+   */
+  assetPrefix: (kbSlug: string) => kbUrl(kbSlug, '/asset/'),
   /** 维护名单（写轴的 members 档看这张表，规范 §2.3） */
   roster: (kbSlug: string) => request<KbRosterVO[]>({ url: `${kbPath(kbSlug)}/members` }),
   /** 授权 / 改角色 / 撤销：{@code role} 传 null 就是撤销这一行 */
@@ -136,6 +146,14 @@ export const kbApi = {
 /* ------------------------------------------------------------------ 文档 */
 export const docApi = {
   tree: (kbSlug: string) => request<DocNode[]>({ url: `${kbPath(kbSlug)}/tree` }),
+  /**
+   * 丢弃后端目录树缓存后重扫磁盘，直接返回最新目录树。
+   *
+   * <p>与 {@link tree} 的区别是「强制」：tree 命中的是后端进程内的缓存，作者在系统里
+   * 直接增删文件时它不会失效，所以刷新按钮必须走这一条。</p>
+   */
+  refreshTree: (kbSlug: string) =>
+    request<DocNode[]>({ url: `${kbPath(kbSlug)}/tree/refresh`, method: 'post' }),
   read: (kbSlug: string, path: string) =>
     request<DocContentVO>({ url: `${kbPath(kbSlug)}/doc`, params: { path } }),
   create: (kbSlug: string, data: { path: string; content?: string }) =>

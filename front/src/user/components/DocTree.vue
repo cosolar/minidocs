@@ -1,8 +1,14 @@
 <script setup lang="ts">
-import { computed, reactive, watch } from 'vue'
+import { computed, watch } from 'vue'
 import Icon from './Icon.vue'
 import { stripAppBase } from '@/shared/appBase'
 import { displayName } from '@/shared/docName'
+import {
+  expandTreeNode,
+  isTreeExpanded,
+  setTreeExpanded,
+  toggleTreeNode
+} from '@/user/composables/useTreeExpand'
 import type { DocNode } from '@/shared/api/types'
 
 const props = defineProps<{
@@ -33,34 +39,17 @@ const emit = defineEmits<{
 }>()
 
 /**
- * 展开状态按路径记住，节点重新渲染时不丢。
+ * 展开状态：按路径记住，节点重新渲染时不丢。存在 {@code useTreeExpand} 这个模块级
+ * store 里，不挂在组件实例上 —— {@code DocTree} 是递归组件，每个实例只渲染自己那一节，
+ * 而「全部展开 / 全部折叠」那颗按钮长在左栏头部，状态不提出来它根本够不着里面那些实例。
  *
  * <p><b>默认折叠</b>：目录一多（动辄几百篇文档），全展开会把左栏拉成一条看不到尽头的长尾，
  * 而读者点进来时通常只关心「当前这篇」和它沿途那一层。这里的默认值是「收起」，
- * 展开沿途目录交给 {@link watch} 自动做。</p>
- *
- * <p>用「展开」而不是「折叠」记录状态，是因为默认值必须是「假」：
- * 若沿用 {@code collapsed}，未出现过的键是 {@code undefined}（falsy），
- * 天然等于「展开」，要改成默认收起就得在每个读取处补一层 {@code !== false} 判断 ——
- * 反过来让「缺省即收起」，新增判断点时不会漏。</p>
+ * 展开沿途目录交给下面的 {@link watch} 自动做。</p>
  */
-const expanded = reactive<Record<string, boolean>>({})
 
 function toggle(path: string) {
-  expanded[path] = !expanded[path]
-}
-
-/**
- * 展开本层的全部目录。
- *
- * <p>这里只遍历一层，不递归调用自己：{@code DocTree} 是递归组件，每个实例只持有自己直接
- * 渲染的那一节，祖先链上的每一节各自跑一遍这个 watch，整棵树自然就都开了 ——
- * 和下面自动展开 currentPath 祖先用的是同一套机制。</p>
- */
-function expandAll(nodes: DocNode[]) {
-  for (const node of nodes) {
-    if (node.type === 'dir') expanded[node.path] = true
-  }
+  toggleTreeNode(path)
 }
 
 /**
@@ -70,19 +59,20 @@ function expandAll(nodes: DocNode[]) {
  * 祖先目录收起了，点菜单就会落到一篇看不见的文档上。这里按 currentPath 的前缀把沿途目录一律
  * 展开 —— 每层实例只认自己直接渲染的那一节，逐层跑下来整条链就都开了。</p>
  *
- * <p>搜索时改为全展开：命中项可能落在任意目录里，父目录收着的话搜索结果就等于没搜到。</p>
+ * <p>搜索时改为全展开：命中项可能落在任意目录里，父目录收着的话搜索结果就等于没搜到。
+ * 这里直接整棵树写过去（{@link setTreeExpanded}），同样是为了让一次操作一次性到位。</p>
  */
 watch(
   () => [props.currentPath, props.nodes, props.keyword] as const,
   () => {
     if ((props.keyword || '').trim()) {
-      expandAll(props.nodes)
+      setTreeExpanded(props.nodes, true)
       return
     }
     const current = props.currentPath
     if (!current) return
     for (const node of props.nodes) {
-      if (node.type === 'dir' && current.startsWith(`${node.path}/`)) expanded[node.path] = true
+      if (node.type === 'dir' && current.startsWith(`${node.path}/`)) expandTreeNode(node.path)
     }
   },
   { immediate: true }
@@ -137,7 +127,7 @@ function linkTo(node: DocNode) {
       v-for="node in nodes"
       :key="node.path"
       class="md-tree__item"
-      :class="[node.type === 'dir' ? 'is-dir' : 'is-doc', { 'is-collapsed': !expanded[node.path], 'is-hidden': isHidden(node) }]"
+      :class="[node.type === 'dir' ? 'is-dir' : 'is-doc', { 'is-collapsed': !isTreeExpanded(node.path), 'is-hidden': isHidden(node) }]"
     >
       <div class="md-tree__row">
         <!--
@@ -148,7 +138,7 @@ function linkTo(node: DocNode) {
           v-if="node.type === 'dir'"
           type="button"
           class="md-tree__label"
-          :aria-expanded="!!expanded[node.path]"
+          :aria-expanded="isTreeExpanded(node.path)"
           @click="toggle(node.path)"
         >
           <Icon class="md-tree__chevron" name="chevronDown" :size="14" />
@@ -195,7 +185,7 @@ function linkTo(node: DocNode) {
         目录一多，开合一次就要重算整棵看不见的树。少渲染一层是一层。
       -->
       <DocTree
-        v-if="node.type === 'dir' && node.children.length && expanded[node.path]"
+        v-if="node.type === 'dir' && node.children.length && isTreeExpanded(node.path)"
         :nodes="node.children"
         :current-path="currentPath"
         :link-prefix="linkPrefix"

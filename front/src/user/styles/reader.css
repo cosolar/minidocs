@@ -87,6 +87,56 @@ button { font-family: inherit; }
   display: grid; place-items: center; cursor: pointer; position: relative;
 }
 .md-icon-btn:hover { background: var(--md-surface-2); color: var(--md-text); }
+/*
+ * 阅读条上的「阅读设置」按钮：面板开着时要点亮。
+ * 分享页那颗有 --md-share__action.is-on 撑着，门户这颗是无底描边的图标钮，
+ * 不补这一条的话读者点开面板后按钮毫无反应，找不到自己刚打开的东西。
+ */
+.md-icon-btn.is-on { background: var(--md-primary-soft); color: var(--md-primary); }
+
+/*
+ * 正文工具条上的动作钮各占一档色相：设置 · 蓝、编辑 · 紫、大纲 · 青。
+ *
+ * <p>为什么上色：这条工具条一共就三四颗图标钮， Neutral 一片灰时读者得分不清谁是谁 ——
+ * 尤其「大纲」和「目录」在窄屏才同时出现，形状又接近。各给一档色相，并排一眼就分开，
+ * 顺带让这排按钮从「贴上去的灰色图标」变成版面里的一点颜色。</p>
+ *
+ * <p>三个色相不是随手挑的：都取自 {@code variables.css} 的 {@code --md-ink-*}，
+ * 那一组统一是「能在白底上当正文文字安全阅读」的一档（对比度 ≥ 4.5:1），
+ * 所以图标本身不会发灰发飘；底色一律 color-mix 现算，不另立 soft 变量 ——
+ * 同一个色相只维护一个值，改色相时底色自动跟着走，暗色档也是换一组 --md-ink-* 就整体换掉。</p>
+ *
+ * <p>静止态留一层接近透明的底 + 同色相细描边：让它们是「按钮」而不是飘着的字形，
+ * 但又不至于三颗彩丸抢正文。hover 与面板开着时底色加重，反馈才够。</p>
+ *
+ * <p>只在 {@code .md-reading__bar-actions} 里生效：{@code .md-icon-btn} 门户顶栏、
+ * 分享页各处都在用，无差别上色会把整个站点的图标钮都染一遍。</p>
+ */
+.md-reading__bar-actions .md-icon-btn {
+  --btn-ink: var(--md-text-2);
+  color: var(--btn-ink);
+  border-color: color-mix(in srgb, var(--btn-ink) 22%, transparent);
+  background: var(--md-surface-2);
+}
+.md-reading__bar-actions .md-icon-btn:hover {
+  color: var(--btn-ink);
+  border-color: color-mix(in srgb, var(--btn-ink) 45%, transparent);
+  background: color-mix(in srgb, var(--btn-ink) 12%, transparent);
+}
+/* 面板开着 / 已选中：底色再浓一档，与 hover 分得开 */
+.md-reading__bar-actions .md-icon-btn.is-on {
+  color: var(--btn-ink);
+  border-color: color-mix(in srgb, var(--btn-ink) 50%, transparent);
+  background: color-mix(in srgb, var(--btn-ink) 18%, transparent);
+}
+.md-reading__bar-actions .md-icon-btn--blue { --btn-ink: var(--md-ink-blue); }
+.md-reading__bar-actions .md-icon-btn--violet { --btn-ink: var(--md-ink-violet); }
+.md-reading__bar-actions .md-icon-btn--teal { --btn-ink: var(--md-ink-teal); }
+/* focus-visible 与 .md-btn 同一口径，但描边用按钮自己的色相，键盘焦点一圈同色更完整 */
+.md-reading__bar-actions .md-icon-btn:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--btn-ink) 60%, transparent);
+  outline-offset: 2px;
+}
 .md-bell-dot { position: absolute; top: 7px; right: 8px; width: 7px; height: 7px; border-radius: 50%; background: var(--md-danger); }
 
 .md-btn {
@@ -311,17 +361,75 @@ button { font-family: inherit; }
   border: 2px solid transparent;
   background-clip: padding-box;
 }
-/* 左栏自己滚，滚动条也收细一档，免得在 260px 宽的栏里占掉一条明显的槽 */
-.md-reading[data-mode='portal'] .md-reading__aside {
-  padding: 18px 12px 40px;
-  scrollbar-width: thin;
-}
-.md-reading[data-mode='portal'] .md-reading__aside::-webkit-scrollbar { width: var(--md-scrollbar-size); }
-.md-reading[data-mode='portal'] .md-reading__aside::-webkit-scrollbar-thumb {
-  background: var(--md-scrollbar-thumb);
-  border-radius: 10px;
-  border: 2px solid transparent;
-  background-clip: padding-box;
+/*
+ * 门户阅读页的左栏：**卡片钉住，只有目录列表滚**。
+ *
+ * <p>改之前整栏是一个滚动容器（{@code overflow-y: auto} + 定高），于是知识库卡片、搜索框
+ * 跟着目录一起往上跑 —— 读者滚几屏之后就不知道自己在哪个库、当前是哪一篇，想搜东西得先滚回顶部。
+ * 而这一栏里真正会变长的只有目录，头部那几块是定高的。</p>
+ *
+ * <p>所以把栏改成 flex 列：头部各块 {@code flex-shrink: 0} 钉在原位，目录 {@code flex: 1} 吃掉
+ * 剩余高度并自己滚。{@code min-height: 0} 不能省 —— flex 项默认 {@code min-height: auto}，
+ * 会被内容顶高，{@code flex: 1} 也就失效，目录又会把整栏撑开。</p>
+ *
+ * <p>{@code overflow: hidden} 是给栏本身上的：它不再是滚动容器，横竖都不该出滚动条
+ * （.{@code .md-aside__kb} 的装饰插画 {@code right: -16px} 本就靠卡片自己的 overflow 裁掉，
+ * 栏这里再兜一层，避免任何横向溢出在栏里冒出一条短滚动条）。</p>
+ *
+ * <p><b>只在 ≥901px 生效。</b>窄屏（≤900）这一栏会变成 fixed 抽屉
+ * （{@code display: none} → 点目录按钮才 {@code display: block}），而这里的
+ * {@code display: flex} 特异度是 0,2,0，比抽屉那条 0,1,0 高 —— 不圈在媒体查询里的话，
+ * 抽屉在手机上会常驻不关，还会把 fixed 定位的几何搅乱。</p>
+ */
+/*
+ * 门户阅读页左栏的竖向间距：**收到 12px 一档**。
+ *
+ * <p>改之前三处都偏松 —— 卡片与搜索框之间隔着 30px（卡片 14px 下外边距 + 搜索框 16px 上外边距）、
+ * 栏底还留着 40px 内边距。目录是要「扫」的：空隙一大，一屏里放不下几条，
+ * 读者会觉得这一栏没装多少东西，而实际上 56 篇全在。</p>
+ *
+ * <p>没有收到 0：卡片有 14px 圆角和描边，贴死搜索框会糊成一块；栏底也留一点，
+ * 免得最后一条目录压在栏边缘上、滚动条没处落脚。12px 是「分得清又不浪费」的那一档。</p>
+ *
+ * <p>{@code .md-aside__search} 是门户与分享页共用的，所以间距只在门户作用域里收，
+ * 分享页那一栏上面多一条目录工具条，本来就吃得开。</p>
+ */
+@media (min-width: 901px) {
+  .md-reading[data-mode='portal'] .md-reading__aside {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
+    scrollbar-width: thin;
+  }
+  /* 头部四块（库卡片 / 范围条 / 搜索框 / 目录头）定高，不参与收缩 */
+  .md-reading[data-mode='portal'] .md-reading__aside > * { flex-shrink: 0; }
+  /* 只有目录列表滚：吃掉剩余高度，滚的是它自己 */
+  .md-reading[data-mode='portal'] .md-aside__tree {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+  }
+  .md-reading[data-mode='portal'] .md-aside__tree::-webkit-scrollbar { width: var(--md-scrollbar-size); }
+  .md-reading[data-mode='portal'] .md-aside__tree::-webkit-scrollbar-thumb {
+    background: var(--md-scrollbar-thumb);
+    border-radius: 10px;
+    border: 2px solid transparent;
+    background-clip: padding-box;
+  }
+  .md-reading[data-mode='portal'] .md-reading__aside::-webkit-scrollbar { width: var(--md-scrollbar-size); }
+  .md-reading[data-mode='portal'] .md-reading__aside::-webkit-scrollbar-thumb {
+    background: var(--md-scrollbar-thumb);
+    border-radius: 10px;
+    border: 2px solid transparent;
+    background-clip: padding-box;
+  }
+  /* 竖向间距：卡片与搜索框之间 30px、栏底 40px 都偏松，收成 12px 一档（理由见上） */
+  .md-reading[data-mode='portal'] .md-reading__aside { padding: 12px 14px 12px; }
+  .md-reading[data-mode='portal'] .md-aside__search { margin: 8px 0 8px; }
+  .md-reading[data-mode='portal'] .md-aside__kb { margin-bottom: 8px; }
 }
 
 /* 底部常驻状态栏：与分享页那条同形，只换内容与配色来源 */
@@ -348,15 +456,10 @@ button { font-family: inherit; }
 .md-read-status__totop:hover { background: var(--md-primary); color: #fff; }
 
 /* 返回入口做成一颗「幽灵胶囊」：平时不带底色，悬停才浮出来，不跟下面的库名抢视线 */
-.md-aside__back {
-  display: inline-flex; align-items: center; gap: 3px;
-  height: 28px; padding: 0 10px 0 7px; margin: 0 0 14px -7px;
-  border-radius: 8px; color: var(--md-text-3); font-size: 12.5px;
-  transition: background 0.15s, color 0.15s;
-}
-.md-aside__back:hover { background: var(--md-surface-2); color: var(--md-primary); }
-.md-aside__back .md-icon { transition: transform 0.15s; }
-.md-aside__back:hover .md-icon { transform: translateX(-2px); }
+/*
+ * 「返回知识库」已删：它给的是回门户首页，而顶栏的 MiniDocs 品牌标志是同一个去处，
+ * 读者认的是 logo 不是左栏这行小字。连带这条样式一起退场，别留死的规则占位。
+ */
 
 /*
  * 库信息卡片：浅蓝渐变垫底，插画从右侧渐隐进来，图标 / 标题 / 简介压在其上。
@@ -549,13 +652,75 @@ button { font-family: inherit; }
    扫视时抓不到「我在这篇」。 */
 .md-tree__link.is-active .md-tree__type { color: var(--md-primary); }
 
+/*
+ * 阅读条：**宽屏下横跨正文栏与右侧目录栏**，两栏顶部连成一条。
+ *
+ * <p>改之前它住在正文栏里面（main 的子元素），铺得再宽也只在正文那一栏，右边一到把手就断掉 ——
+ * 于是「一条工具条 + 一块目录」看着是两截，中间还夹着 6px 把手缝。</p>
+ *
+ * <p>现在把它提出到栅格里当独立的一项：占第 3–5 列（正文栏 + 右把手 + 右栏）、第 1 行，
+ * 正文与目录各自落到第 2 行。它的底边与左右描边于是从正文栏一直画到视口右缘，
+ * 下面紧跟着就是目录栏 —— 中间没有任何缝隙，读起来是一整块。</p>
+ *
+ * <p>副作用是「右边不再有滚动条贴在顶栏旁边」：目录栏从第 2 行才开始，它自己的竖滚动条
+ * 也跟着下移到工具条下面，不再和工具条末梢并排。</p>
+ *
+ * <p>因为不再是 main 的子元素，原来那手 {@code margin: 0 -28px}（探出 main 的 28px 内边距）
+ * 必须撤掉 —— 没有内边距来抵消，它会整条被推出视口 28px，页面直接多出一条横向滚动条。
+ * 内边距改成和 main 一致，两者的内容才对得齐。</p>
+ *
+ * <p><b>每个断点都要显式写 grid-column / grid-row。</b>加了行、又把条形提出去之后，
+ * 靠自动放置会把项排到错的格子里（窄屏是两列、宽屏五列，DOM 顺序又没变）；
+ * 而这种错位在窄屏根本看不出，宽屏才炸。</p>
+ */
 .md-reading__bar {
   position: sticky; top: 0; z-index: 10;
   display: flex; align-items: center; gap: 10px;
-  height: 46px; margin: 0 -28px 18px; padding: 0 28px;
+  height: 46px; margin: 0; padding: 0 28px;
   background: color-mix(in srgb, var(--md-bg) 90%, transparent);
   backdrop-filter: blur(8px);
   border-bottom: 1px solid var(--md-border);
+}
+/* 正文栏顶部留出原来由阅读条下外边距提供的那一档间隙（分享页的条是隐藏的，不吃这一条） */
+.md-reading[data-mode='portal'] .md-reading__main { padding-top: 18px; }
+
+/* 宽屏：两行栅格，阅读条横跨正文栏 + 右把手 + 右栏 */
+@media (min-width: 1181px) {
+  .md-reading[data-mode='portal'] { grid-template-rows: auto minmax(0, 1fr); }
+  .md-reading[data-mode='portal'] .md-reading__aside,
+  /*
+   * 每个栅格项都显式写列与行，不让自动放置去猜。
+   *
+   * <p>阅读条占了第 1 行的第 3–5 列，于是「跨两行 + 自动列」的右把手找不到「两行都空」的列
+   * （第 4 列第 1 行被条占了），会被塞进第 6 个**隐式列**：宽度 0、位置在视口右缘之外，
+   * 鼠标永远够不着 —— 右栏因此拖不动。</p>
+   *
+   * <p>左栏必须写明跨两行：它是整栏高度的容器，只落第 1 行会被压成工具条那么高。</p>
+   */
+  .md-reading[data-mode='portal'] .md-reading__aside { grid-column: 1; grid-row: 1 / -1; }
+  .md-reading[data-mode='portal'] .md-reading__resize--aside { grid-column: 2; grid-row: 1 / -1; }
+  /* 右把手只占第 2 行：第 1 行那段位置本来就是阅读条，重叠上去只会互相抢指针 */
+  .md-reading[data-mode='portal'] .md-reading__resize--outline { grid-column: 4; grid-row: 2; }
+  .md-reading[data-mode='portal'] .md-reading__bar { grid-column: 3 / 6; grid-row: 1; }
+  /* main 只占第 3 列（正文栏），outline 占第 5 列（右栏）—— 写成 3/6 会让两栏叠在一起 */
+  .md-reading[data-mode='portal'] .md-reading__main { grid-column: 3; grid-row: 2; }
+  .md-reading[data-mode='portal'] .md-reading__outline { grid-column: 5; grid-row: 2; }
+}
+/*
+ * 中档（901–1180）：只有两列，右栏已收进抽屉。阅读条单独占第 1 行、正文第 2 行，
+ * 左栏跨两行拉满（这一档它还是 sticky 定高，不吃栅格行高）。
+ */
+@media (min-width: 901px) and (max-width: 1180px) {
+  .md-reading[data-mode='portal'] { grid-template-rows: auto minmax(0, 1fr); }
+  .md-reading[data-mode='portal'] .md-reading__aside { grid-row: 1 / -1; }
+  .md-reading[data-mode='portal'] .md-reading__bar { grid-column: 2; grid-row: 1; }
+  .md-reading[data-mode='portal'] .md-reading__main { grid-column: 2; grid-row: 2; }
+}
+/* 窄屏：单列，条形与正文各自一行；左栏此时是 fixed 抽屉，不参与栅格 */
+@media (max-width: 900px) {
+  .md-reading[data-mode='portal'] { grid-template-rows: auto minmax(0, 1fr); }
+  .md-reading[data-mode='portal'] .md-reading__bar { grid-column: 1; grid-row: 1; padding: 0 16px; }
+  .md-reading[data-mode='portal'] .md-reading__main { grid-column: 1; grid-row: 2; }
 }
 .md-breadcrumb { display: flex; gap: 6px; color: var(--md-text-3); font-size: 12.5px; min-width: 0; }
 .md-breadcrumb span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -797,7 +962,7 @@ button { font-family: inherit; }
   }
   .md-main-tree-open .md-reading__aside { display: block; }
   .md-reading__main { padding: 0 16px 60px; }
-  .md-reading__bar { margin: 0 -16px 16px; padding: 0 16px; }
+  .md-reading__bar { padding: 0 16px; }
   .md-brand__text small { display: none; }
   .md-avatar-btn__name { display: none; }
   .md-avatar-btn { padding: 3px; }
@@ -1245,40 +1410,50 @@ button { font-family: inherit; }
 }
 
 /*
- * 左栏顶部：范围条。
+ * 左栏顶部：一行「目录 + 全部展开/折叠」。
  *
- * <p>库名与封面已经挪到顶栏，这里只回答「这一栏有多少、怎么来的」。收窄到某个菜单项时
- * 说清范围，读者才不会以为整个库就这么大；点它回全库，与顶栏那颗知识库按钮同源。</p>
+ * <p>原先这里是一条「全部文档 · N 篇」的范围按钮：篇数点不得、筛不了，纯占地方；
+ * 而它兼任的「回全库」开关在顶栏那颗知识库按钮上还有一个入口，重复。已整块删掉，
+ * 换成的这一行只回答「这是目录」和「怎么把它收放起来」。</p>
  *
  * <p>内衬统一 12px，与下面的搜索框（margin 12px）对齐。分隔线用内缩 1px 的背景线画，
  * 通栏 border 会把它读成一条横杠，把侧栏从中间截断。</p>
  */
-.md-reading[data-mode='share'] .md-aside__scope {
-  display: flex; align-items: center; gap: 8px; width: 100%;
-  padding: 10px 12px; border: 0; background: none;
-  font-family: inherit; text-align: left; cursor: pointer;
-  color: var(--md-text-2);
+.md-reading[data-mode='share'] .md-aside__treebar {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 12px;
   background-image: linear-gradient(var(--md-border), var(--md-border));
   background-size: calc(100% - 24px) 1px;
   background-position: 12px 100%;
   background-repeat: no-repeat;
-  transition: color .15s ease;
 }
-.md-aside__scope:hover { color: var(--md-primary); }
-.md-aside__scope .md-icon { flex-shrink: 0; color: var(--md-text-3); transition: color .15s ease; }
-.md-aside__scope:hover .md-icon { color: var(--md-primary); }
-.md-aside__scope.is-all { cursor: default; color: var(--md-text); }
-.md-aside__scope.is-all:hover { color: var(--md-text); }
-.md-aside__scope.is-all .md-icon { color: var(--md-primary); }
-.md-aside__scope.is-all:hover .md-icon { color: var(--md-primary); }
-.md-aside__scope-text {
-  flex: 1; min-width: 0;
-  font-size: 12.5px; font-weight: 600;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+.md-aside__treebar-title {
+  display: inline-flex; align-items: center; gap: 6px;
+  min-width: 0; flex: 1;
+  color: var(--md-text-3); font-size: 12px; font-weight: 600;
+  letter-spacing: .02em;
 }
-/* 「展开全库」的提示图标：只在可点时出现，且默认压到最淡，不与范围文案抢视线 */
-.md-aside__scope-more { color: var(--md-text-3) !important; }
-.md-aside__scope:hover .md-aside__scope-more { color: var(--md-primary) !important; }
+.md-aside__treebar-title .md-icon { flex-shrink: 0; }
+/* 收放钮：文字 + 箭头的一整颗胶囊。比图标钮多一层底，与下面搜索框同形制 */
+/*
+ * 收放全部目录：纯图标、无边框。
+ *
+ * <p>原来是一颗带文字和描边的胶囊（「全部展开」）。它挨着「目录」标题、右边就是搜索框，
+ * 三样东西都带边框时会挤成一条边框带 —— 这里退成裸图标，靠悬停变色说明可点。</p>
+ *
+ * <p>文字去掉后含义全靠 {@code title} / {@code aria-label}：图标本身只表达「一整片列表在收放」，
+ * 说清「全部」还是「这一条」的是那两行文案。</p>
+ */
+.md-aside__treebar-btn {
+  display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0;
+  width: 26px; height: 26px; padding: 0;
+  border: 0; border-radius: 7px;
+  background: none; color: var(--md-text-3);
+  cursor: pointer;
+  transition: color .15s ease, background-color .15s ease;
+}
+.md-aside__treebar-btn:hover { color: var(--md-primary); background: var(--md-primary-soft); }
+.md-aside__treebar-btn .md-icon { flex-shrink: 0; }
 
 .md-reading[data-mode='share'] .md-aside__search {
   display: flex; align-items: center; gap: 8px;

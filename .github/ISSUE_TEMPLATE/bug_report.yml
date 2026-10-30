@@ -1,0 +1,91 @@
+name: Bug 报告
+description: 报告可复现的功能异常
+title: '[Bug] '
+labels: ['bug']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        感谢反馈。请先搜索现有 issue，并确认不是部署配置问题——启动、反代、前缀相关的疑问先看
+        [部署指南](https://github.com/cosolar/minidocs/blob/main/docs/DEPLOYMENT.md)。
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: 提交前确认
+      options:
+        - label: 我已搜索过现有 issue，没有重复
+          required: true
+        - label: 我已移除日志与环境变量中的密钥、口令和个人数据
+          required: true
+
+  - type: dropdown
+    id: version
+    attributes:
+      label: 版本
+      options:
+        - 1.2.x
+        - 1.1.x
+        - 1.0.x
+        - main 分支
+        - 不确定
+    validations:
+      required: true
+
+  - type: dropdown
+    id: deployment
+    attributes:
+      label: 部署方式
+      options:
+        - Docker Compose（deploy/）
+        - 单 jar + SQLite
+        - 前后端分离 + Nginx
+        - 本地开发（mvn spring-boot:run + npm run dev）
+        - 在线演示站
+    validations:
+      required: true
+
+  - type: input
+    id: environment
+    attributes:
+      label: 运行环境
+      description: 浏览器 / 操作系统 / JDK / 数据库版本
+      placeholder: Chrome 140 / Windows 11 / JDK 17 / SQLite
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: 复现步骤
+      description: 从什么状态开始、点了哪里、做了什么操作
+      placeholder: |
+        1. 以 admin 登录
+        2. 进入「…」
+        3. 点击「…」
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: 期望行为
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: 实际行为
+      description: 包括报错文案、HTTP 状态码、界面截图
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: 日志 / 截图
+      description: 后端日志贴相关片段，前端问题附浏览器控制台报错。请先脱敏。
+      render: shell
+    validations:
+      required: false
