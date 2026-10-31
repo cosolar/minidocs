@@ -29,6 +29,10 @@ on:
         description: '推送到 Docker Hub（关闭则只验证构建）'
         type: boolean
         default: true
+      version:
+        description: '版本号（如 1.2.0）。填写时额外推送 1.2.0 / 1.2；留空只推 latest'
+        type: string
+        required: false
 
 permissions:
   contents: read
@@ -101,6 +105,17 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
+      # semver 标签只能从 refs/tags/v* 推出来；手动运行没有 tag，
+      # 所以允许显式填版本号，否则只会得到 latest（这是之前只有 latest 的原因）。
+      - name: Resolve manual version
+        id: ver
+        if: github.event_name == 'workflow_dispatch' && inputs.version != ''
+        run: |
+          v="${{ inputs.version }}"
+          v="${v#v}"
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+          echo "minor=${v%.*}" >> "$GITHUB_OUTPUT"
+
       - name: Extract image metadata
         id: meta
         uses: docker/metadata-action@v5
@@ -109,6 +124,8 @@ jobs:
           tags: |
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=${{ steps.ver.outputs.version }},enable=${{ steps.ver.outputs.version != '' }}
+            type=raw,value=${{ steps.ver.outputs.minor }},enable=${{ steps.ver.outputs.minor != '' }}
             type=raw,value=latest
 
       - name: Build and push
