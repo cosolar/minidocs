@@ -3,19 +3,32 @@ name: Publish Docker image
 # 发布官方单镜像到 Docker Hub：<DOCKERHUB_USERNAME>/minidocs
 #
 # 触发方式：
-#   1) 打 tag 并推送：git tag v1.2.0 && git push origin v1.2.0
-#   2) 在 Actions 页面手动 Run workflow
+#   1) 打 tag 并推送：git tag v1.2.0 && git push origin v1.2.0   → 构建并推送
+#   2) 在 Actions 页面手动 Run workflow（可关掉 push 只验证构建）
+#   3) 改动 Dockerfile / deploy / 本工作流并推到 main                → 只验证构建
 #
 # 仓库需要配置两个 Secrets（Settings → Secrets and variables → Actions）：
 #   DOCKERHUB_USERNAME  Docker Hub 用户名
 #   DOCKERHUB_TOKEN     Docker Hub Access Token（不是登录密码）
+# 未配置时，推送任务会在「检查凭据」这一步带着明确提示失败，而不是卡在登录。
 #
 # 镜像内容见仓库根 Dockerfile：前端打进 jar，后端单进程伺服，默认 SQLite。
 
 on:
   push:
     tags: ['v*']
+    branches: [main]
+    paths:
+      - 'Dockerfile'
+      - '.dockerignore'
+      - 'deploy/**'
+      - '.github/workflows/docker-publish.yml'
   workflow_dispatch:
+    inputs:
+      push:
+        description: '推送到 Docker Hub（关闭则只验证构建）'
+        type: boolean
+        default: true
 
 permissions:
   contents: read
@@ -28,6 +41,10 @@ jobs:
   publish:
     runs-on: ubuntu-latest
     timeout-minutes: 40
+    env:
+      # 只在「推版本 tag」或「手动勾选推送」时真正发布；main 上的构建与手动关闭推送时只验证。
+      PUSH_IMAGE: ${{ (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) || (github.event_name == 'workflow_dispatch' && inputs.push) }}
+      IMAGE_NAME: ${{ secrets.DOCKERHUB_USERNAME || 'cosolar' }}/minidocs
     steps:
       - uses: actions/checkout@v4
 
@@ -60,7 +77,25 @@ jobs:
 
       - uses: docker/setup-buildx-action@v3
 
+      # 缺少 Secrets 时在这里就给出可执行的提示，而不是让 login-action 报一句
+      # 「Username and password required」，让人分不清是没配还是配错了。
+      - name: Check Docker Hub credentials
+        if: env.PUSH_IMAGE == 'true'
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+        run: |
+          missing=""
+          [ -n "$DOCKERHUB_USERNAME" ] || missing="DOCKERHUB_USERNAME"
+          [ -n "$DOCKERHUB_TOKEN" ] || missing="$missing DOCKERHUB_TOKEN"
+          if [ -n "$missing" ]; then
+            echo "::error::缺少仓库 Secrets：$missing。请在 Settings → Secrets and variables → Actions 中添加：DOCKERHUB_USERNAME（用户名）、DOCKERHUB_TOKEN（Docker Hub Access Token，需 Read & Write 权限）。添加后重新运行本工作流。"
+            exit 1
+          fi
+          echo "Docker Hub 凭据已配置（用户名：$DOCKERHUB_USERNAME）"
+
       - name: Log in to Docker Hub
+        if: env.PUSH_IMAGE == 'true'
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
@@ -70,7 +105,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ secrets.DOCKERHUB_USERNAME }}/minidocs
+          images: ${{ env.IMAGE_NAME }}
           tags: |
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
@@ -84,8 +119,19 @@ jobs:
           # 纯 Java + 静态资源；与现有生产服务器架构一致，先只发 amd64。
           # 需要 Apple Silicon / ARM 服务器时改用 linux/amd64,linux/arm64。
           platforms: linux/amd64
-          push: true
+          push: ${{ env.PUSH_IMAGE == 'true' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          # 构建机在海外：npm/ Maven 都走官方源，别用国内镜像拖慢下载
+          build-args: |
+            NPM_REGISTRY=https://registry.npmjs.org
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      - name: Summarize
+        run: |
+          if [ "$PUSH_IMAGE" = "true" ]; then
+            echo "已推送镜像：$IMAGE_NAME（tag 见上方 Build and push 输出）" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "仅验证构建，未推送。镜像名预留：$IMAGE_NAME" >> "$GITHUB_STEP_SUMMARY"
+          fi
