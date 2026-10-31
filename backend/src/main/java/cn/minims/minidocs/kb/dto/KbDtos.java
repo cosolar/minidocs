@@ -159,7 +159,7 @@ public final class KbDtos {
                     tenantSlug, tenant == null ? null : tenant.getName(), granted,
                     kb.getSourceType() == null ? KnowledgeBase.SOURCE_LOCAL : kb.getSourceType(),
                       GitBindingVO.of(kb),
-                           // 默认「显示 .md 后缀」：真正的值来自库根的 .minidocs.json，要读文件才知道，
+                           // 默认「显示 .md 后缀」：真正的值在库级配置（数据库）里，
                               // 而 from() 只拿着实体。渲染目录树的两条链路各自用 withDisplay() 补上。
                                true);
                             }
@@ -167,7 +167,7 @@ public final class KbDtos {
                             /**
                              * 补上展示偏好（目录树是否显示 {@code .md} 后缀）。
                              *
-                        * <p>与 {@link #withShareStatus} 同理：这一项要读库根的配置文件才能知道，
+                        * <p>与 {@link #withShareStatus} 同理：这一项要读库级配置才能知道，
                         * 而 {@link #from} 只拿到实体。放在 wither 上而不是给 from 加参数，是为了让
                              * 「不关心这个字段的调用方」（门户那几条链路）不必假装自己知道答案。</p>
                              */

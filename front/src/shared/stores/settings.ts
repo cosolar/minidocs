@@ -32,7 +32,8 @@ const STORAGE_KEY = 'minidocs.settings'
 export const DEFAULT_SETTINGS: UiSettings = {
   showDocTree: true,
   contentWidth: 900,
-  codeTheme: 'github',
+  // 默认跟随阅读主题：主题包里配好的代码配色与纸色是一套，单独挑一档反而容易撞色
+  codeTheme: 'theme',
   themeMode: 'system',
   defaultView: 'read',
   kbView: 'grid'
@@ -97,7 +98,7 @@ export const useSettingsStore = defineStore('settings', {
       const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
       const mode = this.value.themeMode === 'system' ? (prefersDark ? 'dark' : 'light') : this.value.themeMode
       root.setAttribute('data-theme', mode)
-      root.setAttribute('data-code-theme', this.value.codeTheme || 'github')
+      root.setAttribute('data-code-theme', this.value.codeTheme || 'theme')
       root.style.setProperty('--md-content-width', `${this.value.contentWidth || 900}px`)
     }
   }

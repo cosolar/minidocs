@@ -5,6 +5,7 @@ import { ElMessage } from 'element-plus'
 import MdIcon from '@/admin/components/MdIcon.vue'
 import { useAuthStore } from '@/admin/stores/auth'
 import { useSiteStore } from '@/shared/stores/site'
+import { DEFAULT_LOGO } from '@/shared/brand'
 import { toApiErrorInfo } from '@/shared/api/http'
 import { appHref } from '@/shared/appBase'
 
@@ -53,9 +54,8 @@ async function submit() {
       <!-- 左栏：产品说明。窄屏下只留顶部一条品牌头，要点列表整块收起 -->
       <section class="md-login__intro">
         <div class="md-login__intro-top">
-          <span class="md-login__logo" :class="{ 'is-image': site.value.logoSrc }">
-            <img v-if="site.value.logoSrc" :src="site.value.logoSrc" alt="" />
-            <template v-else>{{ site.value.name.slice(0, 1) }}</template>
+          <span class="md-login__logo is-image" :class="{ 'is-builtin': !site.value.logoSrc }">
+            <img :src="site.value.logoSrc || DEFAULT_LOGO" alt="" />
           </span>
           <div class="md-login__intro-name">
             <strong>{{ site.value.name }}</strong>

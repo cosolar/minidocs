@@ -8,7 +8,10 @@ import org.springframework.stereotype.Component;
 /**
  * 渲染结果二次白名单过滤，彻底阻断 XSS。
  *
- * <p>与 flexmark 的「不解析原生 HTML」共同构成双重防护。</p>
+ * <p>flexmark 现在会解析原生 HTML（与工作区预览保持一致），所以本类是标签 / 属性的
+ * 唯一闸门；URL 方案校验仍由 {@code MarkdownService#enforceSafeUrls} 负责。
+ * 白名单刻意不放行 {@code style} 属性：作者的对齐需求由 {@code MarkdownService}
+ * 归一成 {@code md-align-*} 类名，其它内联样式一律丢弃。</p>
  */
 @Component
 public class MarkdownSanitizer {

@@ -24,7 +24,7 @@ import java.nio.file.Path;
 import java.util.List;
 
 /**
- * 库级配置（{@code .minidocs.json} 的可见部分）：隐藏规则。
+ * 库级配置（数据库 {@code kb_config} 的可见部分）：隐藏规则。
  *
  * <p>与 {@code DocController} 的目录树接口分开，因为两者要的东西<b>正好相反</b>：
  * 那边给的是「读者该看到的」（已过滤），这边给的是「作者该配置的」（未过滤）。
@@ -124,7 +124,7 @@ public class KbConfigController {
      * 前端据此回填勾选 —— 注意规则里可能是目录也可能是文件，勾选状态要按类型分别处理。</p>
      *
      * <p>{@code display} 独立于隐藏规则：它管的是「名字怎么显示」，而 hidden 管「哪些东西出现」。
-     * 两者合成一个「配置」概念是对的（都在 .minidocs.json 里），但UI 上必须分开摆，
+     * 两者合成一个「配置」概念是对的（来自同一份库级配置），但UI 上必须分开摆，
      * 否则「取消隐藏」会被读成「恢复默认显示」。</p>
      */
     public record ConfigVO(List<String> hidden, List<DocNode> tree, VaultFileService.DisplayVO display) {

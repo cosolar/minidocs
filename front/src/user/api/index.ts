@@ -1,6 +1,7 @@
 import { request } from './http'
 import type { KbVO, PortalHomeVO, PortalReadVO, ReadView, ShareReadVO } from './types'
 import type { PageResult, SearchHit, SiteConfig, SuggestItem, UserVO } from '@/shared/api/types'
+import type { ThemePack } from '@/shared/readerTheme'
 
 /** 门户（游客可读） */
 export const portalApi = {
@@ -69,4 +70,9 @@ export const settingsApi = {
 /** 供共享站点 store 注册的读取通道（公开接口，游客也能读到品牌） */
 export const siteApi = {
   get: () => request<SiteConfig>({ url: '/portal/site' })
+}
+
+/** 阅读主题列表：公开接口，只返回后端校验过的令牌包（不含任意 CSS） */
+export const themeApi = {
+  list: () => request<ThemePack[]>({ url: '/portal/themes' })
 }

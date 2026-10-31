@@ -26,7 +26,6 @@ import org.eclipse.jgit.transport.UsernamePasswordCredentialsProvider;
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
-import java.nio.file.StandardCopyOption;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
@@ -55,16 +54,6 @@ public class GitVaultService {
     /** 网络操作上限：远端无响应时不要挂住请求线程 */
     private static final int TIMEOUT_SECONDS = 120;
 
-    /**
-     * 平台自己的配置文件（目录顺序 / 隐藏规则 / 显示选项）。
-     *
-     * <p>与 {@code VaultFileService} 里的 {@code ORDER_FILE} 是同一个文件名，
-     * 但这里不能引它的常量：git 模块不该为了一个字符串去依赖 doc 模块。</p>
-     */
-    private static final String CONFIG_FILE = ".minidocs.json";
-
-    /** 备份后缀。拼在库目录名后面，落在 vaults 下与库同级的位置 */
-    private static final String CONFIG_BACKUP_SUFFIX = ".minidocs-config-bak";
     /** 返回给用户的原因上限，JGit 的异常链可能很长 */
     private static final int MAX_REASON = 200;
     /**
@@ -156,20 +145,6 @@ public class GitVaultService {
              * 而界面上没有任何地方告诉他「你的东西在这里」，那比拉取失败严重得多。所以两条
              * 分支都保证处理：拉取失败时放回，冲突时保留并把 ref 报出来。</p>
              */
-            /*
-             * 平台自己的配置文件必须先挪走。
-             *
-             * <p>{@code .minidocs.json}（目录顺序 / 隐藏规则 / 显示选项）是平台写的、
-             * 不属于 Git 仓库内容的文件 —— 它不在版本控制里，于是：</p>
-             *
-             * <p>1. 强制覆盖时 {@code clean} 会把它当未跟踪文件删掉；</p>
-             * <p>2. 合并拉取时它会被 autostash 收走，而远程仓库里若也有同名文件，
-             *    merge 会先生成一份，放回 stash 时就撞车，配置留在 stash 里再也回不来。</p>
-             *
-             * <p>两种都表现为「拉取完隐藏配置没了」。而这是作者手工配的，丢了他不会
-             * 知道去哪找 —— 所以拉取前先备份到库根之外，拉完无条件写回。</p>
-             */
-            Path configBackup = protectPlatformConfig(repoDir);
             RevCommit stashed = null;
             if (!status.isClean()) {
                 if (force) {
@@ -212,12 +187,6 @@ public class GitVaultService {
                 outcome = new SyncOutcome(true, "已更新 " + commits + " 个提交，本地改动已合并回来",
                         commits, outcome.commitId());
             }
-            /*
-             * 配置放回放在 stash 之后：stash 里可能也有一份 .minidocs.json（作者改过
-             * 隐藏规则但没提交），先放回会被 stash 里的版本盖掉，而那份可能是旧的。
-             * 放在这里，无论 stash 放回什么，最终都以拉取前那一份为准。
-             */
-            restorePlatformConfig(repoDir, configBackup);
             invalidateStatus(repoDir);
             return outcome;
         } catch (BizException e) {
@@ -228,42 +197,6 @@ public class GitVaultService {
         }
     }
 
-    /**
-     * 拉取前把平台配置文件挪出库根，返回备份路径；没有配置文件时返回 {@code null}。
-     *
-     * <p>备份放在库根之外（父目录下加后缀），这样 {@code clean}、{@code reset --hard}、
-     * stash 都碰不到它 —— 放在库内任何一个位置都会被这三者之一扫到。</p>
-     */
-    private Path protectPlatformConfig(Path repoDir) throws IOException {
-        Path config = repoDir.resolve(CONFIG_FILE);
-        if (!Files.isRegularFile(config)) {
-            return null;
-        }
-        Path backup = repoDir.resolveSibling(repoDir.getFileName() + CONFIG_BACKUP_SUFFIX);
-        Files.copy(config, backup, StandardCopyOption.REPLACE_EXISTING);
-        log.info("拉取前备份平台配置：{}", backup.getFileName());
-        return backup;
-    }
-
-    /**
-     * 拉取后把配置写回，并删掉备份。
-     *
-     * <p>两种情况都要写回：拉取把库内那份删了（强制覆盖的 clean），或远程那份覆盖了它
-     * （merge）。作者的手工配置只有一份，就以拉取前那份为准。</p>
-     */
-    private void restorePlatformConfig(Path repoDir, Path backup) throws IOException {
-        if (backup == null) {
-            return;
-        }
-        try {
-            if (Files.isRegularFile(backup)) {
-                Files.copy(backup, repoDir.resolve(CONFIG_FILE), StandardCopyOption.REPLACE_EXISTING);
-                log.info("拉取后恢复平台配置：{}", CONFIG_FILE);
-            }
-        } finally {
-            Files.deleteIfExists(backup);
-        }
-    }
     /**
      * 真正执行 fetch + merge。
      *

@@ -35,7 +35,8 @@ MiniDocs 面向「自己维护一批文档、并且要把它分享出去」的�
 **阅读**
 
 - 阅读页与分享页共用同一条渲染管线，所见即所得
-- 明亮 / 暗黑主题；分享页可切换正文字体（思源黑体、霞鹜文楷、站酷快乐体等）与正文宽度
+- 明亮 / 暗黑主题；阅读设置可切换阅读主题包（内置五套，管理员可安装 / 卸载自定义主题）、
+  正文字号与字体（思源黑体、霞鹜文楷、站酷快乐体等）；分享页还可调正文宽度
 - 上 / 下一篇导航、站内全文检索（内存倒排索引，命中直达标题）
 
 **分享**
@@ -92,6 +93,33 @@ cd front && npm run dev    # http://localhost:5173，接口自动代理到 :9098
 
 下面是速查，完整步骤（数据库初始化、Nginx 全量配置、systemd、备份与升级、故障排查）见
 [部署指南](docs/DEPLOYMENT.md)。
+
+### Docker 官方镜像（最省事）
+
+前端已打进 jar，**一个容器、一个端口、一个数据卷**；默认用内置 SQLite，不需要另起数据库。
+
+```bash
+export ADMIN_PASS='换成强密码'
+export JWT_SECRET="$(openssl rand -base64 48 | tr -dc 'A-Za-z0-9' | head -c 48)"
+
+cd deploy
+docker compose -f docker-compose.standalone.yml up -d
+```
+
+打开 `http://服务器IP:9098`，数据在 Docker 卷 `minidocs-data` 里。
+不用 compose 的话：
+
+```bash
+docker run -d --name minidocs -p 9098:9098 \
+  -e ADMIN_PASS='换成强密码' \
+  -e JWT_SECRET='至少32个字符的随机串' \
+  -v minidocs-data:/data \
+  cosolar/minidocs:latest
+```
+
+镜像发布在 Docker Hub：<https://hub.docker.com/r/cosolar/minidocs>，
+标签随 git tag 走（`latest` / `X.Y` / `X.Y.Z`），只提供 `linux/amd64`。
+需要外部 MySQL 时，把 compose 里的 `SPRING_PROFILES_ACTIVE` 改成 `prod` 并补 `DB_URL` / `DB_USER` / `DB_PASSWORD`。
 
 ### 前后端分离（推荐）
 

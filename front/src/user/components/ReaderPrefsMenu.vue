@@ -4,6 +4,21 @@ import Icon from '@/user/components/Icon.vue'
 import { useSettingsStore } from '@/shared/stores/settings'
 import { READER_FONTS, applyReaderFont, readReaderFont, readerFontById } from '@/shared/readerFont'
 import {
+  DEFAULT_READER_SIZE,
+  MAX_READER_SIZE,
+  MIN_READER_SIZE,
+  READER_SIZE_STEP,
+  applyReaderSize,
+  readReaderSize
+} from '@/shared/readerSize'
+import {
+  applyReaderTheme,
+  currentThemeId,
+  readerThemeById,
+  themePacks,
+  themeSwatch
+} from '@/shared/readerTheme'
+import {
   MAX_READER_WIDTH,
   MIN_READER_WIDTH,
   READER_WIDTH_STEP,
@@ -12,15 +27,20 @@ import {
 } from '@/shared/readerWidth'
 
 /**
- * 「阅读设置」面板：外观（明亮 / 暗黑 / 跟随系统）+ 正文字体，分享页再带一项正文宽度。
+ * 「阅读设置」面板：主题 + 外观（明亮 / 暗黑 / 跟随系统）+ 整体字号 + 正文字体，
+ * 分享页再带一项正文宽度。
  *
  * <p>两个宿主共用这一个组件：分享页顶栏（{@code ShareTopBar.vue}）与门户阅读条
  * （{@code ReadBody.vue}）。读者在这两处读的是同一篇正文，要调的也是同一组偏好 ——
  * 分成两个组件，迟早一边加了另一边忘了。</p>
  *
- * <p>访客没有设置中心，而这两件事恰恰是外部读者最常要的 —— 深夜读文档要暗色，
- * 长文要换成自己顺眼的字体。两者都只落在这台浏览器：外观走共享设置 store 的 {@code patchLocal}
- * （不发给服务端），字体走 {@code shared/readerFont}（纯 localStorage）。</p>
+ * <p>访客没有设置中心，而这几件事恰恰是外部读者最常要的 —— 深夜读文档要暗色，
+ * 长文要换成自己顺眼的字体、大一号的字。它们都只落在这台浏览器：外观走共享设置 store 的
+ * {@code patchLocal}（不发给服务端），字体 / 字号 / 主题走 {@code shared/reader*}（纯 localStorage）。</p>
+ *
+ * <p><b>「主题」与「外观」是两件事。</b>主题决定这套版面用什么颜色（纸色、强调色、标题装饰），
+ * 外观决定取主题的哪一档（每套主题都备了明亮与暗黑两套令牌）。因此换主题不必重选明暗，
+ * 切明暗也不会把主题改回默认。</p>
  *
  * <p><b>为什么正文宽度只在分享页出现。</b>门户阅读页的中栏宽度由两侧拖拽手柄决定
  * （{@code --md-doc-width} 那份偏好与「按百分比收窄并居中」根本不是一回事），那边的读者
@@ -93,6 +113,40 @@ function setWidth(percent: number) {
   applyReaderWidth(percent)
 }
 
+/* ------------------------------------------------------------------ 主题 */
+
+const activeTheme = computed(() => readerThemeById(currentThemeId.value))
+
+/** 卡片上的明暗两格小样：底色 + 主强调 + 次强调，直接取主题包自己的令牌 */
+const themeCards = computed(() =>
+  themePacks.value.map((pack) => ({
+    pack,
+    light: themeSwatch(pack, 'light'),
+    dark: themeSwatch(pack, 'dark')
+  }))
+)
+
+function pickPack(id: string) {
+  applyReaderTheme(id)
+}
+
+/* ------------------------------------------------------------------ 字号 */
+
+const size = ref(readReaderSize())
+
+const sizeLabel = computed(() => `${size.value}px`)
+const sizeFill = computed(
+  () => `${((size.value - MIN_READER_SIZE) / (MAX_READER_SIZE - MIN_READER_SIZE)) * 100}%`
+)
+
+function setSize(value: number) {
+  size.value = value
+  applyReaderSize(value)
+}
+
+/** 选中主题的一句话说明；默认主题也有一段，避免面板在这里忽然空一块 */
+const themeNote = computed(() => activeTheme.value.description || '')
+
 /** store 里只有 light / dark 是显式选择，其余（含缺省）都按「跟随系统」显示 */
 const theme = computed<ThemeMode>(() => {
   const mode = settings.value.themeMode
@@ -115,14 +169,15 @@ const fontModel = computed({
   set: (value: string) => pickFont(value)
 })
 
-/** 面板贴着按钮下沿展开，右缘与按钮对齐，并兜住视口两侧 */
+/** 面板贴着按钮下沿展开，右缘与按钮对齐，并兜住视口两侧与底边（主题多了以后面板更高） */
 function place() {
   const panel = panelRef.value
   const trigger = triggerRef.value
   if (!panel || !trigger) return
   const rect = trigger.getBoundingClientRect()
   const left = Math.max(8, Math.min(rect.right - panel.offsetWidth, window.innerWidth - panel.offsetWidth - 8))
-  panel.style.top = `${rect.bottom + 8}px`
+  const top = Math.max(8, Math.min(rect.bottom + 8, window.innerHeight - panel.offsetHeight - 8))
+  panel.style.top = `${top}px`
   panel.style.left = `${left}px`
 }
 
@@ -210,6 +265,40 @@ onBeforeUnmount(() => {
         </div>
 
         <div class="md-prefs__row">
+          <span class="md-prefs__label">主题</span>
+          <div class="md-prefs__themes" role="group" aria-label="阅读主题">
+            <button
+              v-for="card in themeCards"
+              :key="card.pack.id"
+              type="button"
+              class="md-prefs__theme"
+              :class="{ 'is-on': currentThemeId === card.pack.id }"
+              :aria-pressed="currentThemeId === card.pack.id"
+              :title="card.pack.description || card.pack.name"
+              @click="pickPack(card.pack.id)"
+            >
+              <span class="md-prefs__theme-swatch" aria-hidden="true">
+                <span class="md-prefs__theme-half" :style="{ background: card.light.bg }">
+                  <i class="md-prefs__theme-bar" :style="{ background: card.light.primary }"></i>
+                  <i class="md-prefs__theme-bar is-thin" :style="{ background: card.light.accent }"></i>
+                </span>
+                <span class="md-prefs__theme-half is-dark" :style="{ background: card.dark.bg }">
+                  <i class="md-prefs__theme-bar" :style="{ background: card.dark.primary }"></i>
+                  <i class="md-prefs__theme-bar is-thin" :style="{ background: card.dark.accent }"></i>
+                </span>
+              </span>
+              <span class="md-prefs__theme-name">{{ card.pack.name }}</span>
+              <Icon
+                v-if="currentThemeId === card.pack.id"
+                name="check"
+                :size="12"
+                class="md-prefs__theme-check"
+              />
+            </button>
+          </div>
+        </div>
+
+        <div class="md-prefs__row">
           <span class="md-prefs__label">外观</span>
           <div class="md-prefs__seg" role="group">
             <button
@@ -223,6 +312,33 @@ onBeforeUnmount(() => {
             >
               <Icon :name="item.icon" :size="14" />
               <span>{{ item.label }}</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- 字号跟正文走，不跟界面走：三个宿主的正文一起缩放，顶栏与侧栏保持原尺寸 -->
+        <div class="md-prefs__row">
+          <span class="md-prefs__label">
+            字号
+            <b class="md-prefs__value">{{ sizeLabel }}</b>
+          </span>
+          <div class="md-prefs__range" :style="{ '--md-prefs-fill': sizeFill }">
+            <input
+              type="range"
+              :min="MIN_READER_SIZE"
+              :max="MAX_READER_SIZE"
+              :step="READER_SIZE_STEP"
+              :value="size"
+              aria-label="正文字号"
+              @input="setSize(Number(($event.target as HTMLInputElement).value))"
+            >
+            <button
+              type="button"
+              class="md-prefs__reset"
+              :disabled="size === DEFAULT_READER_SIZE"
+              @click="setSize(DEFAULT_READER_SIZE)"
+            >
+              默认
             </button>
           </div>
         </div>
@@ -270,7 +386,8 @@ onBeforeUnmount(() => {
           </div>
         </div>
 
-        <p class="md-prefs__hint">{{ font.note }}</p>
+        <p v-if="themeNote" class="md-prefs__hint">{{ themeNote }}</p>
+        <p class="md-prefs__hint md-prefs__hint--follow">{{ font.note }}</p>
       </div>
     </Teleport>
   </div>

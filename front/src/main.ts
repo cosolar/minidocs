@@ -7,11 +7,17 @@ import '@/user/styles/reader.css'
 
 import App from './App.vue'
 import router, { bindApp } from './router'
-import { settingsApi, siteApi } from '@/user/api'
+import { settingsApi, siteApi, themeApi } from '@/user/api'
 import { registerSettingsGateway, useSettingsStore } from '@/shared/stores/settings'
 import { registerSiteGateway, useSiteStore } from '@/shared/stores/site'
 import { initReaderFont } from '@/shared/readerFont'
 import { initReaderWidth } from '@/shared/readerWidth'
+import { initReaderSize } from '@/shared/readerSize'
+import {
+  initReaderTheme,
+  loadReaderThemes,
+  registerThemeGateway
+} from '@/shared/readerTheme'
 
 const app = createApp(App)
 const pinia = createPinia()
@@ -27,15 +33,20 @@ app.use(router)
  */
 registerSettingsGateway(settingsApi)
 registerSiteGateway(siteApi)
+registerThemeGateway(themeApi)
 
 const settings = useSettingsStore(pinia)
 settings.applyToDom()
 // 游客会拿到 401，load() 内部已静默处理
 void settings.load()
 
-// 正文字体与正文宽度同样只落本地：两者都只写根元素上的 CSS 变量，之后切路由不必再管
+// 正文字体、正文宽度、整体字号与阅读主题都只落本地：写的都是根元素上的 CSS 变量，
+// 之后切路由不必再管。主题先用缓存上色，再异步拉一次已安装列表校正。
 initReaderFont()
 initReaderWidth()
+initReaderSize()
+initReaderTheme()
+void loadReaderThemes()
 
 // 站点品牌是公开接口，游客也能读到；失败时保留内置默认品牌
 const site = useSiteStore(pinia)

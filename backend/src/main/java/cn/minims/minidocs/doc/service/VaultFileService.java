@@ -7,8 +7,6 @@ import cn.minims.minidocs.common.util.PathGuard;
 import cn.minims.minidocs.common.util.StorageKey;
 import cn.minims.minidocs.config.properties.MiniDocsProperties;
 import cn.minims.minidocs.doc.dto.DocDtos.DocNode;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import lombok.RequiredArgsConstructor;
@@ -29,19 +27,21 @@ import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
 /**
- * 知识库磁盘文件操作（纯文件系统层，不感知数据库）。
+ * 知识库磁盘文件操作。
  *
  * <p>定位目录一律使用 {@code storage_key}（{@code o{tenantId}/{slug}}）而非 slug：slug 已降级为
  * 组织内唯一，两个组织可以有同名目录名。标识非法时直接抛出，不回退到 slug —— 回退会把越界标识
  * 静默解析成另一个存在的目录。</p>
  *
  * <p>所有路径均经过 {@link PathGuard} 校验，保证不越出知识库根目录。</p>
+ *
+ * <p>库级配置（隐藏规则 / 目录顺序 / 展示偏好）不在这里：它们由 {@link KbConfigStore}
+ * 存进数据库，Git 清理工作副本时不会波及。</p>
  */
 @Slf4j
 @Component
@@ -50,74 +50,10 @@ public class VaultFileService {
 
     private static final Collator ZH_COLLATOR = Collator.getInstance(Locale.CHINA);
 
-    /**
-     * 库级配置，只在知识库根目录放一份。
-     *
-     * <p>两种格式并存，读的时候自动判别：</p>
-     * <pre>
-     * 新格式（推荐，显式分区）：
-     *   {"order": {"": ["docs", "README.md"], "docs": ["a.md"]}, "hidden": ["drafts", "**&#47;_*"]}
-     * 旧格式（历史包袱）：{"": ["docs"], "docs": ["a.md"]}  —— 顶层每个数组键都当顺序
-     * </pre>
-     *
-     * <p>之所以保留旧格式：{@code order} 这个能力早于隐藏规则就已经能用了，直接改成新格式会让
-     * 所有已写好的排序配置一夜失效（读到的全是 {@code {"order": …}} 之外的键，顺序全丢）。</p>
-     *
-     * <p>放在库内（而非数据库）是为了随云库的 Git 一起同步；以 {@code .} 开头，扫描时被
-     * {@link #isIgnored} 跳过，不会混进目录树。</p>
-     */
-    private static final String ORDER_FILE = ".minidocs.json";
-
-    /** 保留键：顺序分区。仅当值是对象时才是新格式，否则按旧格式的「目录路径 → 数组」处理。 */
-    private static final String CONFIG_KEY_ORDER = "order";
-    /** 保留键：隐藏规则数组。 */
-    private static final String CONFIG_KEY_HIDDEN = "hidden";
-    /** 保留键：展示偏好对象。值是 Map，不会被旧格式那条「顶层其余数组键」误当成排序。 */
-    private static final String CONFIG_KEY_DISPLAY = "display";
-    /** 展示偏好里唯一一项：目录树是否显示 Markdown 后缀（{@code .md}）。 */
-    private static final String CONFIG_KEY_SHOW_MD_SUFFIX = "showMdSuffix";
-
-    private static final ObjectMapper JSON = new ObjectMapper();
-    private static final TypeReference<Map<String, Object>> CONFIG_MAP = new TypeReference<>() {
-    };
-
-    /**
-     * 库级配置。
-     *
-     * @param order  目录相对路径 → 该目录下的子项有序数组；根目录用空串
-     * @param hidden 隐藏规则；精确路径或 glob，命中即不进入目录树、搜索与计数
-     */
-    /**
-     * 库级配置：排序、隐藏规则、展示偏好。
-     *
-     * <p>三个分区各自独立，但<b>每次写都必须带上另外两个</b> —— 排序会在重命名 / 移动 /
-     * 拖拽时被动重写，隐藏规则会在设置面板里整份覆盖。任何一条写入路径只带自己那一份，
-     * 就会把作者写在仓库里、跟着 Git 走的另两份悄悄抹掉且无法找回。</p>
-     */
-    private record KbConfig(Map<String, List<String>> order, List<String> hidden, Display display) {
-
-        static KbConfig empty() {
-            return new KbConfig(new LinkedHashMap<>(), new ArrayList<>(), Display.defaults());
-        }
-    }
-
-    /**
-     * 展示偏好。
-     *
-     * <p>目前只有「目录树是否显示 {@code .md} 后缀」一项。字段用原始 {@code boolean} 而不是
-     * {@code Boolean}：缺省必须是「显示」，若用包装类型就得在每个读取处判 null，
-     * 而这份配置是要跟着 Git 走的、老仓库里根本没有这个键。</p>
-     */
-    private record Display(boolean showMdSuffix) {
-
-        static Display defaults() {
-            return new Display(true);
-        }
-    }
-
     private final MiniDocsProperties properties;
+    private final KbConfigStore configStore;
 
-    /** 目录树缓存：key = 知识库根绝对路径 */
+    /** 目录树缓存：key = 知识库根绝对路径 + 配置戳 */
     private final Cache<String, List<DocNode>> treeCache = Caffeine.newBuilder()
             .maximumSize(20)
             .build();
@@ -141,6 +77,16 @@ public class VaultFileService {
         Path root = rootOf(storageKey);
         deleteRecursively(root);
         invalidateTree(root);
+    }
+
+    /**
+     * 知识库被删除时一并清掉库级配置。
+     *
+     * <p>配置按 {@code storage_key} 存，而 {@code storage_key} 里的 slug 可能在库删除后
+     * 被同名新库复用 —— 不清的话，新库一建出来就带着上一个库的隐藏规则与排序。</p>
+     */
+    public void deleteConfig(String storageKey) {
+        configStore.delete(storageKey);
     }
 
     public boolean rootExists(String storageKey) {
@@ -406,27 +352,17 @@ public class VaultFileService {
 
     /** 目录树（目录在前，按 zh-CN 排序；仅 Markdown 与空目录）。 */
     public List<DocNode> tree(Path root) {
-        KbConfig config = readConfig(root);
-        // 缓存键带上配置文件的 mtime：作者改完 .minidocs.json（比如新加一条隐藏规则）后，
-        // 不该还要等他把另外 19 个库轮一遍才生效。文件不存在时是 0，配置一落地键就变。
-        String key = root + "@" + configStamp(root);
+        KbConfigStore.Loaded loaded = configStore.load(root);
+        // 缓存键带上配置戳：作者改完隐藏规则 / 顺序后，不该还要等他把另外 19 个库
+        // 轮一遍才生效。没有配置时戳是 "0"，配置一落地键就变。
+        String key = root + "@" + loaded.stamp();
         List<DocNode> cached = treeCache.getIfPresent(key);
         if (cached != null) {
             return cached;
         }
-        List<DocNode> tree = scan(root, "", 0, config);
+        List<DocNode> tree = scan(root, "", 0, loaded.config());
         treeCache.put(key, tree);
         return tree;
-    }
-
-    /** 配置文件的时间戳；不存在视为 0。用它做缓存键的一部分，好让改配置立刻生效。 */
-    private long configStamp(Path root) {
-        try {
-            Path file = root.resolve(ORDER_FILE);
-            return Files.isRegularFile(file) ? Files.getLastModifiedTime(file).toMillis() : 0L;
-        } catch (IOException e) {
-            return 0L;
-        }
     }
 
     /**
@@ -439,7 +375,7 @@ public class VaultFileService {
      * 那些不是作者能配置的东西，列出来只会让人以为能勾。</p>
      */
     public List<DocNode> treeIncludingHidden(Path root) {
-        String key = root + "@full@" + configStamp(root);
+        String key = root + "@full@" + configStore.load(root).stamp();
         List<DocNode> cached = treeCache.getIfPresent(key);
         if (cached != null) {
             return cached;
@@ -464,18 +400,18 @@ public class VaultFileService {
      * <p><b>整份替换而非增删</b>：面板给出的是勾选后的全集，按差集增量算的话，勾选与取消的顺序
      * 会影响结果，中途刷新一次就可能把别人的规则冲掉。</p>
      *
-     * <p>排序清单与隐藏规则写进同一个 {@code .minidocs.json}，这里只动 hidden 分区，
+     * <p>排序清单与隐藏规则存在同一条库级配置里，这里只动 hidden 分区，
      * 排序部分原样带回（见 {@link #writeConfig}）。</p>
      */
     public void saveHiddenRules(Path root, List<String> rules) {
-        KbConfig old = readConfig(root);
-        writeConfig(root, new KbConfig(old.order(), rules, old.display()));
-        // 两棵树（过滤 / 未过滤）的缓存键都含配置 mtime，这里失效是兜底：
-        // 某些文件系统上 mtime 精度只到秒，同一秒内的两次改动会撞键
+        KbConfigStore.KbConfig old = readConfig(root);
+        writeConfig(root, new KbConfigStore.KbConfig(old.order(), rules, old.display()));
+        // 两棵树的缓存键都含配置戳，这里失效是兜底：写库与读库之间若落在同一秒，
+        // updatedAt 会相同，缓存键撞在一起。
         invalidateTree(root);
     }
 
-    /** 目录树是否显示 {@code .md} 后缀。缺省 true —— 老仓库里没有这个键。 */
+    /** 目录树是否显示 {@code .md} 后缀。缺省 true —— 没有配置记录时按显示处理。 */
     public boolean showMdSuffix(Path root) {
         return readConfig(root).display().showMdSuffix();
     }
@@ -484,25 +420,26 @@ public class VaultFileService {
      * 覆盖写展示偏好。
      *
      * <p>与 {@link #saveHiddenRules} 同样只动自己那一个分区：排序会在重命名 / 移动时被
-     * 被动重写，作者的隐藏清单是自己写在仓库里、跟着 Git 走的，抹掉就没法找回。</p>
+     * 被动重写，作者的隐藏清单是独立配置，抹掉就没法找回。</p>
      *
-     * <p>同样要失效缓存：目录树的缓存键含配置 mtime，但展示偏好是<b>前端</b>在渲染时读的，
+     * <p>同样要失效缓存：目录树的缓存键含配置戳，但展示偏好是<b>前端</b>在渲染时读的，
      * 它一变，前端拿到的是新字段而后端树是旧的，两边会短暂不一致（表现为后缀闪一下）。
      * 失效后重新取一次即可。</p>
      */
     public void saveDisplay(Path root, boolean showMdSuffix) {
-        KbConfig old = readConfig(root);
-        writeConfig(root, new KbConfig(old.order(), old.hidden(), new Display(showMdSuffix)));
+        KbConfigStore.KbConfig old = readConfig(root);
+        writeConfig(root, new KbConfigStore.KbConfig(old.order(), old.hidden(),
+                new KbConfigStore.Display(showMdSuffix)));
         invalidateTree(root);
     }
 
     /** 库级配置的展示分区，供设置面板回填。 */
     public DisplayVO displaySettings(Path root) {
-        Display display = readConfig(root).display();
+        KbConfigStore.Display display = readConfig(root).display();
         return new DisplayVO(display.showMdSuffix());
     }
 
-    /** 展示偏好的对外形状（{@link Display} 是私有的）。 */
+    /** 展示偏好的对外形状。 */
     public record DisplayVO(boolean showMdSuffix) {
     }
 
@@ -546,7 +483,7 @@ public class VaultFileService {
      * 作者「藏了整个目录」的意图在深链接上完全失效。逐级剥掉尾部补前缀即可补齐，
      * 代价是 O(路径段数) 次字符串比较，相对一次磁盘读可以忽略。</p>
      */
-    private boolean isHiddenWithAncestors(String relativePath, KbConfig config) {
+    private boolean isHiddenWithAncestors(String relativePath, KbConfigStore.KbConfig config) {
         if (isHidden(relativePath, config)) {
             return true;
         }
@@ -567,8 +504,8 @@ public class VaultFileService {
         /*
          * 必须按前缀清，不能 invalidate(root.toString())。
          *
-         * <p>{@link #tree} 的缓存键是 {@code root + "@" + 配置戳}（配置戳那条是为了让改
-         * .minidocs.json 立刻生效），而这里如果按 {@code root} 精确删，键根本对不上 ——
+         * <p>{@link #tree} 的缓存键是 {@code root + "@" + 配置戳}（配置戳让改隐藏规则 / 顺序
+         * 立刻生效），而这里如果按 {@code root} 精确删，键根本对不上 ——
          * 一次都清不中。</p>
          *
          * <p>症状很有迷惑性：导入提示「成功 1」、库信息的篇数也更新了，但目录树还是空的，
@@ -586,7 +523,7 @@ public class VaultFileService {
 
     // ------------------------------------------------------------------ 内部实现
 
-    private List<DocNode> scan(Path dir, String prefix, int depth, KbConfig config) {
+    private List<DocNode> scan(Path dir, String prefix, int depth, KbConfigStore.KbConfig config) {
         List<DocNode> result = new ArrayList<>();
         if (depth >= properties.getMaxDepth()) {
             return result;
@@ -619,7 +556,7 @@ public class VaultFileService {
         return result;
     }
 
-    private long countDocs(Path dir, String prefix, int depth, KbConfig config) {
+    private long countDocs(Path dir, String prefix, int depth, KbConfigStore.KbConfig config) {
         if (depth >= properties.getMaxDepth()) {
             return 0L;
         }
@@ -642,7 +579,7 @@ public class VaultFileService {
         return count;
     }
 
-    private void collectDocs(Path dir, String prefix, int depth, List<String> collector, KbConfig config) {
+    private void collectDocs(Path dir, String prefix, int depth, List<String> collector, KbConfigStore.KbConfig config) {
         if (depth >= properties.getMaxDepth()) {
             return;
         }
@@ -726,78 +663,12 @@ public class VaultFileService {
     // ------------------------------------------------------------------ 库级配置（排序 + 隐藏）
 
     /**
-     * 读取库级配置；缺失或损坏一律当「没有配置」。
+     * 读取库级配置。
      *
-     * <p>坏文件不该让整棵树打不开，更不该让文档凭空消失 —— 所以解析失败只记一条 warn，
-     * 然后按「无配置」继续，文档照常全部可见。</p>
+     * <p>存储与解析都在 {@link KbConfigStore}（数据库，缺记录时从旧版文件导入一次）。</p>
      */
-    private KbConfig readConfig(Path root) {
-        Path file = root.resolve(ORDER_FILE);
-        if (!Files.isRegularFile(file)) {
-            return KbConfig.empty();
-        }
-        try {
-            Map<String, Object> raw = JSON.readValue(Files.readString(file, StandardCharsets.UTF_8), CONFIG_MAP);
-            if (raw == null || raw.isEmpty()) {
-                return KbConfig.empty();
-            }
-            Map<String, List<String>> order = new LinkedHashMap<>();
-            List<String> hidden = new ArrayList<>();
-            Display display = Display.defaults();
-            for (Map.Entry<String, Object> entry : raw.entrySet()) {
-                String key = entry.getKey();
-                if (CONFIG_KEY_ORDER.equals(key)) {
-                    if (entry.getValue() instanceof Map<?, ?> map) {
-                        map.forEach((k, v) -> order.put(String.valueOf(k), asStringList(v)));
-                    }
-                } else if (CONFIG_KEY_HIDDEN.equals(key)) {
-                    hidden.addAll(asStringList(entry.getValue()));
-                } else if (CONFIG_KEY_DISPLAY.equals(key)) {
-                    display = parseDisplay(entry.getValue());
-                } else if (entry.getValue() instanceof List) {
-                    // 旧格式：顶层其余的数组键是「目录相对路径 → 子项有序数组」
-                    order.put(key, asStringList(entry.getValue()));
-                }
-            }
-            return new KbConfig(order, hidden, display);
-        } catch (Exception e) {
-            log.warn("库级配置解析失败，按默认展示：{} - {}", file, e.getMessage());
-            return KbConfig.empty();
-        }
-    }
-
-    /**
-     * 解析展示偏好分区。
-     *
-     * <p>只有<b>显式的 false</b> 才算关掉：老仓库里没有这个键，或者值类型被手改坏了，
-     * 一律按「显示后缀」处理。反过来（任何非 false 都当成关掉）会让一份损坏的配置
-     * 静默把所有文档的后缀藏起来，而用户完全不知道为什么。</p>
-     */
-    private static Display parseDisplay(Object value) {
-        if (!(value instanceof Map<?, ?> map)) {
-            return Display.defaults();
-        }
-        Object flag = map.get(CONFIG_KEY_SHOW_MD_SUFFIX);
-        if (flag == null) {
-            return Display.defaults();
-        }
-        if (flag instanceof Boolean b) {
-            return new Display(b);
-        }
-        return new Display(!"false".equalsIgnoreCase(String.valueOf(flag).trim()));
-    }
-
-    private static List<String> asStringList(Object value) {
-        if (!(value instanceof List<?> list)) {
-            return new ArrayList<>();
-        }
-        List<String> result = new ArrayList<>(list.size());
-        for (Object item : list) {
-            if (item != null) {
-                result.add(String.valueOf(item));
-            }
-        }
-        return result;
+    private KbConfigStore.KbConfig readConfig(Path root) {
+        return configStore.load(root).config();
     }
 
     /**
@@ -817,7 +688,7 @@ public class VaultFileService {
      * 还进搜索结果」这种漏。<b>前提是调用方也在递归里</b>：单路径直达入口
      * （{@link #isHiddenPath}）没有这层兜底，得由 {@link #isHiddenWithAncestors} 自己补前缀。</p>
      */
-    private boolean isHidden(String relativePath, KbConfig config) {
+    private boolean isHidden(String relativePath, KbConfigStore.KbConfig config) {
         List<String> rules = config.hidden();
         if (rules.isEmpty()) {
             return false;
@@ -846,47 +717,16 @@ public class VaultFileService {
     }
 
     /**
-     * 写回配置。
+     * 整份写回库级配置。
      *
-     * <p>顺序与隐藏分区写；两者都空时删文件，免得留下一份没有内容的配置。</p>
-     */
-    /**
-     * 整份写回。
+     * <p>签名只收一份完整的 {@link KbConfigStore.KbConfig}，不给「顺手带上别的分区」留位置：
+     * 三个写入路径（排序 / 隐藏 / 重命名后同步）各有各的触发时机，任何一个只写自己那份
+     * 都会把另两份抹掉。让调用方必须先 {@code readConfig} 再整体构造，忘记保留就在编译期暴露。</p>
      *
-     * <p>签名只收一个 {@link KbConfig}，不给「顺手带上别的分区」留位置：三个写入路径
-     * （排序 /隐藏 / 重命名后同步）各有各的触发时机，任何一个只写自己那份都会把另两份抹掉。
-     * 让调用方必须先 {@code readConfig} 再整体构造，忘记保留就在编译期暴露。</p>
+     * <p>三个分区都回到默认值时存储层会删掉记录，不会留下空壳。</p>
      */
-    private void writeConfig(Path root, KbConfig config) {
-        // 复制一份再清理：原实现直接 removeIf 调用方传进来的 map，
-        // 而那是 readConfig 刚返回的对象，改它会连带影响同一事务里后续的读
-        Map<String, List<String>> order = new LinkedHashMap<>(config.order());
-        order.entrySet().removeIf(entry -> entry.getValue() == null || entry.getValue().isEmpty());
-        List<String> rules = new ArrayList<>(config.hidden());
-        rules.removeIf(item -> item == null || item.isBlank());
-        Path file = root.resolve(ORDER_FILE);
-        try {
-            if (order.isEmpty() && rules.isEmpty() && config.display().showMdSuffix()) {
-                Files.deleteIfExists(file);
-                return;
-            }
-            Map<String, Object> out = new LinkedHashMap<>();
-            if (!order.isEmpty()) {
-                out.put(CONFIG_KEY_ORDER, order);
-            }
-            if (!rules.isEmpty()) {
-                out.put(CONFIG_KEY_HIDDEN, rules);
-            }
-            // 只在关掉时才写这一段：默认值落进文件会让每个仓库都多出与行为无关的配置，
-            // 别人 clone 下来第一次看到的是「原来这开关是关的」，而不是「作者什么都没配」
-            if (!config.display().showMdSuffix()) {
-                out.put(CONFIG_KEY_DISPLAY, Map.of(CONFIG_KEY_SHOW_MD_SUFFIX, false));
-            }
-            Files.writeString(file, JSON.writerWithDefaultPrettyPrinter().writeValueAsString(out),
-                    StandardCharsets.UTF_8);
-        } catch (IOException e) {
-            throw new UncheckedIOException("写入库级配置失败", e);
-        }
+    private void writeConfig(Path root, KbConfigStore.KbConfig config) {
+        configStore.write(root, config);
     }
 
     /** 只取顺序部分。 */
@@ -898,11 +738,11 @@ public class VaultFileService {
      * 只写顺序部分，<b>原样保留已有的隐藏规则</b>。
      *
      * <p>这个保留是必须的：重命名 / 移动 / 排序都会走到写配置，如果顺手按「只有排序」重写，
-     * 作者的隐藏清单就会被抹掉 —— 而配置是他自己写在仓库里、还跟着 Git 走的，丢了没法找回。</p>
+     * 作者的隐藏清单就会被抹掉 —— 而它是一份独立配置，丢了没法找回。</p>
      */
     private void writeOrder(Path root, Map<String, List<String>> order) {
-        KbConfig old = readConfig(root);
-        writeConfig(root, new KbConfig(order, old.hidden(), old.display()));
+        KbConfigStore.KbConfig old = readConfig(root);
+        writeConfig(root, new KbConfigStore.KbConfig(order, old.hidden(), old.display()));
     }
 
     /**
@@ -914,7 +754,7 @@ public class VaultFileService {
      * @param newPath 新相对路径；{@code null} 表示删除
      */
     private void patchOrder(Path root, String oldPath, String newPath) {
-        KbConfig config = readConfig(root);
+        KbConfigStore.KbConfig config = readConfig(root);
         Map<String, List<String>> order = config.order();
         List<String> hidden = new ArrayList<>(config.hidden());
         if (order.isEmpty() && hidden.isEmpty()) {
@@ -961,7 +801,7 @@ public class VaultFileService {
                 }
             }
         }
-        writeConfig(root, new KbConfig(order, hidden, readConfig(root).display()));
+        writeConfig(root, new KbConfigStore.KbConfig(order, hidden, readConfig(root).display()));
     }
 
     /** 目录改名 / 移动：把清单里以旧路径为前缀的 key 整体换成新路径（含目录自身那份）。 */

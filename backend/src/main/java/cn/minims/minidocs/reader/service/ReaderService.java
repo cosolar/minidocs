@@ -91,7 +91,7 @@ public class ReaderService {
         view.setShareStatus(SharePublicationSupport.publishStatusOf(publication));
         view.setDocCount(docPaths.size());
           view.setTagCount(splitTags(kb.getTags()).size());
-                // 目录树要不要显示 .md 后缀。缺省 true，老仓库的 .minidocs.json 里没有这一项。
+                // 目录树要不要显示 .md 后缀。缺省 true，库级配置里没有这一项时也按显示处理。
                 view.setShowMdSuffix(vaultFileService.showMdSuffix(root));
         view.setShowTree(request.includeTree());
         view.setSingleDoc(request.singleDoc());

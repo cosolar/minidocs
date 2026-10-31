@@ -22,7 +22,7 @@ public class SettingsServiceImpl implements SettingsService {
     public static final Map<String, Object> DEFAULTS = Map.of(
             "showDocTree", true,
             "contentWidth", 900,
-            "codeTheme", "github",
+            "codeTheme", "theme",
             "themeMode", "system",
             "defaultView", "read",
             "kbView", "grid");

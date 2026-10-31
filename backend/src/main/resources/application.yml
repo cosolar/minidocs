@@ -13,6 +13,10 @@ spring:
     name: minidocs
   profiles:
     active: ${SPRING_PROFILES_ACTIVE:dev}
+    # 官方单镜像的默认 profile。standalone 复用 dev 的 SQLite 连接参数，
+    # 只覆盖「面向公网」的默认值，避免把开发期的 Swagger / 开放注册带进容器。
+    group:
+      standalone: dev
   # 连接池实现。classpath 上有 Druid 时 Spring Boot 本就会优先选它，这里写出来是为了
   # 「用的哪个池」在配置里可查，也避免以后误加 starter 时静默回退到 Hikari。
   # 注意这里必须是 DruidDataSource 的全限定名：写 DruidDataSourceWrapper 匹配不上 Druid 的条件。

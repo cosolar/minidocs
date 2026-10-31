@@ -1,0 +1,47 @@
+# 官方单镜像快速部署：前端 + 后端 + SQLite 全在一个容器里。
+#
+#   1) 准备两个必填变量（不要用默认口令上公网）
+#        export ADMIN_PASS='换成强密码'
+#        export JWT_SECRET="$(openssl rand -base64 48 | tr -dc 'A-Za-z0-9' | head -c 48)"
+#   2) 启动
+#        docker compose -f docker-compose.standalone.yml up -d
+#   3) 打开 http://服务器IP:9098
+#
+# 数据库默认是容器内 SQLite，文件在数据卷 minidocs-data 里，零外部依赖。
+# 要改用外部 MySQL：把 SPRING_PROFILES_ACTIVE 设为 prod，并取消下面 DB_* 的注释。
+#
+# 反向代理（HTTPS、域名）建议放在容器外：Nginx / Caddy / 1Panel 把请求转到 9098 即可，
+# 页面在 /、接口在 /api，不需要再剥 /minidocs 前缀。
+
+name: minidocs
+
+services:
+  minidocs:
+    image: ${MINIDOCS_IMAGE:-cosolar/minidocs:latest}
+    container_name: minidocs
+    restart: unless-stopped
+    ports:
+      # 默认绑 9098；只想让本机反代访问时改成 "127.0.0.1:9098:9098"
+      - "${MINIDOCS_PORT:-9098}:9098"
+    environment:
+      TZ: Asia/Shanghai
+      ADMIN_USER: ${ADMIN_USER:-admin}
+      ADMIN_PASS: ${ADMIN_PASS:?请先设置 ADMIN_PASS（管理员初始密码）}
+      JWT_SECRET: ${JWT_SECRET:?请先设置 JWT_SECRET（至少 32 个字符）}
+      REGISTER_ENABLED: ${REGISTER_ENABLED:-false}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      # 留空则按请求推导站点基址；配了域名后填 https://你的域名
+      PAGE_BASE_URL: ${PAGE_BASE_URL:-}
+      # 用 MySQL 时改成 prod，并补上下面三项
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-standalone}
+      # DB_URL: "jdbc:mysql://mysql:3306/minidocs?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useSSL=false"
+      # DB_USER: minidocs
+      # DB_PASSWORD: ${MYSQL_PASSWORD:?请设置数据库密码}
+    volumes:
+      # 文档正文、图片、头像、站点 Logo、主题包、SQLite 库、日志都在这里
+      - minidocs-data:/data
+    # JVM 堆 = 内存上限 × 0.75（Dockerfile 的 MaxRAMPercentage=75）
+    mem_limit: ${APP_MEMORY_LIMIT:-1g}
+
+volumes:
+  minidocs-data:

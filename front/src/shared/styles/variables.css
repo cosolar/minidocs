@@ -64,6 +64,13 @@
    */
   --md-read-scale: 1;
 
+  /*
+   * 正文字号的基准值（px）。阅读设置里的「字号」滑轨写它，markdown.css 由此派生
+   * 代码块、表格、脚注的字号 —— 调一处，整篇层级一起缩放。
+   * 15.5 是原先写死在样式表里的值，保持默认观感不变；后台预览与阅读页共用。
+   */
+  --md-read-size: 15.5px;
+
   /* 分享页顶栏导航字体：固定思源黑体，不跟读者正文字体偏好走（理由见 docs/DESIGN.md）。家族名三种叫法兜住，后面接系统字体栈 */
   --md-share-nav-font: 'Noto Sans SC', 'Source Han Sans SC', 'Source Han Sans CN', '思源黑体',
     -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB',
@@ -183,6 +190,112 @@
   --md-tk-meta: #8b949e;
 
   color-scheme: dark;
+}
+
+/*
+ * 阅读主题的「结构令牌」默认值（默认主题 = 保持原有版面，不改变任何观感）。
+ *
+ * <p><b>为什么声明在正文宿主上，而不是 :root：</b>自定义属性里的 {@code var()} 是在
+ * <b>声明它的元素</b>上完成替换的。写到 :root 的话，下面这些渐变会先把默认配色的
+ * {@code --md-ink-blue} / {@code --md-accent} 固化进去；主题包在 body 上覆盖了核心色，
+ * 结构色却还是旧的 —— 换主题时标题下划线、引用竖条、表头底纹全不跟着变。</p>
+ *
+ * <p>声明在这里，替换发生时读到的就是主题覆盖后的核心令牌。主题包注入的样式表在
+ * 运行时追加、同特异性下更靠后，所以包里的结构令牌能正常覆盖这些默认值。</p>
+ */
+body.md-page--read,
+.md-ws__editor .markdown-body {
+  --md-theme-line-height: 1.8;
+  --md-theme-heading-font: var(--md-read-font);
+  --md-theme-heading-weight: 650;
+  --md-theme-heading-color: var(--md-text);
+  --md-theme-heading-tracking: -0.011em;
+  --md-theme-heading-space-top: 1.9em;
+  --md-theme-heading-space-bottom: 0.75em;
+  --md-theme-h1-size: 1.85em;
+  --md-theme-h1-weight: 700;
+  --md-theme-h1-tracking: -0.02em;
+  --md-theme-h1-padding-bottom: 0.42em;
+  --md-theme-h1-rule: linear-gradient(
+    90deg,
+    var(--md-ink-blue) 0%,
+    var(--md-accent) 26%,
+    color-mix(in srgb, var(--md-accent) 22%, transparent) 58%,
+    transparent 100%
+  );
+  --md-theme-h1-rule-height: 3px;
+  --md-theme-h1-rule-radius: 3px;
+  --md-theme-h2-size: 1.42em;
+  --md-theme-h2-padding-left: 15px;
+  --md-theme-h2-padding-bottom: 0;
+  --md-theme-h2-border: 0;
+  --md-theme-h2-marker-width: 4px;
+  --md-theme-h2-marker-top: 0.14em;
+  --md-theme-h2-marker-bottom: 0.14em;
+  --md-theme-h2-marker-bg: linear-gradient(180deg, var(--md-ink-blue), var(--md-accent));
+  --md-theme-h2-marker-radius: 3px;
+  --md-theme-h3-size: 1.18em;
+  --md-theme-h3-padding-left: 17px;
+  --md-theme-h3-marker-size: 8px;
+  --md-theme-h3-marker-top: 0.42em;
+  --md-theme-h3-marker-bg: linear-gradient(135deg, var(--md-ink-blue), var(--md-accent));
+  --md-theme-h3-marker-radius: 2px;
+  --md-theme-h3-marker-transform: rotate(45deg);
+  --md-theme-h4-size: 1.05em;
+  --md-theme-h4-color: var(--md-ink-blue);
+  --md-theme-h5-color: var(--md-text-3);
+  --md-theme-para-spacing: 1em;
+  --md-theme-strong-color: color-mix(in srgb, var(--md-ink-blue) 30%, var(--md-text));
+  --md-theme-strong-weight: 650;
+  --md-theme-link-color: var(--md-primary);
+  --md-theme-link-underline: color-mix(in srgb, var(--md-primary) 32%, transparent);
+  --md-theme-link-hover: var(--md-primary-hover);
+  --md-theme-hr-bg: linear-gradient(
+    90deg,
+    transparent,
+    var(--md-border-strong) 16%,
+    color-mix(in srgb, var(--md-ink-blue) 38%, var(--md-border-strong)) 50%,
+    var(--md-border-strong) 84%,
+    transparent
+  );
+  --md-theme-list-marker: var(--md-accent);
+  --md-theme-list-marker-deep: var(--md-text-3);
+  --md-theme-list-ol-marker: var(--md-ink-blue);
+  --md-theme-quote-bg: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--md-ink-blue) 8%, transparent),
+    color-mix(in srgb, var(--md-ink-blue) 2%, transparent)
+  );
+  --md-theme-quote-bar-bg: linear-gradient(180deg, var(--md-ink-blue), var(--md-accent));
+  --md-theme-quote-bar-width: 3px;
+  --md-theme-quote-radius: 0 var(--md-radius-sm) var(--md-radius-sm) 0;
+  --md-theme-quote-color: var(--md-text-2);
+  --md-theme-inline-code-bg: color-mix(in srgb, var(--md-ink-teal) 10%, var(--md-surface-2));
+  --md-theme-inline-code-color: var(--md-ink-teal);
+  --md-theme-inline-code-radius: 6px;
+  --md-theme-code-radius: var(--md-radius);
+  --md-theme-code-shadow: var(--md-shadow-sm);
+  --md-theme-code-head-bg: color-mix(in srgb, var(--md-code-bg) 55%, var(--md-surface-2));
+  --md-theme-code-scale: 0.87;
+  --md-theme-table-radius: var(--md-radius);
+  --md-theme-table-bg: var(--md-surface);
+  --md-theme-table-border: var(--md-border);
+  --md-theme-table-head-bg: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--md-ink-blue) 11%, var(--md-surface-2)),
+    color-mix(in srgb, var(--md-ink-blue) 5%, var(--md-surface-2))
+  );
+  --md-theme-table-head-border: color-mix(in srgb, var(--md-ink-blue) 26%, var(--md-border));
+  --md-theme-table-even-bg: color-mix(in srgb, var(--md-ink-blue) 3%, transparent);
+  --md-theme-table-hover-bg: color-mix(in srgb, var(--md-ink-blue) 7%, transparent);
+  --md-theme-table-first-hover-color: var(--md-ink-blue);
+  --md-theme-table-scale: 0.935;
+  --md-theme-selection-bg: color-mix(in srgb, var(--md-primary) 22%, transparent);
+  --md-theme-footnote-color: var(--md-text-2);
+  --md-theme-footnote-scale: 0.87;
+  --md-theme-image-radius: var(--md-radius-sm);
+  --md-theme-dt-color: var(--md-ink-blue);
+  --md-theme-dd-border: var(--md-border);
 }
 
 /* 全局滚动条：一次定义覆盖所有可滚动元素。元素级规则特异性更高、仍会覆盖这里，所以那 20 处也已改为引用同一组令牌 */

@@ -26,7 +26,9 @@ export default defineConfig(({ mode }) => {
   // 用配置文件自身的位置当 env 目录，而不是 process.cwd()：tsconfig 的 types 只放了 vite/client，
   // Node 的全局（process）不在其中；而下面 fileURLToPath 已经从 node:url 导入了。
   const env = loadEnv(mode, fileURLToPath(new URL('.', import.meta.url)))
-  const backend = (env.VITE_BACKEND_BASE || DEFAULT_BACKEND_BASE).replace(/\/+$/, '')
+  // 用 ?? 而不是 ||：单镜像把前端打进 jar 时后端 context-path 为空，
+  // 此时 VITE_BACKEND_BASE 必须能显式传空串；|| 会把空串当成没配、又回落到 /minidocs。
+  const backend = (env.VITE_BACKEND_BASE ?? DEFAULT_BACKEND_BASE).replace(/\/+$/, '')
   const api = `${backend}/api`
 
   return {

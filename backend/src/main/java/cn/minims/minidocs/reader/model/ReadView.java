@@ -58,7 +58,7 @@ public class ReadView {
     private int tagCount;
 
     /**
-     * 目录树是否显示 {@code .md} 后缀（库级配置 {@code .minidocs.json} 的 display 分区）。
+     * 目录树是否显示 {@code .md} 后缀（库级配置的 display 分区，存在数据库）。
      *
      * <p><b>前端在渲染时剥后缀，不在后端剥</b>：{@code DocNode.name} 同时是「文件名」，
      * 工作区的重命名对话框就是拿它回填输入框的 —— 后端一旦剥掉，用户点开重命名就会

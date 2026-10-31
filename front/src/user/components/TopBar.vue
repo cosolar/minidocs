@@ -5,6 +5,7 @@ import Icon from '@/user/components/Icon.vue'
 import { useSessionStore } from '@/user/stores/session'
 import { useSearchPanel } from '@/user/composables/useSearchPanel'
 import { useSiteStore } from '@/shared/stores/site'
+import { DEFAULT_LOGO } from '@/shared/brand'
 import { appHref } from '@/shared/appBase'
 
 /**
@@ -99,13 +100,8 @@ async function logout() {
   <header class="md-topbar">
     <div class="md-topbar__inner">
       <router-link class="md-brand" to="/">
-        <span class="md-brand__logo" :class="{ 'is-image': site.value.logoSrc }" aria-hidden="true">
-          <img v-if="site.value.logoSrc" :src="site.value.logoSrc" alt="" />
-          <svg v-else viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="#fff"
-               stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M4 5.5A1.5 1.5 0 0 1 5.5 4H10a2 2 0 0 1 2 2v14a2 2 0 0 0-2-2H4z" />
-            <path d="M20 5.5A1.5 1.5 0 0 0 18.5 4H14a2 2 0 0 0-2 2v14a2 2 0 0 1 2-2h6z" />
-          </svg>
+        <span class="md-brand__logo is-image" :class="{ 'is-builtin': !site.value.logoSrc }" aria-hidden="true">
+          <img :src="site.value.logoSrc || DEFAULT_LOGO" alt="" />
         </span>
         <span class="md-brand__text">
           <strong>{{ site.value.name }}</strong>

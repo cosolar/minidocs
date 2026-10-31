@@ -71,8 +71,9 @@
    */
   font-size: 15.5px;
   line-height: 1.8;
-  font-size: calc(15.5px * var(--md-read-scale));
-  line-height: calc(1.8 / var(--md-read-scale));
+  /* 字号读读者设置；行高读当前主题，再按字体做视觉补偿（见 readerFont.ts） */
+  font-size: calc(var(--md-read-size, 15.5px) * var(--md-read-scale));
+  line-height: calc(var(--md-theme-line-height, 1.8) / var(--md-read-scale));
   overflow-wrap: break-word;
 }
 
@@ -82,10 +83,12 @@
 
 /* ------------------------------------------------------------------ 标题 */
 :is(.md-markdown, .md-ws__editor .markdown-body) :is(h1, h2, h3, h4, h5, h6) {
-  margin: 1.9em 0 0.75em;
-  font-weight: 650;
+  margin: var(--md-theme-heading-space-top, 1.9em) 0 var(--md-theme-heading-space-bottom, 0.75em);
+  font-family: var(--md-theme-heading-font, var(--md-read-font));
+  font-weight: var(--md-theme-heading-weight, 650);
   line-height: 1.35;
-  letter-spacing: -0.011em;
+  letter-spacing: var(--md-theme-heading-tracking, -0.011em);
+  color: var(--md-theme-heading-color, var(--md-text));
   /* 标题尽量不出现「末行只剩一两个字」的断法；浏览器不支持时自动忽略 */
   text-wrap: balance;
 }
@@ -93,24 +96,18 @@
 /* 一级标题通常就是文章标题，给它一点份量：字重更足、下压一条渐隐的蓝青分隔线 */
 :is(.md-markdown, .md-ws__editor .markdown-body) h1 {
   position: relative;
-  font-size: 1.85em;
-  font-weight: 700;
-  letter-spacing: -0.02em;
-  padding-bottom: 0.42em;
+  font-size: var(--md-theme-h1-size, 1.85em);
+  font-weight: var(--md-theme-h1-weight, 700);
+  letter-spacing: var(--md-theme-h1-tracking, -0.02em);
+  padding-bottom: var(--md-theme-h1-padding-bottom, 0.42em);
 }
 :is(.md-markdown, .md-ws__editor .markdown-body) h1::after {
   content: '';
   position: absolute;
   inset: auto 0 0 0;
-  height: 3px;
-  border-radius: 3px;
-  background: linear-gradient(
-    90deg,
-    var(--md-ink-blue) 0%,
-    var(--md-accent) 26%,
-    color-mix(in srgb, var(--md-accent) 22%, transparent) 58%,
-    transparent 100%
-  );
+  height: var(--md-theme-h1-rule-height, 3px);
+  border-radius: var(--md-theme-h1-rule-radius, 3px);
+  background: var(--md-theme-h1-rule);
 }
 
 /*
@@ -125,51 +122,56 @@
  */
 :is(.md-markdown, .md-ws__editor .markdown-body) h2 {
   position: relative;
-  font-size: 1.42em;
-  padding-left: 15px;
+  font-size: var(--md-theme-h2-size, 1.42em);
+  padding-left: var(--md-theme-h2-padding-left, 15px);
+  padding-bottom: var(--md-theme-h2-padding-bottom, 0);
+  border-bottom: var(--md-theme-h2-border, 0);
 }
 :is(.md-markdown, .md-ws__editor .markdown-body) h2::before {
   content: '';
   position: absolute;
   left: 0;
   /* 上下各收 0.14em，让竖条略短于行盒，看起来是「标在标题旁边」而不是「撑满一整行」 */
-  top: 0.14em;
-  bottom: 0.14em;
-  width: 4px;
-  border-radius: 3px;
-  background: linear-gradient(180deg, var(--md-ink-blue), var(--md-accent));
+  top: var(--md-theme-h2-marker-top, 0.14em);
+  bottom: var(--md-theme-h2-marker-bottom, 0.14em);
+  width: var(--md-theme-h2-marker-width, 4px);
+  border-radius: var(--md-theme-h2-marker-radius, 3px);
+  background: var(--md-theme-h2-marker-bg);
 }
 
 /* 三级标题：同色系的小菱形，比竖条轻一档，形成 h2 → h3 的层次递减 */
 :is(.md-markdown, .md-ws__editor .markdown-body) h3 {
   position: relative;
-  font-size: 1.18em;
-  padding-left: 17px;
+  font-size: var(--md-theme-h3-size, 1.18em);
+  padding-left: var(--md-theme-h3-padding-left, 17px);
 }
 :is(.md-markdown, .md-ws__editor .markdown-body) h3::before {
   content: '';
   position: absolute;
   left: 3px;
-  top: 0.42em;
-  width: 8px;
-  height: 8px;
-  border-radius: 2px;
-  background: linear-gradient(135deg, var(--md-ink-blue), var(--md-accent));
-  transform: rotate(45deg);
+  top: var(--md-theme-h3-marker-top, 0.42em);
+  width: var(--md-theme-h3-marker-size, 8px);
+  height: var(--md-theme-h3-marker-size, 8px);
+  border-radius: var(--md-theme-h3-marker-radius, 2px);
+  background: var(--md-theme-h3-marker-bg);
+  transform: var(--md-theme-h3-marker-transform, rotate(45deg));
 }
 
 /* 四级起不再加装饰：层级已经很深，再堆形状就成花纹了，改用文字色区分 */
 :is(.md-markdown, .md-ws__editor .markdown-body) h4 {
-  font-size: 1.05em;
-  color: var(--md-ink-blue);
+  font-size: var(--md-theme-h4-size, 1.05em);
+  color: var(--md-theme-h4-color, var(--md-ink-blue));
 }
-:is(.md-markdown, .md-ws__editor .markdown-body) :is(h5, h6) { font-size: 1em; color: var(--md-text-3); }
+:is(.md-markdown, .md-ws__editor .markdown-body) :is(h5, h6) {
+  font-size: 1em;
+  color: var(--md-theme-h5-color, var(--md-text-3));
+}
 
 /* 前台顶栏是常驻的，锚点跳转要留出顶栏高度；后台预览没有顶栏，保持原样即可 */
 .md-markdown :is(h1, h2, h3, h4, h5, h6) { scroll-margin-top: calc(var(--md-topbar-height) + 16px); }
 
 /* ------------------------------------------------------------------ 段落与行内 */
-:is(.md-markdown, .md-ws__editor .markdown-body) p { margin: 1em 0; }
+:is(.md-markdown, .md-ws__editor .markdown-body) p { margin: var(--md-theme-para-spacing, 1em) 0; }
 
 /*
  * 加粗：只做极轻的色调偏移，不做高亮底。
@@ -179,8 +181,8 @@
  * 的一档墨色：不扫读时几乎意识不到，需要找重点时它能浮出来。
  */
 :is(.md-markdown, .md-ws__editor .markdown-body) strong {
-  font-weight: 650;
-  color: color-mix(in srgb, var(--md-ink-blue) 30%, var(--md-text));
+  font-weight: var(--md-theme-strong-weight, 650);
+  color: var(--md-theme-strong-color);
 }
 
 :is(.md-markdown, .md-ws__editor .markdown-body) del { color: var(--md-text-3); }
@@ -206,15 +208,15 @@
  * 下划线用主色的低透明度，平时不抢眼，悬停时收成实色。
  */
 :is(.md-markdown, .md-ws__editor .markdown-body) a {
-  color: var(--md-primary);
+  color: var(--md-theme-link-color, var(--md-primary));
   text-decoration: underline;
-  text-decoration-color: color-mix(in srgb, var(--md-primary) 32%, transparent);
+  text-decoration-color: var(--md-theme-link-underline);
   text-decoration-thickness: 1px;
   text-underline-offset: 3px;
   transition: color 0.15s ease, text-decoration-color 0.15s ease;
 }
 :is(.md-markdown, .md-ws__editor .markdown-body) a:hover {
-  color: var(--md-primary-hover);
+  color: var(--md-theme-link-hover, var(--md-primary-hover));
   text-decoration-color: currentColor;
 }
 
@@ -223,15 +225,19 @@
   height: 1px;
   border: 0;
   margin: 2.6em 0;
-  background: linear-gradient(
-    90deg,
-    transparent,
-    var(--md-border-strong) 16%,
-    color-mix(in srgb, var(--md-ink-blue) 38%, var(--md-border-strong)) 50%,
-    var(--md-border-strong) 84%,
-    transparent
-  );
+  background: var(--md-theme-hr-bg);
 }
+
+/* ------------------------------------------------------------------ 原生 HTML 对齐 */
+/*
+ * 阅读端会把原生的 align / text-align 归一成这四个类（见 MarkdownService）：
+ * 白名单不放行 style，直接丢弃会让作者的居中块在阅读页塌成左对齐。
+ * 后台预览按原始 HTML 渲染，不经过这条归一，视觉结果与这里一致。
+ */
+:is(.md-markdown, .md-ws__editor .markdown-body) .md-align-left { text-align: left; }
+:is(.md-markdown, .md-ws__editor .markdown-body) .md-align-center { text-align: center; }
+:is(.md-markdown, .md-ws__editor .markdown-body) .md-align-right { text-align: right; }
+:is(.md-markdown, .md-ws__editor .markdown-body) .md-align-justify { text-align: justify; }
 
 /* ------------------------------------------------------------------ 列表 */
 :is(.md-markdown, .md-ws__editor .markdown-body) :is(ul, ol) { padding-left: 1.55em; margin: 1em 0; }
@@ -246,9 +252,12 @@
  * 但一级是「这一条是什么」的视觉起点，值一档颜色。二级起交回灰色 ——
  * 深层列表本来就密，再点色会连成一片青点。
  */
-:is(.md-markdown, .md-ws__editor .markdown-body) ul > li::marker { color: var(--md-accent); }
-:is(.md-markdown, .md-ws__editor .markdown-body) ul ul > li::marker { color: var(--md-text-3); }
-:is(.md-markdown, .md-ws__editor .markdown-body) ol > li::marker { color: var(--md-ink-blue); font-weight: 600; }
+:is(.md-markdown, .md-ws__editor .markdown-body) ul > li::marker { color: var(--md-theme-list-marker, var(--md-accent)); }
+:is(.md-markdown, .md-ws__editor .markdown-body) ul ul > li::marker { color: var(--md-theme-list-marker-deep, var(--md-text-3)); }
+:is(.md-markdown, .md-ws__editor .markdown-body) ol > li::marker {
+  color: var(--md-theme-list-ol-marker, var(--md-ink-blue));
+  font-weight: 600;
+}
 
 :is(.md-markdown, .md-ws__editor .markdown-body) li.task-list-item { list-style: none; margin-left: -1.35em; }
 :is(.md-markdown, .md-ws__editor .markdown-body) li.task-list-item input {
@@ -266,14 +275,10 @@
   position: relative;
   margin: 1.2em 0;
   padding: 0.75em 1.15em 0.75em 1.3em;
-  color: var(--md-text-2);
+  color: var(--md-theme-quote-color, var(--md-text-2));
   border: 0;
-  border-radius: 0 var(--md-radius-sm) var(--md-radius-sm) 0;
-  background: linear-gradient(
-    90deg,
-    color-mix(in srgb, var(--md-ink-blue) 8%, transparent),
-    color-mix(in srgb, var(--md-ink-blue) 2%, transparent)
-  );
+  border-radius: var(--md-theme-quote-radius);
+  background: var(--md-theme-quote-bg);
 }
 :is(.md-markdown, .md-ws__editor .markdown-body) blockquote::before {
   content: '';
@@ -281,15 +286,15 @@
   left: 0;
   top: 0;
   bottom: 0;
-  width: 3px;
+  width: var(--md-theme-quote-bar-width, 3px);
   border-radius: 3px;
-  background: linear-gradient(180deg, var(--md-ink-blue), var(--md-accent));
+  background: var(--md-theme-quote-bar-bg);
 }
 :is(.md-markdown, .md-ws__editor .markdown-body) blockquote p { margin: 0.35em 0; }
 :is(.md-markdown, .md-ws__editor .markdown-body) blockquote :is(ul, ol) { margin: 0.35em 0; }
 /* 引用块里再套引用：第二层的竖条压淡，避免两层同色竖条贴在一起看不出嵌套 */
 :is(.md-markdown, .md-ws__editor .markdown-body) blockquote blockquote::before {
-  background: color-mix(in srgb, var(--md-ink-blue) 45%, transparent);
+  opacity: 0.55;
 }
 
 /* ------------------------------------------------------------------ 代码 */
@@ -308,9 +313,9 @@
  */
 :is(.md-markdown, .md-ws__editor .markdown-body) :not(pre) > code {
   padding: 0.16em 0.42em;
-  border-radius: 6px;
-  background: color-mix(in srgb, var(--md-ink-teal) 10%, var(--md-surface-2));
-  color: var(--md-ink-teal);
+  border-radius: var(--md-theme-inline-code-radius, 6px);
+  background: var(--md-theme-inline-code-bg);
+  color: var(--md-theme-inline-code-color, var(--md-ink-teal));
 }
 
 :is(.md-markdown, .md-ws__editor .markdown-body) pre {
@@ -318,7 +323,7 @@
   margin: 1.25em 0;
   background: var(--md-code-bg);
   border: 1px solid var(--md-code-border);
-  border-radius: var(--md-radius);
+  border-radius: var(--md-theme-code-radius, var(--md-radius));
   overflow: hidden;
 }
 :is(.md-markdown, .md-ws__editor .markdown-body) pre code {
@@ -329,7 +334,8 @@
   border: 0;
   border-radius: 0;
   color: var(--md-code-text);
-  font-size: 13.5px;
+  /* 代码字号跟正文基准走：读者把正文调到 18px，代码不该还原地不动 */
+  font-size: calc(var(--md-read-size, 15.5px) * var(--md-theme-code-scale, 0.87));
   line-height: 1.7;
   tab-size: 4;
 }
@@ -351,10 +357,10 @@
   position: relative;
   margin: 1.25em 0;
   border: 1px solid var(--md-code-border);
-  border-radius: var(--md-radius);
+  border-radius: var(--md-theme-code-radius, var(--md-radius));
   overflow: hidden;
   background: var(--md-code-bg);
-  box-shadow: var(--md-shadow-sm);
+  box-shadow: var(--md-theme-code-shadow, var(--md-shadow-sm));
 }
 /*
  * 壳自己已经画了边框、圆角和上下外边距，里面的 pre 只负责承载代码，不能再画一层。
@@ -373,7 +379,7 @@
   align-items: center;
   gap: 8px;
   padding: 8px 12px;
-  background: color-mix(in srgb, var(--md-code-bg) 55%, var(--md-surface-2));
+  background: var(--md-theme-code-head-bg);
   border-bottom: 1px solid var(--md-code-border);
   font-size: 12px;
   color: var(--md-text-3);
@@ -475,9 +481,9 @@
  */
 .md-table-wrap {
   margin: 1.45em 0;
-  border: 1px solid var(--md-border);
-  border-radius: var(--md-radius);
-  background: var(--md-surface);
+  border: 1px solid var(--md-theme-table-border, var(--md-border));
+  border-radius: var(--md-theme-table-radius, var(--md-radius));
+  background: var(--md-theme-table-bg, var(--md-surface));
   box-shadow: var(--md-shadow-sm);
   overflow: auto;
   /* 表格窄于正文时才滚；顺手拦掉横向滚动链，避免拖到尽头带着整页一起跑 */
@@ -511,7 +517,7 @@
   overflow-x: auto;
   margin: 1.45em 0;
   border-collapse: collapse;
-  font-size: 14.5px;
+  font-size: calc(var(--md-read-size, 15.5px) * var(--md-theme-table-scale, 0.935));
 }
 
 /* 单元格：上下留白给足、行内元素垂直居中；分隔线只留横线，竖线在密集表格里太吵 */
@@ -520,7 +526,7 @@
   text-align: left;
   vertical-align: middle;
   border: 0;
-  border-bottom: 1px solid var(--md-border);
+  border-bottom: 1px solid var(--md-theme-table-border, var(--md-border));
   word-break: break-word;
 }
 
@@ -531,17 +537,13 @@
  * 平涂底色在圆角处会显得「切得很生硬」，渐变能把这一眼化开。
  */
 :is(.md-markdown, .md-ws__editor .markdown-body) table thead th {
-  background: linear-gradient(
-    180deg,
-    color-mix(in srgb, var(--md-ink-blue) 11%, var(--md-surface-2)),
-    color-mix(in srgb, var(--md-ink-blue) 5%, var(--md-surface-2))
-  );
+  background: var(--md-theme-table-head-bg);
   color: var(--md-text);
   font-size: 0.95em;
   font-weight: 650;
   letter-spacing: 0.01em;
   white-space: nowrap;
-  border-bottom: 1px solid color-mix(in srgb, var(--md-ink-blue) 26%, var(--md-border));
+  border-bottom: 1px solid var(--md-theme-table-head-border, var(--md-border));
 }
 
 /*
@@ -555,17 +557,19 @@
  * （都是 0,3,4），靠源码顺序分胜负 —— 写在前面的话悬停高亮会被斑马纹吃掉。
  */
 :is(.md-markdown, .md-ws__editor .markdown-body) table tbody tr:nth-child(even) :is(td, th) {
-  background: color-mix(in srgb, var(--md-ink-blue) 3%, transparent);
+  background: var(--md-theme-table-even-bg);
 }
 :is(.md-markdown, .md-ws__editor .markdown-body) table tbody tr:hover :is(td, th) {
-  background: color-mix(in srgb, var(--md-ink-blue) 7%, transparent);
+  background: var(--md-theme-table-hover-bg);
 }
 /* 悬停时首列转主色：技术表格里第一列几乎都是维度名，视线多半停在这一列 */
 :is(.md-markdown, .md-ws__editor .markdown-body) table tbody td:first-child {
   font-weight: 600;
   color: var(--md-text);
 }
-:is(.md-markdown, .md-ws__editor .markdown-body) table tbody tr:hover td:first-child { color: var(--md-ink-blue); }
+:is(.md-markdown, .md-ws__editor .markdown-body) table tbody tr:hover td:first-child {
+  color: var(--md-theme-table-first-hover-color, var(--md-ink-blue));
+}
 :is(.md-markdown, .md-ws__editor .markdown-body) table tbody tr:last-child :is(td, th) { border-bottom: 0; }
 
 /* 表格里的行内代码（参数名、类名之类）：底色再压实一点，行高窄的格子里不至于糊成一片 */
@@ -579,7 +583,9 @@
 :is(.md-markdown, .md-ws__editor .markdown-body) table :is(th, td) p { margin: 0.25em 0; }
 
 @media (max-width: 640px) {
-  :is(.md-markdown, .md-ws__editor .markdown-body) table { font-size: 13.5px; }
+  :is(.md-markdown, .md-ws__editor .markdown-body) table {
+    font-size: calc(var(--md-read-size, 15.5px) * 0.87);
+  }
   :is(.md-markdown, .md-ws__editor .markdown-body) table :is(th, td) { padding: 8px 11px; }
   /* 窄屏放不下不换行的表头，硬 nowrap 会把列撑得极宽 */
   :is(.md-markdown, .md-ws__editor .markdown-body) table thead th { white-space: normal; }
@@ -597,7 +603,7 @@
  */
 :is(.md-markdown, .md-ws__editor .markdown-body) img {
   max-width: 100%;
-  border-radius: var(--md-radius-sm);
+  border-radius: var(--md-theme-image-radius, var(--md-radius-sm));
   box-shadow:
     0 1px 3px rgba(24, 29, 51, 0.1),
     0 0 0 1px color-mix(in srgb, var(--md-border) 75%, transparent);
@@ -674,13 +680,13 @@
 :is(.md-markdown, .md-ws__editor .markdown-body) dt {
   margin-top: 1em;
   font-weight: 650;
-  color: var(--md-ink-blue);
+  color: var(--md-theme-dt-color, var(--md-ink-blue));
 }
 :is(.md-markdown, .md-ws__editor .markdown-body) dt:first-child { margin-top: 0; }
 :is(.md-markdown, .md-ws__editor .markdown-body) dd {
   margin: 0.3em 0 0;
   padding-left: 1.05em;
-  border-left: 2px solid var(--md-border);
+  border-left: 2px solid var(--md-theme-dd-border, var(--md-border));
   color: var(--md-text-2);
 }
 
@@ -702,15 +708,15 @@
   margin-top: 2.4em;
   padding-top: 1em;
   border-top: 1px solid var(--md-border);
-  color: var(--md-text-2);
-  font-size: 13.5px;
+  color: var(--md-theme-footnote-color, var(--md-text-2));
+  font-size: calc(var(--md-read-size, 15.5px) * var(--md-theme-footnote-scale, 0.87));
 }
 :is(.md-markdown, .md-ws__editor .markdown-body) .footnotes ol { padding-left: 1.2em; }
 /* 脚注回跳箭头压灰：它是个导航小控件，不该和正文里的链接抢注意力 */
 :is(.md-markdown, .md-ws__editor .markdown-body) .footnotes a { color: var(--md-text-3); text-decoration: none; }
 :is(.md-markdown, .md-ws__editor .markdown-body) .footnotes a:hover { color: var(--md-primary); }
 :is(.md-markdown, .md-ws__editor .markdown-body) ::selection {
-  background: color-mix(in srgb, var(--md-primary) 22%, transparent);
+  background: var(--md-theme-selection-bg);
 }
 
 .md-markdown .md-link-disabled {

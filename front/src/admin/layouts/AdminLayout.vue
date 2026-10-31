@@ -8,6 +8,7 @@ import { useAuthStore } from '@/admin/stores/auth'
 import { useOrgStore } from '@/admin/stores/org'
 import { useSettingsStore } from '@/shared/stores/settings'
 import { useSiteStore } from '@/shared/stores/site'
+import { DEFAULT_LOGO } from '@/shared/brand'
 import { appHref } from '@/shared/appBase'
 
 const route = useRoute()
@@ -255,13 +256,8 @@ watch(() => route.fullPath, () => {
   <div class="md-admin">
     <aside class="md-sidebar" :class="{ 'is-collapsed': navCollapsed, 'is-mobile-open': mobileNavOpen }">
       <router-link class="md-sidebar__brand" to="/console">
-        <span class="md-sidebar__logo" :class="{ 'is-image': site.value.logoSrc }" aria-hidden="true">
-          <img v-if="site.value.logoSrc" :src="site.value.logoSrc" alt="" />
-          <svg v-else viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="#fff"
-               stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M4 5.5A1.5 1.5 0 0 1 5.5 4H10a2 2 0 0 1 2 2v14a2 2 0 0 0-2-2H4z" />
-            <path d="M20 5.5A1.5 1.5 0 0 0 18.5 4H14a2 2 0 0 0-2 2v14a2 2 0 0 1 2-2h6z" />
-          </svg>
+        <span class="md-sidebar__logo is-image" :class="{ 'is-builtin': !site.value.logoSrc }" aria-hidden="true">
+          <img :src="site.value.logoSrc || DEFAULT_LOGO" alt="" />
         </span>
         <span v-if="!navCollapsed" class="md-sidebar__title">
           {{ site.value.name }}<small>管理后台</small>

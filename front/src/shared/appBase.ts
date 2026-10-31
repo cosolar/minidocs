@@ -26,7 +26,9 @@ export const PAGE_BASE = (import.meta.env.BASE_URL || '/').replace(/\/+$/, '')
  * <p>构建期可用 {@code VITE_BACKEND_BASE} 覆盖（与后端 {@code CONTEXT_PATH} 对齐）；
  * 不配就是默认的 {@code /minidocs}。改后端前缀时两边一起改，只改一边必然 404。</p>
  */
-export const BACKEND_BASE = (import.meta.env.VITE_BACKEND_BASE || '/minidocs')
+// 用 ??：单镜像里后端 context-path 为空，构建期注入的是空串；
+// 用 || 会把它当成没配、回落到 /minidocs，接口地址就全错了。
+export const BACKEND_BASE = (import.meta.env.VITE_BACKEND_BASE ?? '/minidocs')
   .trim()
   .replace(/\/+$/, '')
 

@@ -552,6 +552,8 @@
 /* 上传了自定义 Logo：换成中性底 + 发丝线，图片铺满，不再叠品牌渐变 */
 .md-footer__logo.is-image { background: var(--md-surface-2); box-shadow: none; border: 1px solid var(--md-border); }
 .md-footer__logo.is-image img { width: 100%; height: 100%; object-fit: cover; display: block; }
+/* 内置 Logo 自带透明底与圆形轮廓：去掉方框底板 */
+.md-footer__logo.is-image.is-builtin { background: transparent; border-color: transparent; }
 .md-footer__text { position: relative; z-index: 1; display: flex; flex-direction: column; line-height: 1.25; }
 .md-footer__text strong { font-size: 13.5px; font-weight: 600; color: var(--md-text); }
 .md-footer__text small { font-size: 11.5px; color: var(--md-text-3); }

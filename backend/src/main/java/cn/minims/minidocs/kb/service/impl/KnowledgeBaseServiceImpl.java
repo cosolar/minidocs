@@ -487,7 +487,7 @@ public class KnowledgeBaseServiceImpl extends ServiceImpl<KnowledgeBaseMapper, K
      * 把库级配置里的展示偏好填进 VO。
      *
      * <p>只有控制台详情走这里：它与 {@link #page} 的区别在于，<b>只有详情会渲染目录树</b>。
-     * 列表页每行不读一次配置文件是刻意的 —— 一页20 行就是 20 次小文件读，
+     * 列表页每行不读一次库级配置是刻意的 —— 一页 20 行就是 20 次查询，
      * 而列表里根本没有树要渲染，这个开销换不到任何东西。</p>
      *
      * <p>门户那几条链路同理不填：它们的卡片不显示文件名，不需要这个标志，
@@ -767,6 +767,8 @@ public class KnowledgeBaseServiceImpl extends ServiceImpl<KnowledgeBaseMapper, K
         removeById(kb.getId());
         favoriteMapper.delete(Wrappers.<KbFavorite>lambdaQuery().eq(KbFavorite::getKbId, kb.getId()));
         kbMemberMapper.delete(Wrappers.<KbMember>lambdaQuery().eq(KbMember::getKbId, kb.getId()));
+        // 配置行随事务删：库没删成功时它跟着回滚，与目录（提交后才删）的方向相反是有意的
+        vaultFileService.deleteConfig(kb.getStorageKey());
         eventPublisher.publishEvent(new KnowledgeBaseDeletedEvent(kb.getId()));
         deleteRootWhenCommitted(kb.getStorageKey());
         log.info("删除知识库 id={} slug={} storageKey={}", kb.getId(), kb.getSlug(), kb.getStorageKey());

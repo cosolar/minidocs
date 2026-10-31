@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import Icon from '@/user/components/Icon.vue'
 import { useSiteStore } from '@/shared/stores/site'
+import { DEFAULT_LOGO } from '@/shared/brand'
 
 const site = useSiteStore()
 /** 年份只在这里取运行时值：避免写死后逐年过期 */
@@ -20,9 +21,8 @@ const year = new Date().getFullYear()
   <footer class="md-footer">
     <div class="md-footer__inner">
       <div class="md-footer__brand">
-        <span class="md-footer__logo" :class="{ 'is-image': site.value.logoSrc }" aria-hidden="true">
-          <img v-if="site.value.logoSrc" :src="site.value.logoSrc" alt="" />
-          <Icon v-else name="books" :size="16" />
+        <span class="md-footer__logo is-image" :class="{ 'is-builtin': !site.value.logoSrc }" aria-hidden="true">
+          <img :src="site.value.logoSrc || DEFAULT_LOGO" alt="" />
         </span>
         <span class="md-footer__text">
           <strong>{{ site.value.name }}</strong>

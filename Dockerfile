@@ -1,23 +1,28 @@
+# syntax=docker/dockerfile:1
+
 # =============================================================================
-# MiniDocs 多阶段构建
+# MiniDocs 官方镜像：前端静态资源 + Spring Boot，一个进程、一个端口、一个数据卷。
 #
-#   front-builder   node  → front/dist      （接口前缀 /minidocs，与后端 context-path 对齐）
-#   backend-builder maven → minidocs.jar
-#   app             JRE + jar，监听 9098，只在 compose 网络内暴露
-#   web             Nginx + dist，站点根伺服页面，/minidocs/ 反代到 app
+#   浏览器 ──> :9098  Spring Boot（页面 /，接口 /api/**，SPA 回退 /index.html）
+#                        └── SQLite（默认）或外部 MySQL（SPRING_PROFILES_ACTIVE=prod）
 #
-# 两个运行镜像分开的理由：后端带 context-path（/minidocs），前端产物 base 在站点根（/），
-# 前缀不同源，只能由前置的 Nginx 合并成对外的一个入口。
+# 与 deploy/Dockerfile.split 的区别：那边是 Nginx + 后端两个进程、两个镜像；
+# 这里走「前端打进 jar、后端兼作静态服务器」的单体形态，部署只要一个容器。
 #
-# 构建：
-#   docker build --target app -t minidocs:1.2.0 .
-#   docker build --target web -t minidocs-web:1.2.0 .
+# 构建（默认 linux/amd64）：
+#   docker build -t <用户名>/minidocs:1.2.0 .
+#
+# 运行：
+#   docker run -d --name minidocs -p 9098:9098 \
+#     -e ADMIN_PASS='换成强密码' \
+#     -e JWT_SECRET="$(openssl rand -base64 48 | tr -dc 'A-Za-z0-9' | head -c 48)" \
+#     -v minidocs-data:/data \
+#     <用户名>/minidocs:1.2.0
 # =============================================================================
 
 ARG NODE_VERSION=20-alpine
 ARG MAVEN_VERSION=3.9-eclipse-temurin-17
 ARG JRE_VERSION=17-jre-jammy
-ARG NGINX_VERSION=1.27-alpine
 
 # ---------------------------------------------------------------- 1) 前端产物
 FROM node:${NODE_VERSION} AS front-builder
@@ -33,20 +38,18 @@ ARG NPM_REGISTRY=https://registry.npmmirror.com
 RUN npm config set registry ${NPM_REGISTRY} \
     && npm config set replace-registry-host always
 
-# 先只拷清单：源码改动时这一层仍命中缓存，不必重装依赖
-# 显式只取这两个文件，front/.npmrc（含明文 _authToken）绝不能进构建上下文
+# 显式只取清单与源码；front/.npmrc（含明文 _authToken）已在 .dockerignore 排除
 COPY front/package.json front/package-lock.json ./
 # NODE_ENV=production 时 npm ci 会跳过 devDependencies，而 vite 正是 devDependency，故显式 --include=dev
 RUN npm ci --include=dev
 
 COPY front/ ./
-# 不传 VITE_BACKEND_BASE：默认的 /minidocs 就是后端 context-path 的默认值，两边天然对齐。
-# 置空走「后端兼作静态服务器」的单体形态时，这里要改成 VITE_BACKEND_BASE= npm run build，
-# 同时把 compose 里的 CONTEXT_PATH 置空——只改一边必然 404。
-RUN npm run build
+# 单镜像里后端 context-path 为空，接口就在 /api；这里必须显式传空串把 VITE_BACKEND_BASE 置空。
+# 只改后端 CONTEXT_PATH 而不改这里，页面会去请求 /minidocs/api -> 全站 404。
+RUN VITE_BACKEND_BASE= npm run build
 
 
-# ---------------------------------------------------------------- 2) 后端 jar
+# ---------------------------------------------------------------- 2) 后端 jar（含前端产物）
 FROM maven:${MAVEN_VERSION} AS backend-builder
 WORKDIR /build/backend
 
@@ -58,47 +61,56 @@ COPY backend/pom.xml ./
 RUN mvn -B -q -s /build/maven-settings.xml dependency:go-offline
 
 COPY backend/src ./src
-RUN mvn -B -s /build/maven-settings.xml clean package -DskipTests
+# 仓库工作区里可能残留上一轮的前端产物（该目录被 .gitignore 排除），
+# 先清掉再放本次构建，避免旧 chunk 被打进 jar。
+RUN rm -rf src/main/resources/static
+COPY --from=front-builder /build/front/dist ./src/main/resources/static
+
+# 纯 Docker 构建里 dist 已就绪，测试交给 CI 工作流先行执行
+RUN mvn -B -s /build/maven-settings.xml clean package -DskipTests \
+    && mv target/minidocs.jar target/app.jar
 
 
-# ---------------------------------------------------------------- 3) 运行镜像：后端
-FROM eclipse-temurin:${JRE_VERSION} AS app
+# ---------------------------------------------------------------- 3) 运行镜像
+FROM eclipse-temurin:${JRE_VERSION}
 
-# 日志与时区：logback 写 ${VAULT_HOME}/logs，容器里没有 tzdata 时时间戳是 UTC
+LABEL org.opencontainers.image.title="MiniDocs" \
+      org.opencontainers.image.description="轻量级 Markdown 知识库与文档分享系统（前后端单镜像）" \
+      org.opencontainers.image.source="https://github.com/cosolar/minidocs" \
+      org.opencontainers.image.licenses="Apache-2.0"
+
+# 日志与时区：logback 写 ${VAULT_HOME}/logs；容器里没有 tzdata 时时间戳是 UTC
 RUN apt-get update \
     && apt-get install -y --no-install-recommends curl tzdata \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* \
+    && groupadd --gid 10001 minidocs \
+    && useradd --uid 10001 --gid minidocs --home-dir /app --no-create-home --shell /usr/sbin/nologin minidocs
 
+# 前端在站点根、接口在 /api：与构建时 VITE_BACKEND_BASE= 对齐
 ENV TZ=Asia/Shanghai \
-    SPRING_PROFILES_ACTIVE=prod \
+    LANG=C.UTF-8 \
+    SPRING_PROFILES_ACTIVE=standalone \
     PORT=9098 \
-    CONTEXT_PATH=/minidocs \
-    VAULT_HOME=/data \
-    LANG=C.UTF-8
+    CONTEXT_PATH="" \
+    VAULT_HOME=/data
 
 WORKDIR /app
-COPY --from=backend-builder /build/backend/target/minidocs.jar /app/app.jar
+COPY --from=backend-builder /build/backend/target/app.jar /app/app.jar
+COPY deploy/entrypoint.sh /app/entrypoint.sh
+# Windows 工作区签出时脚本可能带 CRLF，shebang 会变成 "#!/bin/sh\r" 而无法执行；
+# 构建期统一去掉 CR，避免「本地能跑、容器起不来」。
+RUN sed -i 's/\r$//' /app/entrypoint.sh \
+    && chmod 755 /app/entrypoint.sh \
+    && mkdir -p /data/logs /data/vaults /data/avatars /data/site \
+    && chown -R minidocs:minidocs /data
 
-# VAULT_HOME 必须在进程启动前就存在：logback 的 file appender 依赖它，SQLite 形态更是直接开文件
-RUN mkdir -p /data/logs /data/vaults /data/avatars /data/site
-
+# 数据卷：文档正文、库内资源、头像、站点 Logo、主题包、SQLite 库都在 /data
+VOLUME ["/data"]
 EXPOSE 9098
 
-# 探测走公开门户接口，而不是 /v3/api-docs：
-# prod profile 默认关闭 SpringDoc（对外暴露接口形状没有好处），
-# 继续探 api-docs 会让容器在生产环境永远 unhealthy，进而被 compose 反复重启。
-# /api/portal/site 无需登录、不返回正文，是最轻的存活探针。
+# 用公开门户接口探活：无需登录、不返回正文，且不依赖 Swagger（生产默认关闭）
 HEALTHCHECK --interval=30s --timeout=5s --start-period=90s --retries=5 \
-    CMD curl -fsS http://127.0.0.1:9098/minidocs/api/portal/site -o /dev/null || exit 1
+    CMD curl -fsS http://127.0.0.1:9098/api/portal/site -o /dev/null || exit 1
 
-# forward-headers-strategy 只能走启动参数：SERVER_FORWARD_HEADERS_STRATEGY 不是合法的
-# relaxed binding 名，挂在环境变量上会被静默忽略（DEPLOYMENT.md §7.1）
-ENTRYPOINT ["java", "-XX:MaxRAMPercentage=75.0", "-Duser.timezone=Asia/Shanghai", "-jar", "/app/app.jar"]
-CMD ["--server.forward-headers-strategy=framework"]
-
-
-# ---------------------------------------------------------------- 4) 运行镜像：前端
-FROM nginx:${NGINX_VERSION} AS web
-
-COPY deploy/nginx.conf /etc/nginx/conf.d/default.conf
-COPY --from=front-builder /build/front/dist /usr/share/nginx/html
+USER minidocs
+ENTRYPOINT ["/app/entrypoint.sh"]

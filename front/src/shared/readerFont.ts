@@ -23,9 +23,10 @@
  * <p>（正文宽度那个偏好没跟着一起放开，见 {@code readerWidth.ts}：那是「这一栏多宽」，
  * 门户阅读页的栏宽由两侧拖拽手柄决定，与「按百分比收窄」不是一回事。）</p>
  *
- * <p><b>为什么只有字体走这里、主题不走：</b>主题已有 {@code shared/stores/settings.ts} 那份
- * 单一来源（{@code themeMode} + {@code applyToDom}），再造一个就会和应用设置、后台设置页三处
- * 互相覆盖；访客页面改主题时用 store 上的 {@code patchLocal}，只本地持久化、不发网关。</p>
+ * <p><b>主题为什么不走这里：</b>阅读主题（配色包）需要从服务端拉取可安装 / 卸载的列表，
+ * 是异步且有缓存的，放在 {@code shared/readerTheme.ts} 单独维护；它同样只写根元素与页面上的
+ * CSS 变量，三者互不覆盖 —— 字体管 {@code --md-read-font}、字号管 {@code --md-read-size}、
+ * 主题管其余颜色令牌。</p>
  *
  * <p><b>关于在线字体：</b>除「默认系统字体」外，各款 webfont 都走 jsDelivr 的国内镜像
  * {@code cdn.jsdmirror.com}（只有那边有按 unicode-range 分片的版本，一篇正文命中几十片、每片几十 KB，

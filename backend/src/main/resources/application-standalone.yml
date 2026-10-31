@@ -1,0 +1,16 @@
+# 官方单镜像（Docker Hub minidocs）的默认 profile。
+#
+# 数据库参数不在这里重复：profile group 把 dev 一并引入，SQLite 连接沿用 application-dev.yml。
+# 本文件只覆盖「开箱即面向公网」时该改的默认值。
+minidocs:
+  # 公网默认关闭自助注册，由管理员建号；需要开放时 REGISTER_ENABLED=true
+  register-enabled: ${REGISTER_ENABLED:false}
+  # 留空表示按请求推导站点基址；部署在反代后面时由 forward-headers-strategy 识别协议
+  page-base-url: ${PAGE_BASE_URL:}
+
+# 接口文档对外公开等于摊开全部接口形状，默认关闭；排障时 SWAGGER_ENABLED=true
+springdoc:
+  api-docs:
+    enabled: ${SWAGGER_ENABLED:false}
+  swagger-ui:
+    enabled: ${SWAGGER_ENABLED:false}

@@ -6,6 +6,7 @@ import type {
   LoginResponse, MeVO, OrgMemberVO, OrgVO, PageResult, PathChangeVO, JoinRequestVO, RenderVO,
   ShareVO, SiteConfig, StatsVO, UserVO
 } from '@/shared/api/types'
+import type { ThemePack } from '@/shared/readerTheme'
 
 /* ------------------------------------------------------------------ 认证 */
 export const authApi = {
@@ -330,6 +331,28 @@ export const siteApi = {
     })
   },
   removeLogo: () => request<SiteConfig>({ url: '/platform/site/logo', method: 'delete' })
+}
+
+/* ------------------------------------------------------------------ 阅读主题 */
+/**
+ * 主题包管理：安装 / 卸载 / 恢复内置。
+ *
+ * <p>读也走平台接口而不是 {@code /portal/themes}：管理端要看到 {@code builtin} 标记与
+ * 已卸载前的原始信息，公开接口面向读者、没有必要暴露这些管理语义。两者返回的令牌结构相同。</p>
+ */
+export const themeApi = {
+  list: () => request<ThemePack[]>({ url: '/platform/site/themes' }),
+  install: (file: File) => {
+    const form = new FormData()
+    form.append('file', file)
+    return request<ThemePack>({
+      url: '/platform/site/themes', method: 'post', data: form,
+      headers: { 'Content-Type': 'multipart/form-data' }
+    })
+  },
+  uninstall: (id: string) =>
+    request<void>({ url: `/platform/site/themes/${encodeURIComponent(id)}`, method: 'delete' }),
+  reseed: () => request<ThemePack[]>({ url: '/platform/site/themes/reseed', method: 'post' })
 }
 
 /* 全局搜索面板（Ctrl/⌘+K）在门户与管理台共用同一份，走 {@code user/api} 的 searchApi：

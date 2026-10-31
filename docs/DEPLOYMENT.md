@@ -10,6 +10,8 @@
 开发与本地启动见 [DEVELOPMENT.md](DEVELOPMENT.md)；功能与权限规范见
 [多租户知识库权限与功能规范.md](多租户知识库权限与功能规范.md)。
 
+> 只想最快跑起来：官方单镜像一条命令即可，见 [13. 官方镜像（Docker Hub）](#13-官方镜像docker-hub)。
+
 ---
 
 ## 目录
@@ -23,9 +25,10 @@
 - [7. 常驻运行与升级](#7-常驻运行与升级)
 - [8. 配置参考](#8-配置参考)
 - [9. 上线检查清单](#9-上线检查清单)
-- [10. 库级配置 `.minidocs.json`](#10-库级配置-minidocsjson)
+- [10. 库级配置（隐藏 / 顺序 / 显示）](#10-库级配置隐藏--顺序--显示)
 - [11. 库内图片](#11-库内图片)
 - [12. 故障排查](#12-故障排查)
+- [13. 官方镜像（Docker Hub）](#13-官方镜像docker-hub)
 
 ---
 
@@ -575,14 +578,21 @@ DRUID_MONITOR_PASSWORD=换成强密码
 
 ---
 
-## 10. 库级配置 `.minidocs.json`
+## 10. 库级配置（隐藏 / 顺序 / 显示）
 
-放在**知识库根目录**（与 `README.md` 同级），跟着云库的 Git 一起走。以 `.` 开头，
-所以它自己不会出现在目录树里。
+存在**数据库**的 `kb_config` 表里：每个知识库一行，主键是它的 `storage_key`
+（`o{tenantId}/{slug}`），内容是 JSON。它**不在知识库目录里**，因此 Git 拉取、强制覆盖、
+换仓库地址都不会把它删掉。
+
+> **从旧版本升级**：早期版本把这份配置写在库根的 `.minidocs.json`。升级后，某个库第一次
+> 被读取时若数据库里没有对应行，会自动把该文件导入数据库。文件本身保留（它可能已被作者
+> 提交进仓库），但**之后不再读取也不再写回** —— 改它不会生效。
 
 ### 隐藏规则
 
-哪些文件与目录不展示。**工作区 → 顶栏「设置」→「隐藏配置」**里勾选即可，也可以直接写文件：
+哪些文件与目录不展示。**工作区 → 顶栏「设置」→「隐藏配置」**里勾选即可。
+
+规则的数据形状（存在数据库里，也用于理解迁移过来的旧文件）：
 
 ```json
 {
@@ -595,8 +605,8 @@ DRUID_MONITOR_PASSWORD=换成强密码
 | 精确路径 | `"drafts"`、`"notes/private.md"` | 目录命中即**整棵子树**不再遍历 |
 | glob | `"**/_*"`、`"drafts/*"` | JDK `glob:` 语法；`*` 不跨目录，`**` 跨目录 |
 
-配置落在同一个文件里，与顺序清单共存（`order` 键）。旧格式（顶层每个数组键是「目录路径 → 有序数组」）
-继续能读。
+同一份配置里还有顺序清单（`order` 键）与显示选项（`display` 键）。旧格式（顶层每个数组键是
+「目录路径 → 有序数组」）继续能读。
 
 **生效范围**（三处口径必须一致，漏一处就会「目录里没有、搜却搜得到」）：
 
@@ -611,12 +621,13 @@ DRUID_MONITOR_PASSWORD=换成强密码
 两个易踩的点：
 
 - 配置写坏了只 `log.warn` 一条然后按「无配置」继续 —— 宁可多显示，也不会让文档凭空消失。
-- 改完**刷新即可**生效：目录树缓存键带了配置文件的 mtime，不用等缓存轮完。
+- 改完**刷新即可**生效：目录树缓存键带了配置的 `updated_at`，写入时也会主动失效缓存。
 
-### 手工编辑
+### 编辑与清理
 
-界面上勾选最省事；需要批量或用 glob 时直接改文件，改完刷新页面。
-`order`（顺序清单）与 `hidden` 共用 `.minidocs.json`，保存时两个分区一起写回，不会互相抹掉。
+界面上勾选最省事；需要批量或用 glob 时调接口写入。
+`order`、`hidden`、`display` 保存时整份写回，不会互相抹掉。
+删除知识库时配置行一并删除，同 `storage_key` 被新库复用时不会继承旧规则。
 
 ---
 
@@ -675,10 +686,108 @@ markdown 引用的本地图片大多就躺在文档旁边的 `images/` 里。目
 | 外链图片裂开，但服务端日志里那条请求是 200 | **不是跨域问题**：`<img>` 是简单请求，不受 CORS 约束，浏览器不会发预检。服务端 200 + 页面空白，几乎总是 CSP | 查 F12 里那条请求的「已屏蔽」原因，别顺着跨域方向查 |
 | 发版后「没生效」，强刷一下就好 | `index.html` 既无 `Cache-Control` 也无 `expires`，只有 `ETag`；浏览器套用启发式缓存，在有效期内直接用本地副本、连条件请求都不发 | 入口页设 `expires -1`（不要用 `add_header`，它会顶掉同级那些安全头）；`/assets/` 保持 `expires 365d` |
 | `docker compose up -d` 后配置没生效 | 镜像 tag 相同（如 `minidocs-web:1.2.0`），Compose 判定无需重建，复用了旧容器 | 改部署配置后用 `--force-recreate`，或给镜像换 tag |
-| 目录里少了某些文件/文件夹 | `.minidocs.json` 里配了 `hidden`，工作区「设置 → 隐藏配置」勾选的就是它 | 取消勾选即可。规则相对库根，如 `["drafts", "notes/private.md", "**/_*"]`；配坏的文件按「无配置」处理（宁可多显示，不会让文档消失） |
+| 目录里少了某些文件/文件夹 | 数据库 `kb_config` 里配了 `hidden`，工作区「设置 → 隐藏配置」勾选的就是它 | 取消勾选即可。规则相对库根，如 `["drafts", "notes/private.md", "**/_*"]`；配置坏行按「无配置」处理（宁可多显示，不会让文档消失） |
 | 隐藏了目录，但改地址栏 `?path=` 仍打得开 | 直达路径的入口此前不套隐藏规则 | 现已在 `DocServiceImpl#read` 与单篇分享处拦截并返回 404；若仍有遗漏入口，按「凡能拿路径取到内容就得问一次」逐个排查 |
 | 容器一直 unhealthy、反复重启 | 健康检查探的是 `/v3/api-docs`，而 prod 默认关闭 SpringDoc | 健康检查已改为探 `/api/portal/site`（无需登录的公开接口） |
 
 日志位置：`VAULT_HOME/logs/`（`logback-spring.xml` 里定义了 4 个 appender），
 或直接 `journalctl -u minidocs -f`。接口问题先看 `X-Trace-Id` 响应头，
 它与日志里的 traceId 对应。
+
+---
+
+## 13. 官方镜像（Docker Hub）
+
+不想自己构建前后端、也不想维护 Nginx：用官方单镜像。前端产物已经打进 jar，
+**一个容器 = 页面 + 接口 + SQLite**，数据落在 `/data` 卷里。
+
+### 13.1 一条命令启动
+
+```bash
+export ADMIN_PASS='换成强密码'
+export JWT_SECRET="$(openssl rand -base64 48 | tr -dc 'A-Za-z0-9' | head -c 48)"
+
+cd deploy
+docker compose -f docker-compose.standalone.yml up -d
+```
+
+或不用 compose：
+
+```bash
+docker run -d --name minidocs -p 9098:9098 \
+  -e ADMIN_PASS='换成强密码' \
+  -e JWT_SECRET='至少32个字符的随机串' \
+  -v minidocs-data:/data \
+  cosolar/minidocs:latest
+```
+
+打开 `http://服务器IP:9098`，用 `admin` + 你设置的 `ADMIN_PASS` 登录。
+页面在站点根 `/`，接口在 `/api/**`——单镜像里没有 `/minidocs` 这一段，反代不需要剥前缀。
+
+### 13.2 必填与常用环境变量
+
+| 变量 | 必需 | 默认 | 说明 |
+| --- | --- | --- | --- |
+| `ADMIN_PASS` | 是 | 无 | 首次启动创建内置管理员的密码；缺失直接拒绝启动 |
+| `JWT_SECRET` | 是 | 无 | 登录态签名密钥，**≥ 32 字符**；换掉后所有已登录会话失效 |
+| `ADMIN_USER` | 否 | `admin` | 管理员用户名，仅首次初始化生效 |
+| `REGISTER_ENABLED` | 否 | `false` | 官方镜像默认关闭自助注册；需要开放时置 `true` |
+| `PAGE_BASE_URL` | 否 | 空 | 站点基址（`https://kb.example.com`）；留空按请求推导 |
+| `SPRING_PROFILES_ACTIVE` | 否 | `standalone` | 默认 SQLite；改用 MySQL 时置 `prod` |
+| `DB_URL` / `DB_USER` / `DB_PASSWORD` | 用 MySQL 时 | 无 | `prod` profile 的连接参数 |
+| `LOG_LEVEL` | 否 | `info` | 日志级别 |
+
+管理员口令与 JWT 密钥都不设默认值，是刻意的：官方镜像一旦带默认口令，很容易被直接搬上公网。
+
+### 13.3 数据与备份
+
+`/data` 一个卷装全部状态：
+
+```
+/data
+├── minidocs.db          # SQLite（standalone profile）
+├── vaults/              # 文档正文与库内资源
+├── avatars/             # 用户头像
+├── site/                # 站点 Logo、阅读主题包
+└── logs/                # 运行日志
+```
+
+备份就是打包这个卷；迁移机器时把卷内容拷到新机器的同名卷即可。SQLite 形态建议先
+`docker compose stop` 再拷，避免拿到写了一半的 WAL。
+
+### 13.4 改用外部 MySQL
+
+```yaml
+environment:
+  SPRING_PROFILES_ACTIVE: prod
+  DB_URL: "jdbc:mysql://mysql:3306/minidocs?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useSSL=false"
+  DB_USER: minidocs
+  DB_PASSWORD: ${MYSQL_PASSWORD}
+```
+
+表仍由 `DbMigrator` 启动时自动迁移，空库即可。MySQL 容器与本容器要在同一 Docker 网络里。
+
+### 13.5 标签与发布
+
+镜像地址 `cosolar/minidocs`，标签跟着 git tag 走：
+
+| 标签 | 含义 |
+| --- | --- |
+| `latest` | 最近一次发布 |
+| `X.Y` | 该大版本的最新补丁 |
+| `X.Y.Z` | 固定版本，适合生产复现 |
+
+只发布 `linux/amd64`。Apple Silicon 上运行需要 `--platform linux/amd64`（走模拟，速度较慢）。
+
+发布由 GitHub Actions 完成：`.github/workflows/docker-publish.yml`，推送 `v*` 标签或手动触发。
+仓库需配置两个 Secrets：`DOCKERHUB_USERNAME`、`DOCKERHUB_TOKEN`（Docker Hub Access Token，
+不是登录密码）。工作流会先跑后端测试和前端构建，任一失败都不会覆盖 `latest`。
+
+本地想自己构建同一个镜像：
+
+```bash
+docker build -t cosolar/minidocs:dev .
+```
+
+默认 profile 是 `standalone`（SQLite），容器内以非 root 用户运行；用 bind mount 挂 `/data` 时
+需要让目录对 UID `10001` 可写，命名卷则不用管。

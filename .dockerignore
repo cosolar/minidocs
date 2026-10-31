@@ -7,6 +7,9 @@
 .vscode
 .codebuddy
 .workbuddy
+.workbuddy-ai
+.verify
+.github
 **/.DS_Store
 
 # 前端
@@ -21,6 +24,8 @@
 # 后端构建产物与本机数据（VAULT_HOME）
 **/target
 **/data
+# 历史遗留的前端产物（Dockerfile 会用本次构建结果重新生成）
+backend/src/main/resources/static
 **/*.db
 **/*.db-shm
 **/*.db-wal

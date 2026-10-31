@@ -11,10 +11,13 @@
  * 最后这一层要求同源部署，反代后面直接用会让链接指向内网地址。</p>
  */
 import { computed, onMounted, reactive, ref } from 'vue'
-import { ElMessage } from 'element-plus'
-import { siteApi } from '@/admin/api'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import { siteApi, themeApi } from '@/admin/api'
 import MdIcon from '@/admin/components/MdIcon.vue'
 import { useSiteStore } from '@/shared/stores/site'
+import { DEFAULT_LOGO } from '@/shared/brand'
+import { DEFAULT_THEME, themeSwatch, type ThemePack } from '@/shared/readerTheme'
+import { downloadThemeTemplate } from '@/shared/themeTemplate'
 
 const site = useSiteStore()
 
@@ -106,7 +109,96 @@ async function removeLogo() {
   ElMessage.success('Logo 已移除')
 }
 
-onMounted(load)
+/* ------------------------------------------------------------------ 阅读主题 */
+/*
+ * 主题包是「服务器侧的文件」：装着几张 JSON，读者的浏览器拉列表后自己拼样式。
+ * 所以这里不需要构建或发布前端 —— 装上刷新生效，卸载同理。默认主题不在文件里，
+ * 它由样式表本身提供，列出来只为让管理员看到「可选项里还有它」，不提供卸载。
+ */
+const themes = ref<ThemePack[]>([])
+const themesLoading = ref(false)
+const themeUploading = ref(false)
+const themeReseeding = ref(false)
+const themeFileRef = ref<HTMLInputElement | null>(null)
+
+const themeCards = computed(() =>
+  [DEFAULT_THEME, ...themes.value].map((pack) => ({
+    pack,
+    light: themeSwatch(pack, 'light'),
+    dark: themeSwatch(pack, 'dark')
+  }))
+)
+
+async function loadThemes() {
+  themesLoading.value = true
+  try {
+    themes.value = await themeApi.list()
+  } finally {
+    themesLoading.value = false
+  }
+}
+
+function pickThemeFile() {
+  themeFileRef.value?.click()
+}
+
+async function onThemeFile(event: Event) {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  input.value = ''
+  if (!file) return
+  if (!file.name.toLowerCase().endsWith('.json')) {
+    ElMessage.warning('主题包必须是 .json 文件')
+    return
+  }
+  themeUploading.value = true
+  try {
+    const pack = await themeApi.install(file)
+    ElMessage.success(`主题「${pack.name}」已安装`)
+    await loadThemes()
+  } finally {
+    themeUploading.value = false
+  }
+}
+
+async function uninstallTheme(pack: ThemePack) {
+  try {
+    await ElMessageBox.confirm(
+      `卸载后读者将看不到「${pack.name}」；已经选了它的浏览器会自动回落到默认主题。`,
+      '卸载主题',
+      { type: 'warning', confirmButtonText: '卸载', cancelButtonText: '取消' }
+    )
+  } catch {
+    return
+  }
+  await themeApi.uninstall(pack.id)
+  ElMessage.success('主题已卸载')
+  await loadThemes()
+}
+
+async function reseedThemes() {
+  try {
+    await ElMessageBox.confirm(
+      '内置主题会被重新写入并覆盖同名文件；你在这些文件里的手改也会一起被覆盖。',
+      '恢复内置主题',
+      { type: 'warning', confirmButtonText: '恢复', cancelButtonText: '取消' }
+    )
+  } catch {
+    return
+  }
+  themeReseeding.value = true
+  try {
+    themes.value = await themeApi.reseed()
+    ElMessage.success('内置主题已恢复')
+  } finally {
+    themeReseeding.value = false
+  }
+}
+
+onMounted(() => {
+  void load()
+  void loadThemes()
+})
 </script>
 
 <template>
@@ -154,8 +246,7 @@ onMounted(load)
       <div class="md-panel-body">
         <div class="md-site-logo">
           <span class="md-site-logo__preview">
-            <img v-if="logoSrc" :src="logoSrc" alt="站点 Logo" />
-            <MdIcon v-else name="image" :size="22" />
+            <img :src="logoSrc || DEFAULT_LOGO" alt="站点 Logo" />
           </span>
           <div class="md-site-logo__meta">
             <div class="md-site-logo__title">品牌图标</div>
@@ -173,6 +264,79 @@ onMounted(load)
         <input ref="fileRef" type="file" accept="image/*" hidden @change="onFile" />
         <p class="md-copy-hint">
           Logo 同时会用作浏览器标签页图标（favicon）。换图即换地址，浏览器不必再做缓存失效判断。
+        </p>
+      </div>
+    </div>
+
+    <div v-loading="themesLoading" class="md-card-panel">
+      <div class="md-panel-head">
+        <h2>阅读主题</h2>
+        <span class="md-ad-chip">读者可选</span>
+      </div>
+      <div class="md-panel-body">
+        <p class="md-copy-hint">
+          读者在阅读页 / 分享页的「阅读设置」里挑主题；每套主题自带明亮与暗黑两档，
+          与现有的外观切换相互独立。装好的主题会出现在所有读者的面板里，刷新即生效。
+        </p>
+
+        <div class="md-theme-grid">
+          <div v-for="card in themeCards" :key="card.pack.id" class="md-theme-card">
+            <div class="md-theme-card__swatch" aria-hidden="true">
+              <span class="md-theme-card__half" :style="{ background: card.light.bg }">
+                <i class="md-theme-card__bar" :style="{ background: card.light.primary }"></i>
+                <i class="md-theme-card__bar is-thin" :style="{ background: card.light.accent }"></i>
+              </span>
+              <span class="md-theme-card__half is-dark" :style="{ background: card.dark.bg }">
+                <i class="md-theme-card__bar" :style="{ background: card.dark.primary }"></i>
+                <i class="md-theme-card__bar is-thin" :style="{ background: card.dark.accent }"></i>
+              </span>
+            </div>
+            <div class="md-theme-card__head">
+              <strong class="md-theme-card__name">{{ card.pack.name }}</strong>
+              <span class="md-theme-card__tag">{{ card.pack.id === DEFAULT_THEME.id ? '默认' : (card.pack.builtin ? '内置' : '自定义') }}</span>
+            </div>
+            <p class="md-theme-card__desc">{{ card.pack.description || '（无描述）' }}</p>
+            <div class="md-theme-card__foot">
+              <span class="md-theme-card__meta">
+                {{ card.pack.author || '未知作者' }}<template v-if="card.pack.version"> · v{{ card.pack.version }}</template>
+              </span>
+              <el-button
+                v-if="card.pack.id !== DEFAULT_THEME.id"
+                type="danger"
+                link
+                size="small"
+                @click="uninstallTheme(card.pack)"
+              >
+                卸载
+              </el-button>
+              <span v-else class="md-theme-card__meta">不可卸载</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="md-theme-actions">
+          <el-button :loading="themeUploading" @click="pickThemeFile">
+            <MdIcon name="upload" :size="14" />安装主题包
+          </el-button>
+          <el-button :loading="themeReseeding" @click="reseedThemes">
+            <MdIcon name="refresh" :size="14" />恢复内置主题
+          </el-button>
+          <el-button link @click="downloadThemeTemplate">
+            <MdIcon name="download" :size="14" />下载模板
+          </el-button>
+        </div>
+        <input
+          ref="themeFileRef"
+          type="file"
+          accept=".json,application/json"
+          hidden
+          @change="onThemeFile"
+        />
+
+        <p class="md-copy-hint">
+          主题包是只描述颜色与排版参数的 JSON，不能携带任意 CSS。每档的令牌名必须一致，
+          单个文件不超过 64KB；从「下载模板」改起最省事，令牌说明见
+          <code>docs/THEMES.md</code>。
         </p>
       </div>
     </div>
@@ -215,5 +379,86 @@ onMounted(load)
   gap: 8px;
   flex-wrap: wrap;
   margin-top: 10px;
+}
+
+/* 阅读主题：卡片网格 + 明暗双格小样。色值来自主题包本身，不在这里写死 */
+.md-theme-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 12px;
+  margin: 14px 0;
+}
+.md-theme-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--md-border);
+  border-radius: var(--md-radius-sm);
+  background: var(--md-surface);
+}
+.md-theme-card__swatch {
+  display: flex;
+  height: 46px;
+  border-radius: 7px;
+  overflow: hidden;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .08);
+}
+.md-theme-card__half {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 3px;
+  padding: 8px;
+}
+.md-theme-card__half.is-dark { border-left: 1px solid rgba(255, 255, 255, .16); }
+.md-theme-card__bar { height: 4px; border-radius: 2px; }
+.md-theme-card__bar.is-thin { width: 62%; height: 3px; opacity: .8; }
+.md-theme-card__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.md-theme-card__name {
+  font-size: 14px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.md-theme-card__tag {
+  flex-shrink: 0;
+  padding: 1px 6px;
+  border-radius: 999px;
+  border: 1px solid var(--md-border);
+  color: var(--md-text-3);
+  font-size: 11px;
+}
+.md-theme-card__desc {
+  flex: 1;
+  margin: 0;
+  color: var(--md-text-2);
+  font-size: 12.5px;
+  line-height: 1.6;
+}
+.md-theme-card__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 24px;
+}
+.md-theme-card__meta {
+  color: var(--md-text-3);
+  font-size: 11.5px;
+}
+.md-theme-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
 }
 </style>

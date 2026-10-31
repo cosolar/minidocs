@@ -75,6 +75,8 @@ button { font-family: inherit; }
 /* 上传了自定义 Logo：换成中性底 + 发丝线，图片铺满，不再叠品牌渐变 */
 .md-brand__logo.is-image { background: var(--md-surface-2); box-shadow: none; border: 1px solid var(--md-border); }
 .md-brand__logo.is-image img { width: 100%; height: 100%; object-fit: cover; display: block; }
+/* 内置 Logo 自带透明底与圆形轮廓：去掉方框底板，免得圆标外面再套一层圆角方块 */
+.md-brand__logo.is-image.is-builtin { background: transparent; border-color: transparent; }
 .md-brand__text { display: flex; flex-direction: column; line-height: 1.15; }
 .md-brand__text strong { font-size: 15px; }
 .md-brand__text small { font-size: 11px; color: var(--md-text-3); }
@@ -1028,6 +1030,7 @@ button { font-family: inherit; }
 .md-share__top .md-brand__text small { color: var(--md-text-3); }
 /* 上传的自定义 Logo 换成中性底 + 发丝线，浅色横带上才不突兀 */
 .md-share__top .md-brand__logo.is-image { background: var(--md-surface-2); border-color: var(--md-border); }
+.md-share__top .md-brand__logo.is-image.is-builtin { background: transparent; border-color: transparent; }
 /* 知识库与导航菜单之间比别处多一档空档：两组性质不同（一个是身份、一个是导航） */
 .md-share__top .md-share__menu { margin-left: 4px; }
 .md-share__actions { margin-left: auto; display: flex; align-items: center; gap: 10px; }
@@ -1064,7 +1067,11 @@ button { font-family: inherit; }
 .md-share__action.is-on { border-color: var(--md-primary); background: var(--md-primary-soft); color: var(--md-primary); }
 
 .md-prefs { position: relative; }
-.md-prefs__panel { min-width: 264px; padding: 6px; }
+.md-prefs__panel {
+  min-width: 286px; padding: 6px;
+  /* 主题卡片把面板撑高了一截：给个上限，避免在小屏上顶到视口外 */
+  max-height: min(78vh, 640px); overflow-y: auto; overscroll-behavior: contain;
+}
 .md-prefs__row { padding: 7px 8px; }
 .md-prefs__label { display: block; margin-bottom: 7px; color: var(--md-text-3); font-size: 11.5px; letter-spacing: .02em; }
 
@@ -1084,6 +1091,46 @@ button { font-family: inherit; }
   background: var(--md-surface); color: var(--md-primary);
   box-shadow: var(--md-shadow-sm); font-weight: 600;
 }
+
+/*
+ * 主题卡片：左边半格是这套主题的明亮档、右边半格是暗黑档，两格都是「底色 + 主强调 + 次强调」
+ * 的迷你样张。读者不用先点进去才知道「铅字」长什么样。
+ *
+ * 样张色值由 readerTheme.ts 的 themeSwatch() 从主题包自己的令牌里取，选择器这里不写死任何颜色 ——
+ * 新装一套主题，卡片自动就有预览。
+ */
+.md-prefs__themes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+.md-prefs__theme {
+  position: relative; display: flex; align-items: center; gap: 8px;
+  min-width: 0; padding: 5px 8px 5px 5px;
+  border: 1px solid var(--md-border); border-radius: 9px; background: var(--md-surface);
+  color: var(--md-text); font-family: inherit; text-align: left; cursor: pointer;
+  transition: border-color .15s ease, background-color .15s ease, box-shadow .15s ease;
+}
+.md-prefs__theme:hover { border-color: var(--md-primary); }
+.md-prefs__theme.is-on {
+  border-color: var(--md-primary);
+  background: var(--md-primary-soft);
+  box-shadow: 0 0 0 2px var(--md-primary-soft);
+}
+.md-prefs__theme-swatch {
+  display: flex; flex-shrink: 0; width: 46px; height: 30px;
+  border-radius: 6px; overflow: hidden;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .08);
+}
+.md-prefs__theme-half {
+  position: relative; flex: 1; min-width: 0;
+  display: flex; flex-direction: column; justify-content: flex-end; gap: 2px;
+  padding: 5px;
+}
+.md-prefs__theme-half.is-dark { border-left: 1px solid rgba(255, 255, 255, .16); }
+.md-prefs__theme-bar { display: block; width: 100%; height: 3px; border-radius: 2px; }
+.md-prefs__theme-bar.is-thin { width: 62%; height: 2px; opacity: .8; }
+.md-prefs__theme-name {
+  flex: 1; min-width: 0; font-size: 11.5px; font-weight: 600;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.md-prefs__theme-check { flex-shrink: 0; color: var(--md-primary); }
 
 /*
  * 字体：原生 select，但外观全部自己画。
@@ -1145,9 +1192,12 @@ button { font-family: inherit; }
   border-top: 1px solid var(--md-border);
   color: var(--md-text-3); font-size: 11.5px; line-height: 1.6;
 }
+/* 主题说明与字体说明连着排：第二条不再画一条分隔线，否则两条细线挨在一起像排版事故 */
+.md-prefs__hint--follow { margin-top: -4px; padding-top: 0; border-top: 0; }
 
 @media (max-width: 480px) {
   .md-prefs__panel { min-width: 232px; }
+  .md-prefs__theme-swatch { width: 38px; height: 26px; }
 }
 /* 「有效期至 2026-12-31 10:20」这类长文案在窄屏要被截断，而不是把顶栏撑爆 */
 .md-share__expiry-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; }

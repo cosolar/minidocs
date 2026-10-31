@@ -66,6 +66,8 @@ async function removeAvatar() {
 }
 
 const codeThemes = [
+  // 默认项：代码配色跟着读者选的阅读主题走（见 shared/readerTheme.ts 的单列代码令牌）
+  { label: '跟随阅读主题', value: 'theme' },
   { label: 'GitHub Light', value: 'github' },
   { label: 'GitHub Dark', value: 'github-dark' },
   { label: 'Atom One Light', value: 'atom-one-light' },

@@ -48,6 +48,9 @@
 
 - 权限判定收敛在 `permission/AccessService`，越权统一按 404 响应，不泄露资源存在性
 - 路径守卫、上传文件的扩展名 / MIME / 魔数校验
+- Markdown 渲染允许作者写原生 HTML（与编辑器预览一致），产物随后经过 jsoup 标签 / 属性
+  白名单与 URL 方案白名单：脚本、事件处理器、`javascript:` 与非 `data:image` 的 data URI
+  均被剥离；`style` 属性不放行，对齐需求归一成 `md-align-*` 类名
 - 分享口令哈希存储，分享 Cookie 使用 HMAC 签名且作用域为根
 - 统一安全响应头；CSP 默认只允许 `'self'`，SVG 代理会覆写为更严格的策略
 - 审计日志记录敏感操作，但不记录 token 与密码

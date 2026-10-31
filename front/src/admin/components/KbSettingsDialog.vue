@@ -85,7 +85,7 @@ function toTreeNode(node: DocNode): Record<string, unknown> {
  * 表现就是「只剩复选框和折叠箭头，标签全没了」，而那两者是 el-tree 自己画的，所以还在。</p>
  *
  * <p>取 {@code checkedKeys} 而非 {@code checkedNodes}：前者是 {@code node-key}（这里就是路径），
- * 与 {@code .minidocs.json} 里 {@code hidden} 的元素类型一致，可以直接回写。</p>
+ * 与库级配置里 {@code hidden} 的元素类型一致，可以直接回写。</p>
  */
 function onCheck(_data: unknown, info: { checkedKeys: (string | number)[] }) {
   checked.value = info.checkedKeys.map(String)
@@ -239,7 +239,7 @@ async function onDisplayChange(value: boolean) {
             </div>
           </el-form-item>
           <div class="md-form-hint">
-            拨动立即生效。保存在库根的 <code>.minidocs.json</code>，跟着 Git 一起走 —— 团队共用一套显示方式。
+            拨动立即生效。保存在数据库，Git 拉取或换仓库都不会重置 —— 团队共用一套显示方式。
           </div>
         </el-form>
         <div class="md-settings__actions">
@@ -264,12 +264,12 @@ async function onDisplayChange(value: boolean) {
           <p class="md-settings__tip">
             勾选的目录与文件将<b>不出现在目录树、搜索与文档计数里</b>，也不会随门户分享对外暴露。
             勾一个目录等于藏掉整棵子树，勾某个文件只藏它自己。
-            规则保存在库根的 <code>.minidocs.json</code>，跟着 Git 一起走。
+            规则保存在数据库，拉取 Git、强制覆盖或换仓库地址都不会把它重置掉。
           </p>
 
           <!--
             check-strictly：勾选互不级联。这是「规则编辑器」不是「全选」，
-            级联会把目录的每个后代都写成一条独立规则（189 篇的库就是 189 行 .minidocs.json），
+            级联会把目录的每个后代都写成一条独立规则（189 篇的库就是 189 条规则），
             而且级联只对勾选那一刻已存在的文件生效 —— 之后往已隐藏目录里新增的文档反而会露出来。
             目录规则本身就覆盖整棵子树（后端 scan 遇到被隐藏的目录直接跳过），
             所以「勾目录 = 藏整棵」是免费的，不必靠级联凑。

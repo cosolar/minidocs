@@ -47,12 +47,14 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Markdown 渲染管线（单一渲染源）。
  *
  * <pre>
- * 读取 .md → 校验大小 → 解析 frontmatter → flexmark 渲染（禁用原生 HTML）
+ * 读取 .md → 校验大小 → 解析 frontmatter → flexmark 渲染（原生 HTML 经白名单过滤）
  *   → 白名单过滤 → 生成标题锚点并提取大纲 → 改写图片 / 链接 → 写入 LRU 缓存 + ETag
  * </pre>
  *
@@ -84,6 +86,12 @@ public class MarkdownService {
     private static final java.util.regex.Pattern DELIMITER_CELL =
             java.util.regex.Pattern.compile("^:?-+:?$");
 
+    /** 只认这四种对齐值，其余字符串一律忽略，避免把作者内容拼进 class。 */
+    private static final Set<String> ALIGN_VALUES = Set.of("left", "center", "right", "justify");
+    private static final String ALIGN_SELECTOR = "p, div, h1, h2, h3, h4, h5, h6, table";
+    private static final Pattern TEXT_ALIGN = Pattern.compile(
+            "(?i)(?:^|;)\\s*text-align\\s*:\\s*(left|center|right|justify)\\s*(?:!important\\s*)?(?:;|$)");
+
     private final Cache<String, Neutral> cache;
 
     public MarkdownService(MiniDocsProperties properties, MarkdownSanitizer sanitizer) {
@@ -98,10 +106,14 @@ public class MarkdownService {
         extensions.add(AutolinkExtension.create());
         extensions.add(DefinitionExtension.create());
         options.set(Parser.EXTENSIONS, extensions);
-        // 不解析原生 HTML（block 与 inline），从源头阻断注入
-        options.set(Parser.HTML_BLOCK_PARSER, false);
-        options.set(HtmlRenderer.SUPPRESS_HTML, true);
-        options.set(HtmlRenderer.ESCAPE_HTML, true);
+        // 原生 HTML 会被解析：工作区预览本来就渲染它，阅读端若静默丢弃，同一个文件会
+        // 「预览居中、阅读变纯文本」。真正的安全边界在渲染后的 MarkdownSanitizer
+        // （标签/属性白名单）与 enforceSafeUrls（协议校验），不靠 flexmark 关掉解析。
+        options.set(Parser.HTML_BLOCK_PARSER, true);
+        options.set(HtmlRenderer.SUPPRESS_HTML, false);
+        options.set(HtmlRenderer.SUPPRESS_HTML_BLOCKS, false);
+        options.set(HtmlRenderer.ESCAPE_HTML, false);
+        options.set(HtmlRenderer.ESCAPE_HTML_BLOCKS, false);
         options.set(HtmlRenderer.GENERATE_HEADER_ID, false);
         options.set(HtmlRenderer.FENCED_CODE_LANGUAGE_CLASS_PREFIX, "language-");
 
@@ -321,7 +333,8 @@ public class MarkdownService {
         document.outputSettings().prettyPrint(false);
         Element body = document.body();
 
-        // 先改写（相对路径 -> 根路径占位符）与补齐锚点，再统一白名单过滤
+        // 先把作者写的对齐方式收敛成受控类名，再做锚点、路径改写与白名单过滤
+        normalizeHtmlAlign(body);
         List<OutlineNode> outline = assignHeadingIds(body);
         rewriteImages(body, docPath);
         rewriteLinks(body, docPath, variant);
@@ -378,6 +391,31 @@ public class MarkdownService {
             stack.push(node);
         }
         return roots.stream().map(MutableOutline::toNode).toList();
+    }
+
+    /**
+     * 把原生 HTML 里的对齐写法收敛成受控类名。
+     *
+     * <p>作者常见的 {@code align="center"} 与 {@code style="text-align:center"} 在预览里都生效，
+     * 但阅读端的白名单不放行任意内联样式；这里在过滤前统一转成 {@code md-align-*}，
+     * 既保住版式，又不扩大样式注入面。{@code <center>} 是同一件事的老写法，一并转换。</p>
+     */
+    private void normalizeHtmlAlign(Element body) {
+        for (Element center : body.select("center")) {
+            center.tagName("div");
+            center.addClass("md-align-center");
+        }
+        for (Element element : body.select(ALIGN_SELECTOR)) {
+            String align = element.attr("align").trim().toLowerCase(Locale.ROOT);
+            if (!ALIGN_VALUES.contains(align)) {
+                Matcher matcher = TEXT_ALIGN.matcher(element.attr("style"));
+                align = matcher.find() ? matcher.group(1).toLowerCase(Locale.ROOT) : "";
+            }
+            if (!align.isEmpty()) {
+                element.addClass("md-align-" + align);
+            }
+            element.removeAttr("align");
+        }
     }
 
     private void rewriteImages(Element body, String docPath) {

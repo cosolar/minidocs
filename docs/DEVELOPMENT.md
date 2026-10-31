@@ -87,7 +87,7 @@ minidocs/
 ├── backend/                     Spring Boot 3 · MyBatis-Plus · Sa-Token · flexmark
 │   └── src/main/java/cn/minims/minidocs/
 │       ├── reader/              渲染与阅读视图（门户 / 分享共用一条管线）
-│       ├── kb/ · doc/           知识库 · 文档（编辑锁、标签、frontmatter）
+│       ├── kb/ · doc/           知识库 · 文档（编辑锁、标签、frontmatter；库级配置在 kb_config）
 │       ├── share/               分享、口令、访问统计、短链
 │       ├── tenant/              组织、成员、入组申请、组织段解析拦截器
 │       ├── permission/          权限裁决（AccessService）与动作枚举
@@ -206,21 +206,26 @@ ReaderService.build(kb, ReadRequest)
   `X-Frame-Options`、`Referrer-Policy`）；SVG 代理会覆写为更严格的 CSP。
 - CSP 默认只允许 `'self'`。若你引入外部字体等资源，**必须在同一个常量里显式加域名**，
   并在提交说明里写清理由。
+- 服务端输出的 HTML 已过白名单：flexmark 会解析原生 HTML（与工作区预览一致），
+  因此 `MarkdownSanitizer` 是标签 / 属性的唯一闸门，`MarkdownService#enforceSafeUrls`
+  再做 URL 方案白名单（`http(s)` / `mailto` / `data:image` / 站内根路径 / 锚点）。
+  白名单刻意不放行 `style`：作者的 `align` / `text-align` 在过滤前归一成 `md-align-*` 类名，
+  其余内联样式一律丢弃。新增标签或属性必须同时补 `MarkdownHtmlRenderTest` 的用例。
 - 路径穿越、上传校验（扩展名 / MIME / 魔数）、分享 token 形态：见 README 的安全要点。
 
 ### 4.8 测试
 
-`mvn test` 会跑全部用例（13 个测试类 + 一个基类）：
+`mvn test` 会跑全部用例（17 个测试类 + 一个基类）：
 
 | 测试类 | 覆盖 |
 | --- | --- |
 | `permission/AccessServiceTest` | 权限矩阵（读 / 写 / 治理 / 分享几条轴） |
 | `permission/PermissionBaselineTest` | 组织与成员治理 |
 | `permission/AuthorizationGuardrailTest` | **静态守卫**：出现越权写法即失败 |
-| `tenant/*`（4 个类） | 建组织、入组申请、成员门、跨组织隔离、平台治理 |
-| `doc/EditLockFlowTest` | 编辑锁、并发写 |
+| `tenant/*`（5 个类） | 建组织、入组申请、成员门、跨组织隔离、平台治理 |
+| `doc/*`（5 个类） | 编辑锁、并发写、目录树刷新、目录 / 压缩包导入、库级配置落库与旧文件迁移 |
 | `share/ShareOrgScopeTest` | 分享的组织隔离与口令 |
-| `portal/PortalRoutingTest` | 门户数据与路由 |
+| `markdown/MarkdownHtmlRenderTest` | 原生 HTML 白名单、对齐归一、XSS 剥离、常规语法回归 |
 | `migration/TenantMigrationTest` | 迁移脚本与唯一约束 |
 | `meta/NullWritebackTest` | 写回不产生空值 |
 
@@ -291,14 +296,43 @@ ReaderService.build(kb, ReadRequest)
 
 | 模块 | 存储键 | 作用范围 |
 | --- | --- | --- |
-| `shared/readerFont.ts` | `minidocs.reader-font` | 分享页正文字体 → `--md-read-font` |
-| `shared/readerWidth.ts` | `minidocs.reader-width` | 分享页正文宽度 → `--md-doc-width` |
-| `shared/stores/settings.ts` | `minidocs.settings` | 主题、内容宽度等（含服务端同步） |
+| `shared/readerFont.ts` | `minidocs.reader-font` | 正文字体 → `--md-read-font`（三个宿主） |
+| `shared/readerSize.ts` | `minidocs.reader-size` | 正文字号 → `--md-read-size`（三个宿主） |
+| `shared/readerTheme.ts` | `minidocs.reader-theme` | 阅读主题 → 运行时 `<style>`（三个宿主），详见 [THEMES.md](THEMES.md) |
+| `shared/readerWidth.ts` | `minidocs.reader-width` | 正文宽度 → `--md-doc-width`（仅分享页） |
+| `shared/stores/settings.ts` | `minidocs.settings` | 外观、代码块主题、内容宽度等（含服务端同步） |
 
-- 分享页改主题用 `settings.patchLocal()`：**只写本地、不发网关** —— 访客没有账号，
-  每点一次发一次必然 401。
-- 本地偏好写在根元素的 CSS 变量上，消费方**按页面收窄**（`.md-reading[data-mode='share']`），
-  别让「分享页的设置」波及门户阅读页。
+- 「三个宿主」= 分享页、门户阅读页、后台编辑器正文预览。字体 / 字号 / 主题是**设备偏好**，
+  三处看到同一张版面才有意义；正文宽度仍只属于分享页（门户的栏宽由两侧拖拽手柄决定）。
+- 分享页改主题 / 字体用 `settings.patchLocal()` 或各自的 local 模块：**只写本地、不发网关** ——
+  访客没有账号，每点一次发一次必然 401。
+- 本地偏好最终写在根元素的 CSS 变量上；主题包只允许令牌值，不允许选择器（见 THEMES.md 的安全边界）。
+
+### 5.7 阅读主题包
+
+主题是**服务端安装、浏览器选用**的两段式：管理员上传 JSON 到 `{VAULT_HOME}/site/themes/`，
+读者在「阅读设置」里选。前端从 `/api/portal/themes` 拉列表（带 localStorage 缓存），
+把令牌拼成一段 `<style>` 注入 `<head>`，不重新构建前端。
+
+| 关注点 | 位置 |
+| --- | --- |
+| 后端存储 / 校验 / 种子 | `backend/.../theme/service/impl/ThemeServiceImpl.java` |
+| 公开与平台接口 | `theme/controller/ThemeController.java`、`PlatformThemeController.java` |
+| 前端运行时 | `front/src/shared/readerTheme.ts` |
+| 字号运行时 | `front/src/shared/readerSize.ts` |
+| 模板与下载 | `front/src/shared/themeTemplate.ts` |
+| 管理界面 | `front/src/admin/views/SiteSettingsView.vue` |
+
+三个容易写错的地方：
+
+- **结构令牌默认值写在 `body.md-page--read, .md-ws__editor .markdown-body`，不要写 `:root`。**
+  `var()` 在声明处替换，写进 `:root` 会把默认色冻结住，主题包覆盖 `--md-ink-blue` 也传不下来。
+- **代码高亮令牌 `--md-tk-*` 单列一组**，只在 `data-code-theme='theme'` 时生效，
+  否则会盖掉读者显式选的 GitHub / Monokai。
+- **明暗两档必须同一组键**：前端 `normalizePack` 与后端 `validate` 都会整包拒绝不齐的包，
+  不允许「缺的补默认」—— 那会让暗色下悄悄回落，看起来像主题没做完。
+
+加令牌、写主题包、校验规则的完整契约见 [THEMES.md](THEMES.md)。
 - 读 `localStorage` 一律包 try/catch：隐私模式会抛错，不能因此白屏。
 - 换字体这类偏好只改字体，**不要**顺手动行高与段距：那会让整篇的块高（引用块、表格）跟着变，
   比字形差异扎眼得多。
@@ -441,6 +475,9 @@ CI 尚未接入（仓库暂无 `.github/workflows`），所以上面这两条命
 | --- | --- |
 | [README](../README.md) | 平台介绍、快速开始、部署、配置项 |
 | 本文 | 本地开发、后端 / 前端约定、测试、排查 |
+| [THEMES.md](THEMES.md) | 阅读主题包格式、令牌清单、安装卸载、安全边界 |
+| [DESIGN.md](DESIGN.md) | 视觉与交互的设计取舍 |
+| [DEPLOYMENT.md](DEPLOYMENT.md) | 部署、反向代理、升级与常见故障 |
 | [多租户知识库权限与功能规范.md](多租户知识库权限与功能规范.md) | 角色、可见性、维护范围与功能边界 |
 | [产品设计需求分析.md](产品设计需求分析.md) | 需求与设计取舍 |
 | [开发计划-M5.md](开发计划-M5.md) | 历史开发计划与验收记录 |

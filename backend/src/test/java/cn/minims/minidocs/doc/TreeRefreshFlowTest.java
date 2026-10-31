@@ -95,7 +95,7 @@ class TreeRefreshFlowTest extends MiniDocsTestBase {
     @DisplayName("外部新增的文件：刷新后立刻出现")
     void refreshPicksUpExternalAdds() throws Exception {
         docService.createDoc(kbId, "a.md", "# A", alice);
-        // 先读一次把缓存坐实：缓存键只看 .minidocs.json 的 mtime，写一个 md 不会改它
+        // 先读一次把缓存坐实：缓存键只看库级配置的戳，写一个 md 不会改它
         docService.tree(kbId, alice);
         Files.writeString(vaultFileService.resolve(root, "c.md"), "# C", StandardCharsets.UTF_8);
 

@@ -1,0 +1,6 @@
+# 容器构建相关文件固定用 LF：
+# 仓库在本机 core.autocrlf=true，Windows 签出会把脚本变成 CRLF，
+# 复制进 Linux 镜像后 shebang 失效（#!/bin/sh\r）。
+*.sh            text eol=lf
+Dockerfile      text eol=lf
+deploy/Dockerfile.split text eol=lf
