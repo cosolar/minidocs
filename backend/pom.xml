@@ -13,7 +13,7 @@
 
     <groupId>cn.minims</groupId>
     <artifactId>minidocs</artifactId>
-    <version>1.2.0</version>
+    <version>1.2.1</version>
     <name>minidocs</name>
     <description>MiniDocs 极简智库平台</description>
     <url>https://github.com/cosolar/minidocs</url>

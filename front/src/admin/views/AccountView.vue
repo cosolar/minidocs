@@ -252,7 +252,7 @@ onMounted(async () => {
       <div class="md-panel-head"><h2>关于</h2></div>
       <div class="md-panel-body">
         <el-descriptions :column="1" border>
-          <el-descriptions-item label="版本">MiniDocs 1.2.0</el-descriptions-item>
+          <el-descriptions-item label="版本">MiniDocs 1.2.1</el-descriptions-item>
           <el-descriptions-item label="接口文档">
             <!-- swagger 由后端伺服，要带 context-path；页面基址是根，两者不是同一段 -->
             <a :href="appBackendHref('/swagger-ui.html')" target="_blank" style="color: var(--md-primary)">/swagger-ui.html</a>
