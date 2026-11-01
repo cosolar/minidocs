@@ -131,9 +131,9 @@
   content: '';
   position: absolute;
   left: 0;
-  /* 上下各收 0.14em，让竖条略短于行盒，看起来是「标在标题旁边」而不是「撑满一整行」 */
-  top: var(--md-theme-h2-marker-top, 0.14em);
-  bottom: var(--md-theme-h2-marker-bottom, 0.14em);
+  /* 上下各收 0.18em，让竖条贴住文字高度而不是撑满整行盒，看起来是「标在标题旁边」 */
+  top: var(--md-theme-h2-marker-top, 0.18em);
+  bottom: var(--md-theme-h2-marker-bottom, 0.18em);
   width: var(--md-theme-h2-marker-width, 4px);
   border-radius: var(--md-theme-h2-marker-radius, 3px);
   background: var(--md-theme-h2-marker-bg);

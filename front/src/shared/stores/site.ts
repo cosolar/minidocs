@@ -9,7 +9,7 @@ import type { SiteConfig } from '@/shared/api/types'
  * 管理端的 api 一并打进包），由各应用在启动时注册实现。</p>
  */
 
-export const DEFAULT_SITE: SiteConfig = { name: 'MiniDocs', subtitle: '极简知识库' }
+export const DEFAULT_SITE: SiteConfig = { name: 'MiniDocs', subtitle: '极简智库' }
 
 export interface SiteGateway {
   get(): Promise<SiteConfig>
@@ -44,6 +44,34 @@ export function rememberPageTitle(title?: string) {
 
 export const useSiteStore = defineStore('site', {
   state: () => ({ value: { ...DEFAULT_SITE } as SiteConfig }),
+  getters: {
+    /**
+     * 品牌位 Logo 框的行内尺寸，只覆盖管理员显式配过的那一边。
+     *
+     * <p>没配就是空对象 —— 各品牌位（顶栏 34、侧栏 32、登录 44、页脚 26）继续用自己的默认值。
+     * 页脚刻意不绑这个尺寸：那里是 26px 的小位，塞进一个 160×60 的横版标志会把整条页脚顶高，
+     * 尺寸设置的作用范围因此是「除页脚外的品牌位」。</p>
+     */
+    logoStyle(state): Record<string, string> {
+      const style: Record<string, string> = {}
+      if (state.value.logoWidth) {
+        style.width = `${state.value.logoWidth}px`
+      }
+      if (state.value.logoHeight) {
+        style.height = `${state.value.logoHeight}px`
+      }
+      return style
+    },
+    /**
+     * 是否「只出图、不出名称与副标题」。
+     *
+     * <p>要求同时上传过 Logo：只开开关却没传图时，顶栏会只剩一个内置图标、站点叫什么全没了，
+     * 看起来像配置没生效。开关的存储值照旧回显给设置页，这里只约束渲染。</p>
+     */
+    logoOnly(state): boolean {
+      return Boolean(state.value.logoOnly) && Boolean(state.value.logoSrc)
+    }
+  },
   actions: {
     apply(payload: SiteConfig | null | undefined) {
       if (!payload) return

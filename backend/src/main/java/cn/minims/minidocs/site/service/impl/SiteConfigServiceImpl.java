@@ -15,6 +15,7 @@ import cn.minims.minidocs.site.mapper.SiteConfigMapper;
 import cn.minims.minidocs.site.service.SiteConfigService;
 import cn.minims.minidocs.site.support.SiteBaseUrlResolver;
 import cn.minims.minidocs.site.support.SiteBaseUrls;
+import cn.minims.minidocs.theme.service.ThemeService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -43,16 +44,21 @@ import java.util.Map;
 public class SiteConfigServiceImpl implements SiteConfigService {
 
     private static final String DEFAULT_NAME = "MiniDocs";
-    private static final String DEFAULT_SUBTITLE = "极简知识库";
+    private static final String DEFAULT_SUBTITLE = "极简智库";
 
     private static final int MAX_NAME = 32;
     private static final int MAX_SUBTITLE = 48;
+
+    /** Logo 尺寸的允许区间：再小看不清，再大顶栏装不下（品牌位靠 flex 收缩，不是无限画布） */
+    private static final int LOGO_SIZE_MIN = 16;
+    private static final int LOGO_SIZE_MAX = 512;
 
     private final SiteConfigMapper siteConfigMapper;
     private final MiniDocsProperties properties;
     private final ImageValidator imageValidator;
     private final AssetService assetService;
     private final SiteBaseUrlResolver siteBaseUrlResolver;
+    private final ThemeService themeService;
 
     @Override
     public SiteConfigVO get() {
@@ -66,7 +72,11 @@ public class SiteConfigServiceImpl implements SiteConfigService {
         if (patch != null) {
             applyText(config, patch, SiteConfig.KEY_NAME, MAX_NAME, "站点名称");
             applyText(config, patch, SiteConfig.KEY_SUBTITLE, MAX_SUBTITLE, "站点副标题");
+            applyLogoSize(config, patch, SiteConfig.KEY_LOGO_WIDTH, "Logo 宽度");
+            applyLogoSize(config, patch, SiteConfig.KEY_LOGO_HEIGHT, "Logo 高度");
+            applyLogoOnly(config, patch);
             applyBaseUrl(config, patch);
+            applyReaderTheme(config, patch);
         }
         save(config);
         return toVO(config);
@@ -138,6 +148,74 @@ public class SiteConfigServiceImpl implements SiteConfigService {
         }
     }
 
+    /**
+     * Logo 显示尺寸：只认「patch 里显式带了这一项」。
+     *
+     * <p>null / 空串是清除（回到各品牌位的默认尺寸），不是 0；越界与非整数直接报参数错，
+     * 因为一个 5000px 的 Logo 会把顶栏撑坏，而顶栏坏掉的样子不像「配置没生效」，更像站点有 bug。</p>
+     */
+    private void applyLogoSize(Map<String, Object> config, Map<String, Object> patch, String key, String label) {
+        if (!patch.containsKey(key)) {
+            return;
+        }
+        Object raw = patch.get(key);
+        String value = raw == null ? "" : String.valueOf(raw).trim();
+        if (value.isEmpty()) {
+            config.remove(key);
+            return;
+        }
+        int pixels;
+        try {
+            pixels = Integer.parseInt(value);
+        } catch (NumberFormatException e) {
+            throw BizException.param(label + "必须是整数像素值");
+        }
+        if (pixels < LOGO_SIZE_MIN || pixels > LOGO_SIZE_MAX) {
+            throw BizException.param(label + "需在 " + LOGO_SIZE_MIN + "–" + LOGO_SIZE_MAX + " 像素之间");
+        }
+        config.put(key, pixels);
+    }
+
+    /** 「只显示 Logo」：false 与清除等价 —— 默认值不占 JSON 一个键，读出来永远是 false。 */
+    private void applyLogoOnly(Map<String, Object> config, Map<String, Object> patch) {
+        if (!patch.containsKey(SiteConfig.KEY_LOGO_ONLY)) {
+            return;
+        }
+        Object raw = patch.get(SiteConfig.KEY_LOGO_ONLY);
+        String value = raw == null ? "" : String.valueOf(raw).trim();
+        if (value.isEmpty() || "false".equalsIgnoreCase(value)) {
+            config.remove(SiteConfig.KEY_LOGO_ONLY);
+            return;
+        }
+        if (!"true".equalsIgnoreCase(value)) {
+            throw BizException.param("只显示 Logo 的取值只能是 true 或 false");
+        }
+        config.put(SiteConfig.KEY_LOGO_ONLY, true);
+    }
+
+    /**
+     * 默认阅读主题：只认「patch 里显式带了这一项」，空串清除（回到内置默认）。
+     *
+     * <p>id 必须是已安装的主题或内置 default：写一个不存在的 id，新访客会静默落到内置默认，
+     * 管理员看到的设置项却显示着那个值 —— 「明明配了却不生效」比报错难受得多，所以这里就拦。</p>
+     */
+    private void applyReaderTheme(Map<String, Object> config, Map<String, Object> patch) {
+        if (!patch.containsKey(SiteConfig.KEY_READER_THEME)) {
+            return;
+        }
+        Object raw = patch.get(SiteConfig.KEY_READER_THEME);
+        String value = raw == null ? "" : String.valueOf(raw).trim();
+        if (value.isEmpty()) {
+            config.remove(SiteConfig.KEY_READER_THEME);
+            return;
+        }
+        boolean installed = themeService.list().stream().anyMatch(pack -> value.equals(pack.id()));
+        if (!installed) {
+            throw BizException.param("默认阅读主题不存在或已卸载: " + value);
+        }
+        config.put(SiteConfig.KEY_READER_THEME, value);
+    }
+
     private Map<String, Object> readConfig() {
         SiteConfig entity = siteConfigMapper.selectById(SiteConfig.SINGLETON_ID);
         return entity == null ? new LinkedHashMap<>() : JsonUtil.toMap(entity.getConfig());
@@ -172,7 +250,28 @@ public class SiteConfigServiceImpl implements SiteConfigService {
                 subtitle == null ? DEFAULT_SUBTITLE : subtitle,
                 logo,
                 logoSrc,
-                text(config.get(SiteConfig.KEY_BASE_URL)));
+                text(config.get(SiteConfig.KEY_BASE_URL)),
+                logoSize(config.get(SiteConfig.KEY_LOGO_WIDTH)),
+                logoSize(config.get(SiteConfig.KEY_LOGO_HEIGHT)),
+                Boolean.parseBoolean(text(config.get(SiteConfig.KEY_LOGO_ONLY))),
+                text(config.get(SiteConfig.KEY_READER_THEME)));
+    }
+
+    /**
+     * 读尺寸：写入侧已校验过区间，这里越界只可能是有人直接改了库 ——
+     * 当成「没配」回落默认值，好过让公开的站点信息接口抛 500 把整个门户带崩。
+     */
+    private Integer logoSize(Object raw) {
+        String value = text(raw);
+        if (value == null) {
+            return null;
+        }
+        try {
+            int pixels = Integer.parseInt(value);
+            return pixels >= LOGO_SIZE_MIN && pixels <= LOGO_SIZE_MAX ? pixels : null;
+        } catch (NumberFormatException e) {
+            return null;
+        }
     }
 
     /** 取字符串，空白一律归一为 null。 */

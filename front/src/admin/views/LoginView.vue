@@ -54,10 +54,10 @@ async function submit() {
       <!-- 左栏：产品说明。窄屏下只留顶部一条品牌头，要点列表整块收起 -->
       <section class="md-login__intro">
         <div class="md-login__intro-top">
-          <span class="md-login__logo is-image" :class="{ 'is-builtin': !site.value.logoSrc }">
+          <span class="md-login__logo is-image" :style="site.logoStyle">
             <img :src="site.value.logoSrc || DEFAULT_LOGO" alt="" />
           </span>
-          <div class="md-login__intro-name">
+          <div v-if="!site.logoOnly" class="md-login__intro-name">
             <strong>{{ site.value.name }}</strong>
             <small>{{ site.value.subtitle || '轻量化 · 高性能的知识库平台' }}</small>
           </div>

@@ -8,6 +8,7 @@
 import { computed, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import MdIcon from '@/admin/components/MdIcon.vue'
+import HelpTip from '@/shared/components/HelpTip.vue'
 import { kbApi } from '@/admin/api'
 import { visibilityHint } from '@/shared/visibility'
 import type { DocNode, KbConfigVO, KbVO } from '@/shared/api/types'
@@ -209,7 +210,8 @@ async function onDisplayChange(value: boolean) {
             <el-input v-model="form.tags" placeholder="用顿号或逗号分隔，最多 5 个" />
             <div class="md-form-hint">最多 5 个，每个不超过 12 字</div>
           </el-form-item>
-          <el-form-item label="可见范围（平台内谁能读）">
+          <el-form-item>
+            <template #label>可见范围（平台内谁能读）<HelpTip :width="340" text="这一层只在平台内生效。库要出现在门户上、让不登录的人也能访问，需要另行创建整库分享链接。" /></template>
             <el-radio-group v-model="form.visibility">
               <el-radio-button value="private">仅维护名单</el-radio-button>
               <el-radio-button value="org">本组织成员</el-radio-button>
@@ -217,16 +219,14 @@ async function onDisplayChange(value: boolean) {
             </el-radio-group>
             <div class="md-form-hint">{{ visibilityHint(form.visibility) }}</div>
           </el-form-item>
-          <div class="md-form-hint">
-            这一层只在<b>平台内</b>生效。库要出现在门户上、让不登录的人也能访问，需要另行创建整库分享链接。
-          </div>
 
           <!--
             展示偏好。与上面的可见范围是两件不相干的事，所以单独一个 form-item：
             塞进同一块会让人以为「隐藏了目录」顺带也改了显示方式。
             拨动即保存（独立端点），所以不放保存按钮 —— 有保存按钮反而让人不确定到底生效没有。
           -->
-          <el-form-item label="目录树里的文件名">
+          <el-form-item>
+            <template #label>目录树里的文件名<HelpTip :width="340" text="拨动立即生效。保存在数据库，Git 拉取或换仓库都不会重置 —— 团队共用一套显示方式。" /></template>
             <div class="md-settings__switch">
               <el-switch
                 v-model="showMdSuffix"
@@ -238,9 +238,6 @@ async function onDisplayChange(value: boolean) {
               <span class="md-form-hint">{{ showMdSuffixHint }}</span>
             </div>
           </el-form-item>
-          <div class="md-form-hint">
-            拨动立即生效。保存在数据库，Git 拉取或换仓库都不会重置 —— 团队共用一套显示方式。
-          </div>
         </el-form>
         <div class="md-settings__actions">
                <el-button type="primary" :loading="savingMeta" :disabled="!canEditMeta" @click="saveMeta">
@@ -254,6 +251,11 @@ async function onDisplayChange(value: boolean) {
         <template #label>
           隐藏配置
           <span v-if="hiddenCount" class="md-settings__badge">{{ hiddenCount }}</span>
+          <HelpTip :width="360">
+            勾选的目录与文件将不出现在目录树、搜索与文档计数里，也不会随门户分享对外暴露。
+            勾一个目录等于藏掉整棵子树，勾某个文件只藏它自己。
+            规则保存在数据库，拉取 Git、强制覆盖或换仓库地址都不会把它重置掉。
+          </HelpTip>
         </template>
 
         <div v-loading="loadingConfig" class="md-settings__hidden">
@@ -261,11 +263,6 @@ async function onDisplayChange(value: boolean) {
             勾 = 隐藏。el-tree 的勾选语义天然是「选中」，所以这里把标签写成
             「不显示」而不是「隐藏」，否则用户很容易按成「显示」。
           -->
-          <p class="md-settings__tip">
-            勾选的目录与文件将<b>不出现在目录树、搜索与文档计数里</b>，也不会随门户分享对外暴露。
-            勾一个目录等于藏掉整棵子树，勾某个文件只藏它自己。
-            规则保存在数据库，拉取 Git、强制覆盖或换仓库地址都不会把它重置掉。
-          </p>
 
           <!--
             check-strictly：勾选互不级联。这是「规则编辑器」不是「全选」，
@@ -316,12 +313,6 @@ async function onDisplayChange(value: boolean) {
   gap: 12px;
 }
 .md-settings__switch .md-form-hint { margin: 0; }
-.md-settings__tip {
-  margin: 0 0 10px;
-  color: var(--md-text-3);
-  font-size: 12px;
-  line-height: 1.6;
-}
 .md-settings__tree {
   max-height: 46vh;
   overflow: auto;

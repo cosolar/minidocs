@@ -132,7 +132,7 @@
   gap: 26px;
   padding: 40px 40px 32px;
   color: #fff;
-  background: linear-gradient(155deg, #2f57d8 0%, #4b3ad6 46%, #6d3ecf 74%, #7c4bd6 100%);
+  background: linear-gradient(155deg, #128577 0%, #10695e 40%, #145045 72%, #0f3a30 100%);
   overflow: hidden;
 }
 /* 右上角与左下角各一团柔光，渐变直落会显得平 */
@@ -160,11 +160,9 @@
   color: #fff; font-weight: 700; font-size: 21px; display: grid; place-items: center;
   overflow: hidden;
 }
-/* 上传了自定义 Logo：图片铺满，不再叠半透明底 */
-.md-login__logo.is-image { background: rgba(255, 255, 255, .12); }
-.md-login__logo.is-image img { width: 100%; height: 100%; object-fit: cover; display: block; }
-/* 内置 Logo 自带透明底与圆形轮廓：去掉半透明底板 */
-.md-login__logo.is-image.is-builtin { background: transparent; }
+/* 上传的 Logo 一律裸图：底板会把自带背景的标志框成一张贴纸 */
+.md-login__logo.is-image { background: none; border: 0; box-shadow: none; border-radius: 0; grid-template-rows: 100%; }
+.md-login__logo.is-image img { width: 100%; height: 100%; object-fit: contain; display: block; }
 .md-login__intro-name { display: grid; gap: 1px; min-width: 0; }
 .md-login__intro-name strong { font-size: 17px; letter-spacing: -.01em; }
 .md-login__intro-name small { color: rgba(255, 255, 255, .68); font-size: 12px; }
@@ -291,15 +289,13 @@
 }
 .md-sidebar__logo {
   width: 32px; height: 32px; border-radius: 9px; flex-shrink: 0;
-  background: linear-gradient(135deg, var(--md-primary), #7c5cff);
+  background: linear-gradient(135deg, var(--md-primary), #2eb8a3);
   color: #fff; font-weight: 700; display: grid; place-items: center;
   overflow: hidden;
 }
-/* 上传了自定义 Logo：图片铺满，不再叠品牌渐变 */
-.md-sidebar__logo.is-image { background: var(--md-surface-2); border: 1px solid var(--md-border); }
-.md-sidebar__logo.is-image img { width: 100%; height: 100%; object-fit: cover; display: block; }
-/* 内置 Logo 自带透明底与圆形轮廓：去掉方框底板 */
-.md-sidebar__logo.is-image.is-builtin { background: transparent; border-color: transparent; }
+/* 上传的 Logo 一律裸图：底板会把自带背景的标志框成一张贴纸 */
+.md-sidebar__logo.is-image { background: none; border: 0; box-shadow: none; border-radius: 0; grid-template-rows: 100%; }
+.md-sidebar__logo.is-image img { width: 100%; height: 100%; object-fit: contain; display: block; }
 .md-sidebar__title { display: flex; flex-direction: column; line-height: 1.15; font-weight: 650; white-space: nowrap; }
 .md-sidebar__title small { font-size: 11px; font-weight: 400; color: var(--md-text-3); }
 .md-sidebar__nav { flex: 1; padding: 10px 8px; display: flex; flex-direction: column; gap: 14px; overflow-y: auto; }
@@ -381,7 +377,7 @@
 .md-header__user { display: flex; align-items: center; gap: 8px; cursor: pointer; color: var(--md-text-3); }
 .md-avatar-sm {
   width: 30px; height: 30px; border-radius: 50%;
-  background: linear-gradient(135deg, #6c8cff, #a855f7);
+  background: linear-gradient(135deg, #35b3a0, #1f7a6e);
   color: #fff; font-size: 12.5px; font-weight: 600; display: grid; place-items: center; text-transform: uppercase;
   overflow: hidden;
 }
@@ -449,7 +445,7 @@
 .md-avatar-field__preview {
   width: 72px; height: 72px; flex-shrink: 0; border-radius: 50%; overflow: hidden;
   display: grid; place-items: center;
-  background: linear-gradient(135deg, #6c8cff, #a855f7);
+  background: linear-gradient(135deg, #35b3a0, #1f7a6e);
   color: #fff; font-size: 26px; font-weight: 600; text-transform: uppercase;
   border: 1px solid var(--md-border);
 }
@@ -479,7 +475,7 @@
 /* 封面只当氛围带：占满 16:9 会把卡片压成「一张图 + 一段附言」，正文反而读不到 */
 .md-kb-card__cover {
   position: relative; height: 104px; flex-shrink: 0; overflow: hidden;
-  background: linear-gradient(120deg, #6c8cff, #a855f7 58%, #ec4899);
+  background: linear-gradient(120deg, #35b3a0, #2f8f7d 58%, #8fd0a8);
 }
 /* 有实拍封面时压一层很浅的暗角，让图片与下方卡体的接缝不那么生硬；压重了浅色截图会发灰 */
 .md-kb-card__cover:has(img)::after {
@@ -525,7 +521,7 @@
 .md-kb-cell__name { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .md-kb-cell__thumb {
   width: 52px; height: 30px; border-radius: 6px; flex-shrink: 0; overflow: hidden;
-  background: linear-gradient(135deg, #6c8cff, #a855f7 55%, #ec4899);
+  background: linear-gradient(135deg, #35b3a0, #2f8f7d 55%, #8fd0a8);
 }
 .md-kb-cell__thumb.has-cover { background: none; }
 .md-kb-cell__thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
@@ -652,11 +648,11 @@
 .md-ws__btn-caret { margin-left: -2px; opacity: .7; }
 .md-ws__btn--primary {
   border-color: transparent; color: #fff;
-  background: linear-gradient(135deg, var(--md-primary), #7c5cff);
+  background: linear-gradient(135deg, var(--md-primary), #2eb8a3);
   box-shadow: 0 4px 12px rgba(59, 108, 246, .28);
 }
 .md-ws__btn--primary:hover:not(:disabled) {
-  color: #fff; background: linear-gradient(135deg, var(--md-primary), #7c5cff);
+  color: #fff; background: linear-gradient(135deg, var(--md-primary), #2eb8a3);
   box-shadow: 0 6px 16px rgba(59, 108, 246, .4);
 }
 
@@ -1377,20 +1373,6 @@ body.is-col-resizing .md-ws__bytemd-resizer::after { background: var(--md-primar
 .md-kb-dialog .el-form-item { margin-bottom: 12px; }
 .md-kb-dialog .el-form-item__label { padding-bottom: 5px; line-height: 1.4; }
 .md-kb-dialog .md-form-hint { margin-top: 5px; }
-/*
- * 建库弹窗里那段「可见范围只作用于平台内，对外要另建分享链接」的说明。
- * 它是整组里最容易被扫过去、也最容易被误解的一行（用户会以为选了「所有登录用户」
- * 就等于公开出去了），所以给它底色和左侧标线，让它看起来就该被读到。
- */
-.md-kb-group__note {
-  margin: 8px 0 0;
-  padding: 9px 12px;
-  border-radius: 8px;
-  border-left: 2px solid var(--md-primary);
-  background: var(--md-primary-soft);
-  color: var(--md-text-2);
-}
-.md-kb-group__note b { color: var(--md-text-1); font-weight: 600; }
 .md-kb-cover {
   display: block; margin-top: 10px;
   max-width: 200px; max-height: 110px; object-fit: cover;
@@ -1489,20 +1471,8 @@ body.is-col-resizing .md-ws__bytemd-resizer::after { background: var(--md-primar
 .md-share-field__label .md-icon { color: var(--md-text-3); }
 .md-share-field__hint { color: var(--md-text-3); font-size: 12px; line-height: 1.5; }
 
-.md-share-note {
-  display: flex; align-items: flex-start; gap: 6px;
-  margin: 12px 0 0;
-  color: var(--md-text-3); font-size: 12px; line-height: 1.6;
-}
-.md-share-note .md-icon { margin-top: 2px; }
-
 /* ------------------------------------------------------- 分享导航菜单配置器 */
 /* 上面是已选清单（顺序即分享页顶栏顺序），下面是可勾选的目录树 */
-.md-share-panel__hint {
-  margin: 4px 0 10px;
-  color: var(--md-text-3); font-size: 12px; line-height: 1.6;
-}
-
 .md-menu-pick { display: flex; flex-direction: column; gap: 10px; padding-bottom: 13px; }
 .md-menu-pick__list {
   display: flex; flex-direction: column; gap: 4px;

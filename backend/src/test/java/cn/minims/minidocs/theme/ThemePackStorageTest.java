@@ -46,7 +46,7 @@ class ThemePackStorageTest {
         List<ThemePackVO> packs = service.list();
 
         assertThat(packs).extracting(ThemePackVO::id)
-                .contains("gatsby", "newsprint", "nord", "solarized", "vitepress");
+                .contains("default", "ayu", "celadon", "gatsby", "jiang", "newsprint", "nord", "pine", "solarized", "vitepress");
         assertThat(packs).allSatisfy(pack -> assertThat(pack.builtin())
                 .as("%s 应标记为内置", pack.id())
                 .isTrue());

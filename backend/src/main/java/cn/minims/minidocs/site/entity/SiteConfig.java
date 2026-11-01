@@ -31,8 +31,16 @@ public class SiteConfig {
     public static final String KEY_SUBTITLE = "subtitle";
     /** JSON 键：站点 Logo 文件名 */
     public static final String KEY_LOGO = "logo";
+    /** JSON 键：Logo 显示宽度（像素）；缺键表示跟随各品牌位的默认尺寸 */
+    public static final String KEY_LOGO_WIDTH = "logoWidth";
+    /** JSON 键：Logo 显示高度（像素）；缺键表示跟随各品牌位的默认尺寸 */
+    public static final String KEY_LOGO_HEIGHT = "logoHeight";
+    /** JSON 键：只显示 Logo 图片、隐藏站点名称与副标题；缺键即 false */
+    public static final String KEY_LOGO_ONLY = "logoOnly";
     /** JSON 键：站点基址（对外分享链接的协议 + 主机 [+ 路径]，可由站点设置页修改） */
     public static final String KEY_BASE_URL = "baseUrl";
+    /** JSON 键：默认阅读主题 id（只作用于没选过主题的新访客；缺键表示用内置默认） */
+    public static final String KEY_READER_THEME = "readerTheme";
 
     @TableId(type = IdType.INPUT)
     private Integer id;

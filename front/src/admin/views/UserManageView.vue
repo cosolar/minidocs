@@ -3,6 +3,7 @@ import { onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { userApi } from '@/admin/api'
 import MdIcon from '@/admin/components/MdIcon.vue'
+import HelpTip from '@/shared/components/HelpTip.vue'
 import { useIsMobile } from '@/admin/composables/useIsMobile'
 import type { AdminUserVO } from '@/shared/api/types'
 
@@ -129,7 +130,7 @@ onMounted(load)
         <MdIcon name="search" :size="14" />查询
       </el-button>
       <span class="md-spacer" />
-      <span class="md-copy-hint">自主注册由 minidocs.register-enabled 控制，默认关闭</span>
+      <HelpTip text="自主注册由部署配置 minidocs.register-enabled 控制：官方单镜像默认关闭，dev 配置默认开启；改动要重启后端才生效。" />
     </div>
 
     <div class="md-panel-body">

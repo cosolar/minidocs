@@ -16,7 +16,8 @@ import { initReaderSize } from '@/shared/readerSize'
 import {
   initReaderTheme,
   loadReaderThemes,
-  registerThemeGateway
+  registerThemeGateway,
+  setServerDefaultTheme
 } from '@/shared/readerTheme'
 
 const app = createApp(App)
@@ -51,6 +52,6 @@ void loadReaderThemes()
 // 站点品牌是公开接口，游客也能读到；失败时保留内置默认品牌
 const site = useSiteStore(pinia)
 site.applyToDom()
-void site.load()
+void site.load().then(() => setServerDefaultTheme(site.value.readerTheme))
 
 app.mount('#app')

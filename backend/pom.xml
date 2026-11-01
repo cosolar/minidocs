@@ -15,7 +15,7 @@
     <artifactId>minidocs</artifactId>
     <version>1.2.0</version>
     <name>minidocs</name>
-    <description>MiniDocs 极简知识库平台</description>
+    <description>MiniDocs 极简智库平台</description>
     <url>https://github.com/cosolar/minidocs</url>
 
     <licenses>

@@ -154,6 +154,9 @@ public class ThemeServiceImpl implements ThemeService {
             throw BizException.param("主题包不是有效的 JSON 文件");
         }
         ThemePack normalized = validate(pack, file.getOriginalFilename());
+        if (DEFAULT_THEME_ID.equals(normalized.id())) {
+            throw BizException.param("default 是内置默认主题的保留 id，不能上传同名包");
+        }
         write(normalized);
         log.info("安装阅读主题 id={} name={}", normalized.id(), normalized.name());
         return toVO(normalized, builtinOf(normalized.id()));
@@ -244,9 +247,6 @@ public class ThemeServiceImpl implements ThemeService {
             throw BizException.param("主题包内容为空");
         }
         String id = requireId(pack.id());
-        if (DEFAULT_THEME_ID.equals(id)) {
-            throw BizException.param("default 是内置默认主题的保留 id");
-        }
         String name = requiredText(pack.name(), "主题名称", 40);
         String description = optionalText(pack.description(), "主题描述", 200);
         String author = optionalText(pack.author(), "作者", 40);

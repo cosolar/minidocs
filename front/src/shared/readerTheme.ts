@@ -108,7 +108,6 @@ function normalizePack(raw: unknown): ThemePack | null {
   const id = typeof item.id === 'string' ? item.id.trim() : ''
   const name = typeof item.name === 'string' ? item.name.trim() : ''
   if (!/^[a-z0-9][a-z0-9-]{0,38}[a-z0-9]$/.test(id) || !name) return null
-  if (id === DEFAULT_THEME.id) return null
   const light = safeTokens(item.light)
   const dark = safeTokens(item.dark)
   const lightKeys = Object.keys(light)
@@ -123,7 +122,8 @@ function normalizePack(raw: unknown): ThemePack | null {
     license: typeof item.license === 'string' ? item.license.trim().slice(0, 30) : null,
     light,
     dark,
-    builtin: item.builtin === true
+    // default 永远内置：即便后端是旧版、列表里没带它，前端也要保证它不可卸载
+    builtin: item.builtin === true || id === DEFAULT_THEME.id
   }
 }
 
@@ -134,28 +134,51 @@ function sortPacks(packs: ThemePack[]): ThemePack[] {
   })
 }
 
-/** 合并默认主题 + 去重 + 排序。默认永远排第一。 */
+/**
+ * 合并默认主题 + 去重 + 排序。默认永远排第一。
+ *
+ * <p>default 现在也是一份 JSON 包（含全套令牌），服务端列表里会带着它；旧后端 / 离线时
+ * 列表没有 default，这里补回零令牌的兜底版（样式由 variables.css 提供）。</p>
+ */
 function mergePacks(raw: unknown): ThemePack[] {
-  const byId = new Map<string, ThemePack>()
+  const byId = new Map<string, ThemePack>([[DEFAULT_THEME.id, DEFAULT_THEME]])
   if (Array.isArray(raw)) {
     for (const entry of raw) {
       const pack = normalizePack(entry)
       if (pack) byId.set(pack.id, pack)
     }
   }
-  return [DEFAULT_THEME, ...sortPacks([...byId.values()])]
+  const rest = [...byId.values()].filter((pack) => pack.id !== DEFAULT_THEME.id)
+  return [byId.get(DEFAULT_THEME.id)!, ...sortPacks(rest)]
 }
 
 export function readerThemeById(id: string | null | undefined): ThemePack {
   return themePacks.value.find((pack) => pack.id === id) || DEFAULT_THEME
 }
 
-function readStoredId(): string {
+function readStoredId(): string | null {
   try {
-    return localStorage.getItem(STORAGE_KEY) || DEFAULT_THEME.id
+    return localStorage.getItem(STORAGE_KEY)
   } catch {
-    return DEFAULT_THEME.id
+    return null
   }
+}
+
+/**
+ * 服务端下发的「默认阅读主题」（管理员在站点设置里选的）。
+ *
+ * <p>它只对没选过主题的访客生效：读者一旦在本地选过，就永远以读者的为准 —— 所以这里
+ * 不写 localStorage，管理员以后换默认主题，这批「没选过」的访客也能跟着换。</p>
+ */
+let serverDefaultId: string | null = null
+
+export function setServerDefaultTheme(id: string | null | undefined) {
+  serverDefaultId = id && id !== DEFAULT_THEME.id ? id : null
+  if (!readStoredId()) applyReaderTheme(preferredId(), false)
+}
+
+function preferredId(): string {
+  return readStoredId() || serverDefaultId || DEFAULT_THEME.id
 }
 
 function readCache(): ThemePack[] | null {
@@ -192,11 +215,8 @@ function renderTheme(pack: ThemePack) {
   const style = document.getElementById(STYLE_ID) || document.createElement('style')
   style.id = STYLE_ID
   if (!style.parentNode) document.head.appendChild(style)
-  if (pack.id === DEFAULT_THEME.id) {
-    style.textContent = ''
-    return
-  }
 
+  // default 也是普通包了：有令牌就渲染，没有（兜底版）则各段为空，样式自然回落到 variables.css
   const baseLight: Record<string, string> = {}
   const baseDark: Record<string, string> = {}
   const codeLight: Record<string, string> = {}
@@ -235,14 +255,17 @@ function renderTheme(pack: ThemePack) {
  *
  * <p>传进来的 id 不存在（主题被管理员卸载、或 localStorage 里是旧值）时回落到默认主题，
  * 不把页面留在「样式表还是旧主题、状态却显示默认」的半截状态。</p>
+ *
+ * <p><code>persist</code> 关掉时不写 localStorage：套用服务端默认主题属于「访客还没选」，
+ * 落了盘就成了读者自己的选择，管理员以后换默认主题就够不到他了。持久化只发生在
+ * 读者显式选择（ReaderPrefsMenu）与回放自己存储的那一次。</p>
  */
-export function applyReaderTheme(id: string) {
+export function applyReaderTheme(id: string, persist = true) {
   const exists = themePacks.value.some((pack) => pack.id === id)
   const pack = exists ? readerThemeById(id) : DEFAULT_THEME
   currentThemeId.value = pack.id
   renderTheme(pack)
-  // 缓存尚未回来时先按默认渲染，但不要把存储里的选择冲掉：列表一到就能套回去
-  if (exists || id === DEFAULT_THEME.id) {
+  if (persist && (exists || id === DEFAULT_THEME.id)) {
     try {
       localStorage.setItem(STORAGE_KEY, pack.id)
     } catch {
@@ -260,7 +283,8 @@ export function applyReaderTheme(id: string) {
 export function initReaderTheme() {
   const cached = readCache()
   if (cached) themePacks.value = cached
-  applyReaderTheme(readStoredId())
+  // 回放本地选择时才允许落盘；落到服务端默认的那次不持久化
+  applyReaderTheme(preferredId(), Boolean(readStoredId()))
 }
 
 /** 从服务端拉取已安装主题；失败时保留缓存与默认主题。 */
@@ -271,7 +295,7 @@ export async function loadReaderThemes() {
     themePacks.value = packs
     writeCache(packs)
     // 选中的主题可能刚被管理员卸载：重新套用一次，让它落回默认
-    applyReaderTheme(readStoredId())
+    applyReaderTheme(preferredId(), Boolean(readStoredId()))
   } catch {
     /* 离线或接口异常：沿用缓存，页面不该因为主题列表拿不到就白屏 */
   }
@@ -288,8 +312,8 @@ export interface ThemeSwatch {
 export function themeSwatch(pack: ThemePack, mode: 'light' | 'dark'): ThemeSwatch {
   const tokens = mode === 'dark' ? pack.dark : pack.light
   const fallback = mode === 'dark'
-    ? { bg: '#161922', primary: '#6c8cff', accent: '#2dd4bf' }
-    : { bg: '#ffffff', primary: '#2563eb', accent: '#14b8a6' }
+    ? { bg: '#161922', primary: '#4dbfa8', accent: '#2dd4bf' }
+    : { bg: '#ffffff', primary: '#128577', accent: '#14b8a6' }
   return {
     bg: tokens['--md-surface'] || tokens['--md-bg'] || fallback.bg,
     primary: tokens['--md-ink-blue'] || tokens['--md-primary'] || fallback.primary,

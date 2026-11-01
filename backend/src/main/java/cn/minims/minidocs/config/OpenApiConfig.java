@@ -17,7 +17,7 @@ public class OpenApiConfig {
     public OpenAPI miniDocsOpenAPI() {
         return new OpenAPI()
                 .info(new Info()
-                        .title("MiniDocs · 极简知识库平台 API")
+                        .title("MiniDocs · 极简智库平台 API")
                         .version("1.2.0")
                         .description("知识库 / 文档 / 编辑锁 / 分享 / 组织与成员 / 审计 / 用户 / 设置 接口文档"))
                 .components(new Components().addSecuritySchemes(SCHEME,

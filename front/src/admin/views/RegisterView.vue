@@ -75,10 +75,10 @@ async function submit() {
     <div class="md-login__shell">
       <section class="md-login__intro">
         <div class="md-login__intro-top">
-          <span class="md-login__logo is-image" :class="{ 'is-builtin': !site.value.logoSrc }">
+          <span class="md-login__logo is-image" :style="site.logoStyle">
             <img :src="site.value.logoSrc || DEFAULT_LOGO" alt="" />
           </span>
-          <div class="md-login__intro-name">
+          <div v-if="!site.logoOnly" class="md-login__intro-name">
             <strong>{{ site.value.name }}</strong>
             <small>{{ site.value.subtitle || '轻量化 · 高性能的知识库平台' }}</small>
           </div>

@@ -7,7 +7,7 @@ import org.springframework.boot.context.properties.ConfigurationPropertiesScan;
 import org.springframework.scheduling.annotation.EnableScheduling;
 
 /**
- * MiniDocs · 极简知识库平台 启动类。
+ * MiniDocs · 极简智库平台 启动类。
  */
 @SpringBootApplication
 @ConfigurationPropertiesScan

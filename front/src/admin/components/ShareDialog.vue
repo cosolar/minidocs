@@ -11,6 +11,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { shareApi } from '@/admin/api'
 import MdIcon from '@/admin/components/MdIcon.vue'
 import ShareMenuPicker from '@/admin/components/ShareMenuPicker.vue'
+import HelpTip from '@/shared/components/HelpTip.vue'
 import type { NavMenuItem, ShareVO } from '@/shared/api/types'
 
 const props = defineProps<{
@@ -250,7 +251,7 @@ const portalScopeHint = computed(() => {
 
       <!-- 设置区：一行一项，说明与控件同排，比标签在上、控件在下的空档紧凑得多 -->
       <section class="md-share-panel">
-        <h4 class="md-share-panel__title">分享设置</h4>
+        <h4 class="md-share-panel__title">分享设置<HelpTip :width="340" text="拿到链接的人只能读，改不了内容；对外可读等同于一次发布，所以能维护这个库的人才给这一项。" /></h4>
 
         <div class="md-share-field">
           <div class="md-share-field__text">
@@ -347,22 +348,14 @@ const portalScopeHint = computed(() => {
       </div>
       <!-- 导航菜单：只有整库分享才有「目录」可挑，单篇分享不显示这一块 -->
       <section v-if="kbScope" class="md-share-panel">
-        <h4 class="md-share-panel__title">导航菜单</h4>
-        <p class="md-share-panel__hint">
+        <h4 class="md-share-panel__title">导航菜单<HelpTip :width="360">
           勾选目录或文档作为分享页顶部的菜单项，再调整它们的先后顺序。点目录菜单会打开该目录下的第一篇文档。
           不选则分享页照旧展示完整目录树。
-        </p>
-        <p class="md-share-panel__hint">
-          右边可以给每一项取一个<b>别名</b>：目录名是给你自己看的（{@code docs}、{@code notes}），
+          右边可以给每一项取一个别名：目录名是给你自己看的（docs、notes），
           读者看到的是导航条上的文字，两者没有必然关系。别名留空就用目录名，改目录名也不会冲掉它。
-        </p>
+        </HelpTip></h4>
         <ShareMenuPicker v-model="form.menu" :kb-slug="kbSlug" />
       </section>
-
-      <p class="md-share-note">
-        <MdIcon name="key" :size="13" />
-        拿到链接的人只能读，改不了内容；对外可读等同于一次发布，所以能维护这个库的人才给这一项。
-      </p>
     </div>
 
     <template #footer>

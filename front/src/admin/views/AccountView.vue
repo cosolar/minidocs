@@ -10,6 +10,7 @@ import { onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { authApi, avatarApi } from '@/admin/api'
 import MdIcon from '@/admin/components/MdIcon.vue'
+import HelpTip from '@/shared/components/HelpTip.vue'
 import { appBackendHref, appHref } from '@/shared/appBase'
 import { useAuthStore } from '@/admin/stores/auth'
 import { useSettingsStore } from '@/shared/stores/settings'
@@ -128,7 +129,7 @@ onMounted(async () => {
 <template>
   <div style="display: grid; gap: 16px">
     <div class="md-card-panel">
-      <div class="md-panel-head"><h2>头像</h2></div>
+      <div class="md-panel-head"><h2>头像<HelpTip text="支持 PNG / JPG / GIF / WebP / SVG，不超过 2MB；建议使用正方形图片。" /></h2></div>
       <div class="md-panel-body">
         <div class="md-avatar-field">
           <span class="md-avatar-field__preview">
@@ -144,7 +145,6 @@ onMounted(async () => {
                 <MdIcon name="trash" :size="14" />移除
               </el-button>
             </div>
-            <p class="md-copy-hint">支持 PNG / JPG / GIF / WebP / SVG，不超过 2MB；建议使用正方形图片。</p>
           </div>
         </div>
         <input ref="avatarInput" type="file" accept="image/*" hidden @change="onAvatarChange" />
@@ -196,7 +196,7 @@ onMounted(async () => {
     </div>
 
     <div class="md-card-panel">
-      <div class="md-panel-head"><h2>外观与偏好</h2></div>
+      <div class="md-panel-head"><h2>外观与偏好<HelpTip text="偏好保存在服务端（user_settings），换设备登录后自动同步。" /></h2></div>
       <div class="md-panel-body">
         <el-form label-position="top" style="max-width: 620px">
           <el-form-item label="主题模式">
@@ -245,7 +245,6 @@ onMounted(async () => {
             </el-radio-group>
           </el-form-item>
         </el-form>
-        <p class="md-copy-hint">偏好保存在服务端（user_settings），换设备登录后自动同步。</p>
       </div>
     </div>
 

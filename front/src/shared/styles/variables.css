@@ -1,11 +1,12 @@
 /* MiniDocs 设计变量（管理后台与阅读前台共用）
-   色板：MiniDocs Glass Blue —— 浅雾蓝底、#2563EB 主交互、#14B8A6 品牌辅助，
-   文字三级（标题 #172033 / 正文 #43526A / 次要 #7B879B），玻璃容器在页面层叠成。 */
+   色板：MiniDocs Glass Pine —— 浅雾白底、#128577 主交互（品牌青绿）、#14B8A6 品牌辅助，
+   文字三级（标题 #172033 / 正文 #43526A / 次要 #7B879B），玻璃容器在页面层叠成。
+   阅读正文的默认语义色仍是蓝青一族：那是「澄澈」主题的领地，界面主色换青绿不带动它。 */
 :root {
-  --md-primary: #2563eb;
-  --md-primary-hover: #1d4ed8;
-  /* 选中底 #EAF2FF 的可缩放写法：压在白卡上是淡蓝，压在玻璃上也不突兀 */
-  --md-primary-soft: rgba(37, 99, 235, 0.08);
+  --md-primary: #128577;
+  --md-primary-hover: #0d6d61;
+  /* 选中底 #E8F5F2 的可缩放写法：压在白卡上是淡青，压在玻璃上也不突兀 */
+  --md-primary-soft: rgba(18, 133, 119, 0.09);
   /* 品牌辅助色：少量用于 Logo、状态点与装饰光晕，不做大面积铺色 */
   --md-accent: #14b8a6;
   --md-success: #16a34a;
@@ -29,7 +30,7 @@
   --md-glass: rgba(255, 255, 255, 0.68);
   --md-glass-border: rgba(255, 255, 255, 0.72);
   --md-glass-blur: blur(18px) saturate(140%);
-  --md-glass-shadow: 0 8px 30px rgba(30, 60, 100, 0.06);
+  --md-glass-shadow: 0 8px 30px rgba(22, 64, 55, 0.07);
   --md-glass-radius: 14px;
 
   /* 滚动条：细、主题色但压到很淡，悬停才提上来。
@@ -43,7 +44,7 @@
   --md-radius-sm: 8px;
 
   /* 品牌渐变。只给知识库标识那一块色块用，理由与配色比例见 docs/DESIGN.md */
-  --md-brand-gradient: linear-gradient(135deg, var(--md-primary), #7c5cff);
+  --md-brand-gradient: linear-gradient(135deg, var(--md-primary), #2eb8a3);
   --md-brand-shadow: 0 4px 12px color-mix(in srgb, var(--md-primary) 28%, transparent);
   --md-content-width: 940px;
   /* 方案给的区间：侧栏 300-320、大纲 250-280；拖过的值仍优先于这两个默认 */
@@ -131,9 +132,9 @@
 }
 
 [data-theme='dark'] {
-  --md-primary: #6c8cff;
-  --md-primary-hover: #8ba4ff;
-  --md-primary-soft: rgba(108, 140, 255, 0.18);
+  --md-primary: #4dbfa8;
+  --md-primary-hover: #63cbb8;
+  --md-primary-soft: rgba(77, 191, 168, 0.18);
   --md-accent: #2dd4bf;
 
   --md-bg: #0f1117;
@@ -153,7 +154,7 @@
   --md-glass-border: rgba(255, 255, 255, 0.08);
   --md-glass-shadow: 0 8px 30px rgba(0, 0, 0, 0.35);
 
-  /* 暗色主色是更亮的 #6c8cff，同样的百分比压在深底上几乎看不见，整体上调一档 */
+  /* 暗色主色是更亮的 #4dbfa8，同样的百分比压在深底上几乎看不见，整体上调一档 */
   --md-scrollbar-thumb: color-mix(in srgb, var(--md-primary) 22%, transparent);
   --md-scrollbar-thumb-hover: color-mix(in srgb, var(--md-primary) 45%, transparent);
 
@@ -219,9 +220,8 @@ body.md-page--read,
   --md-theme-h1-rule: linear-gradient(
     90deg,
     var(--md-ink-blue) 0%,
-    var(--md-accent) 26%,
-    color-mix(in srgb, var(--md-accent) 22%, transparent) 58%,
-    transparent 100%
+    var(--md-accent) 40%,
+    var(--md-border-strong) 100%
   );
   --md-theme-h1-rule-height: 3px;
   --md-theme-h1-rule-radius: 3px;
@@ -230,8 +230,8 @@ body.md-page--read,
   --md-theme-h2-padding-bottom: 0;
   --md-theme-h2-border: 0;
   --md-theme-h2-marker-width: 4px;
-  --md-theme-h2-marker-top: 0.14em;
-  --md-theme-h2-marker-bottom: 0.14em;
+  --md-theme-h2-marker-top: 0.18em;
+  --md-theme-h2-marker-bottom: 0.18em;
   --md-theme-h2-marker-bg: linear-gradient(180deg, var(--md-ink-blue), var(--md-accent));
   --md-theme-h2-marker-radius: 3px;
   --md-theme-h3-size: 1.18em;

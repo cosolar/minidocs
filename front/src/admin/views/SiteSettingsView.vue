@@ -14,6 +14,7 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { siteApi, themeApi } from '@/admin/api'
 import MdIcon from '@/admin/components/MdIcon.vue'
+import HelpTip from '@/shared/components/HelpTip.vue'
 import { useSiteStore } from '@/shared/stores/site'
 import { DEFAULT_LOGO } from '@/shared/brand'
 import { DEFAULT_THEME, themeSwatch, type ThemePack } from '@/shared/readerTheme'
@@ -26,7 +27,28 @@ const saving = ref(false)
 const uploading = ref(false)
 const fileRef = ref<HTMLInputElement | null>(null)
 
-const form = reactive({ name: '', subtitle: '', baseUrl: '' })
+const form = reactive({ name: '', subtitle: '', baseUrl: '', readerTheme: '' })
+
+/**
+ * Logo 显示方式：宽高留空 = 跟随各品牌位默认尺寸，「只显示 Logo」= 隐藏名称与副标题。
+ *
+ * <p>三者都是纯渲染参数，存在 site_config 的同一份 JSON 里，与图片文件本身无关 ——
+ * 换图不必重设尺寸，改尺寸也不会动图。</p>
+ */
+const logoForm = reactive({ width: null as number | null, height: null as number | null, only: false })
+const logoSaving = ref(false)
+
+/** 预览跟着表单走：管理员要在这里看到最终效果，而不是等保存后再去顶栏核对 */
+const logoPreviewStyle = computed(() => {
+  const style: Record<string, string> = {}
+  if (logoForm.width) {
+    style.width = `${logoForm.width}px`
+  }
+  if (logoForm.height) {
+    style.height = `${logoForm.height}px`
+  }
+  return style
+})
 
 /** 预览优先用刚保存下来的地址；还没保存过的本地选择不做即时预览，避免与后端真值不一致 */
 const logoSrc = computed(() => site.value.logoSrc || '')
@@ -54,6 +76,10 @@ async function load() {
     form.name = data.name || ''
     form.subtitle = data.subtitle || ''
     form.baseUrl = data.baseUrl || ''
+    form.readerTheme = data.readerTheme || ''
+    logoForm.width = data.logoWidth ?? null
+    logoForm.height = data.logoHeight ?? null
+    logoForm.only = Boolean(data.logoOnly)
   } finally {
     loading.value = false
   }
@@ -109,11 +135,35 @@ async function removeLogo() {
   ElMessage.success('Logo 已移除')
 }
 
+/**
+ * 保存 Logo 显示方式。
+ *
+ * <p>清空输入要发空串而不是省略字段：后端按「patch 里显式带了这一项」判定，
+ * 不带 = 保持原值，带空串 = 清除回默认尺寸。少发一个字段就会留下一个改不掉的旧尺寸。</p>
+ */
+async function saveLogoDisplay() {
+  logoSaving.value = true
+  try {
+    const data = await siteApi.update({
+      logoWidth: logoForm.width ?? '',
+      logoHeight: logoForm.height ?? '',
+      logoOnly: logoForm.only
+    })
+    site.apply(data)
+    logoForm.width = data.logoWidth ?? null
+    logoForm.height = data.logoHeight ?? null
+    logoForm.only = Boolean(data.logoOnly)
+    ElMessage.success('Logo 显示方式已更新')
+  } finally {
+    logoSaving.value = false
+  }
+}
+
 /* ------------------------------------------------------------------ 阅读主题 */
 /*
  * 主题包是「服务器侧的文件」：装着几张 JSON，读者的浏览器拉列表后自己拼样式。
- * 所以这里不需要构建或发布前端 —— 装上刷新生效，卸载同理。默认主题不在文件里，
- * 它由样式表本身提供，列出来只为让管理员看到「可选项里还有它」，不提供卸载。
+ * 所以这里不需要构建或发布前端 —— 装上刷新生效，卸载同理。default.json 与其他内置包
+ * 同一套种子机制落盘，列表里带着它的全套令牌，卸载与上传同名包都被后端拒绝。
  */
 const themes = ref<ThemePack[]>([])
 const themesLoading = ref(false)
@@ -122,12 +172,41 @@ const themeReseeding = ref(false)
 const themeFileRef = ref<HTMLInputElement | null>(null)
 
 const themeCards = computed(() =>
-  [DEFAULT_THEME, ...themes.value].map((pack) => ({
+  [DEFAULT_THEME, ...themes.value.filter((pack) => pack.id !== DEFAULT_THEME.id)].map((pack) => ({
     pack,
     light: themeSwatch(pack, 'light'),
     dark: themeSwatch(pack, 'dark')
   }))
 )
+
+const readerThemeSaving = ref(false)
+
+/** 未设置时新访客跟随内置澄澈，所以「默认」在界面上就是澄澈这张卡片 */
+const currentDefaultId = computed(() => form.readerTheme || DEFAULT_THEME.id)
+
+function isDefaultTheme(pack: ThemePack) {
+  return pack.id === currentDefaultId.value
+}
+
+/**
+ * 点卡片即设为新访客默认主题。
+ *
+ * <p>空串 = 清除（回到内置澄澈）：readerTheme 的语义是「覆盖」，没有值才是跟随内置，
+ * 所以点澄澈卡片发的是空串而不是 "default"。</p>
+ */
+async function setDefaultTheme(pack: ThemePack) {
+  if (readerThemeSaving.value || isDefaultTheme(pack)) return
+  readerThemeSaving.value = true
+  try {
+    const nextId = pack.id === DEFAULT_THEME.id ? '' : pack.id
+    const data = await siteApi.update({ readerTheme: nextId })
+    site.apply(data)
+    form.readerTheme = data.readerTheme || ''
+    ElMessage.success(nextId ? `新访客将使用「${pack.name}」` : '新访客将跟随内置「澄澈」')
+  } finally {
+    readerThemeSaving.value = false
+  }
+}
 
 async function loadThemes() {
   themesLoading.value = true
@@ -210,13 +289,19 @@ onMounted(() => {
       </div>
       <div class="md-panel-body">
         <el-form label-position="top" style="max-width: 560px">
-          <el-form-item label="站点名称">
+          <el-form-item>
+            <template #label>站点名称<HelpTip text="名称与副标题出现在门户顶栏、阅读页、分享页与后台侧栏；留空则回落到内置默认品牌。" /></template>
             <el-input v-model="form.name" maxlength="32" show-word-limit placeholder="MiniDocs" />
           </el-form-item>
           <el-form-item label="副标题">
-            <el-input v-model="form.subtitle" maxlength="48" show-word-limit placeholder="极简知识库" />
+            <el-input v-model="form.subtitle" maxlength="48" show-word-limit placeholder="极简智库" />
           </el-form-item>
-          <el-form-item label="站点基址" :error="baseUrlError">
+          <el-form-item :error="baseUrlError">
+            <template #label>站点基址<HelpTip :width="360">
+              站点基址是分享链接的地址前缀（协议 + 域名，可带路径如 <code>/minidocs</code>），改完立即对所有新分享生效。
+              留空则回落到部署配置 <code>PAGE_BASE_URL</code>，再没有就按当前请求推导 ——
+              最后这一层仅适合同源部署，反向代理后面直接用会让链接指向内网地址。
+            </HelpTip></template>
             <el-input
               v-model="form.baseUrl"
               maxlength="200"
@@ -229,15 +314,6 @@ onMounted(() => {
             </el-button>
           </el-form-item>
         </el-form>
-        <p class="md-copy-hint">
-          名称与副标题出现在门户顶栏、阅读页、分享页与后台侧栏；留空则回落到内置默认品牌。
-        </p>
-        <p class="md-copy-hint">
-          站点基址是分享链接的地址前缀（协议 + 域名，可带路径如
-          <code>/minidocs</code>），改完立即对所有新分享生效。
-          留空则回落到部署配置 <code>PAGE_BASE_URL</code>，再没有就按当前请求推导 ——
-          最后这一层仅适合同源部署，反向代理后面直接用会让链接指向内网地址。
-        </p>
       </div>
     </div>
 
@@ -245,12 +321,14 @@ onMounted(() => {
       <div class="md-panel-head"><h2>站点 Logo</h2></div>
       <div class="md-panel-body">
         <div class="md-site-logo">
-          <span class="md-site-logo__preview">
+          <span class="md-site-logo__preview" :style="logoPreviewStyle">
             <img :src="logoSrc || DEFAULT_LOGO" alt="站点 Logo" />
           </span>
           <div class="md-site-logo__meta">
-            <div class="md-site-logo__title">品牌图标</div>
-            <p class="md-copy-hint">建议正方形，支持 PNG / JPG / SVG / WebP，不超过 2MB；未上传时使用内置图标。</p>
+            <div class="md-site-logo__title">品牌图标<HelpTip :width="340">
+              支持 PNG / JPG / SVG / WebP，不超过 2MB；未上传时使用内置图标。图片按原始比例完整显示，不会被裁掉。
+              Logo 同时会用作浏览器标签页图标（favicon），换图即换地址，浏览器不必再做缓存失效判断。
+            </HelpTip></div>
             <div class="md-site-logo__actions">
               <el-button :loading="uploading" @click="pickLogo">
                 <MdIcon name="upload" :size="14" />{{ logoSrc ? '更换 Logo' : '上传 Logo' }}
@@ -262,25 +340,74 @@ onMounted(() => {
           </div>
         </div>
         <input ref="fileRef" type="file" accept="image/*" hidden @change="onFile" />
-        <p class="md-copy-hint">
-          Logo 同时会用作浏览器标签页图标（favicon）。换图即换地址，浏览器不必再做缓存失效判断。
-        </p>
+
+        <el-form label-position="top" class="md-site-logo__display">
+          <div class="md-site-logo__display-row">
+            <el-form-item>
+              <template #label>宽度（像素）<HelpTip :width="340">
+                宽高留空即跟随各处默认尺寸（顶栏 34、后台侧栏 32、登录页 44）；只填一边时另一边保持默认，
+                图片按原比例完整显示。页脚固定用 26px 小图标，不受这里的尺寸影响。
+              </HelpTip></template>
+              <el-input-number
+                v-model="logoForm.width"
+                :min="16"
+                :max="512"
+                :value-on-clear="null"
+                controls-position="right"
+                placeholder="默认"
+              />
+            </el-form-item>
+            <el-form-item label="高度（像素）">
+              <el-input-number
+                v-model="logoForm.height"
+                :min="16"
+                :max="512"
+                :value-on-clear="null"
+                controls-position="right"
+                placeholder="默认"
+              />
+            </el-form-item>
+            <el-form-item>
+              <template #label>显示内容<HelpTip :width="340">
+                「只显示 Logo」会隐藏门户顶栏、阅读页、分享页、后台侧栏与登录页的名称和副标题；
+                还没上传 Logo 时不可开启，否则品牌位只剩一个内置图标、站点名也看不到了。
+              </HelpTip></template>
+              <el-switch
+                v-model="logoForm.only"
+                :disabled="!logoSrc"
+                active-text="只显示 Logo"
+                inactive-text="连同名称一起"
+              />
+            </el-form-item>
+            <el-form-item label=" ">
+              <el-button type="primary" :loading="logoSaving" @click="saveLogoDisplay">
+                <MdIcon name="save" :size="14" />保存显示设置
+              </el-button>
+            </el-form-item>
+          </div>
+        </el-form>
       </div>
     </div>
 
     <div v-loading="themesLoading" class="md-card-panel">
       <div class="md-panel-head">
-        <h2>阅读主题</h2>
+        <h2>阅读主题<HelpTip :width="380" text="读者在阅读页 / 分享页的「阅读设置」里挑主题；每套主题自带明亮与暗黑两档，与现有的外观切换相互独立。装好的主题会出现在所有读者的面板里，刷新即生效。点击卡片可把它设为新访客的默认主题：没自己选过主题的访客第一次打开就套用它；读过一次并自己选过的人，仍以读者自己的选择为准。" /></h2>
         <span class="md-ad-chip">读者可选</span>
       </div>
       <div class="md-panel-body">
-        <p class="md-copy-hint">
-          读者在阅读页 / 分享页的「阅读设置」里挑主题；每套主题自带明亮与暗黑两档，
-          与现有的外观切换相互独立。装好的主题会出现在所有读者的面板里，刷新即生效。
-        </p>
-
         <div class="md-theme-grid">
-          <div v-for="card in themeCards" :key="card.pack.id" class="md-theme-card">
+          <div
+            v-for="card in themeCards"
+            :key="card.pack.id"
+            class="md-theme-card"
+            :class="{ 'is-default': isDefaultTheme(card.pack), 'is-saving': readerThemeSaving }"
+            role="button"
+            tabindex="0"
+            :aria-pressed="isDefaultTheme(card.pack)"
+            @click="setDefaultTheme(card.pack)"
+            @keydown.enter.prevent="setDefaultTheme(card.pack)"
+            @keydown.space.prevent="setDefaultTheme(card.pack)"
+          >
             <div class="md-theme-card__swatch" aria-hidden="true">
               <span class="md-theme-card__half" :style="{ background: card.light.bg }">
                 <i class="md-theme-card__bar" :style="{ background: card.light.primary }"></i>
@@ -293,7 +420,10 @@ onMounted(() => {
             </div>
             <div class="md-theme-card__head">
               <strong class="md-theme-card__name">{{ card.pack.name }}</strong>
-              <span class="md-theme-card__tag">{{ card.pack.id === DEFAULT_THEME.id ? '默认' : (card.pack.builtin ? '内置' : '自定义') }}</span>
+              <span
+                class="md-theme-card__tag"
+                :class="{ 'is-accent': isDefaultTheme(card.pack) }"
+              >{{ isDefaultTheme(card.pack) ? '默认主题' : (card.pack.builtin ? '内置' : '自定义') }}</span>
             </div>
             <p class="md-theme-card__desc">{{ card.pack.description || '（无描述）' }}</p>
             <div class="md-theme-card__foot">
@@ -305,7 +435,7 @@ onMounted(() => {
                 type="danger"
                 link
                 size="small"
-                @click="uninstallTheme(card.pack)"
+                @click.stop="uninstallTheme(card.pack)"
               >
                 卸载
               </el-button>
@@ -324,6 +454,10 @@ onMounted(() => {
           <el-button link @click="downloadThemeTemplate">
             <MdIcon name="download" :size="14" />下载模板
           </el-button>
+          <HelpTip :width="340">
+            主题包是只描述颜色与排版参数的 JSON，不能携带任意 CSS。每档的令牌名必须一致，
+            单个文件不超过 64KB；从「下载模板」改起最省事，令牌说明见 <code>docs/THEMES.md</code>。
+          </HelpTip>
         </div>
         <input
           ref="themeFileRef"
@@ -332,12 +466,6 @@ onMounted(() => {
           hidden
           @change="onThemeFile"
         />
-
-        <p class="md-copy-hint">
-          主题包是只描述颜色与排版参数的 JSON，不能携带任意 CSS。每档的令牌名必须一致，
-          单个文件不超过 64KB；从「下载模板」改起最省事，令牌说明见
-          <code>docs/THEMES.md</code>。
-        </p>
       </div>
     </div>
   </div>
@@ -350,22 +478,33 @@ onMounted(() => {
   gap: 16px;
   flex-wrap: wrap;
 }
+/* 预览不给底板：与顶栏/侧栏/页脚/登录页同一套裸图口径，否则「预览里有框、线上没框」会让人以为没生效 */
 .md-site-logo__preview {
   width: 72px;
   height: 72px;
-  border-radius: 16px;
   flex-shrink: 0;
   display: grid;
   place-items: center;
-  overflow: hidden;
+  grid-template-rows: 100%;
   color: var(--md-text-3);
-  background: var(--md-surface-2);
-  border: 1px solid var(--md-border);
 }
 .md-site-logo__preview img {
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
+}
+/* 宽高与开关：与上面的图标行分开，避免「尺寸」看起来只作用于预览框 */
+.md-site-logo__display {
+  margin-top: 14px;
+}
+.md-site-logo__display-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 4px 16px;
+}
+.md-site-logo__display-row :deep(.el-form-item) {
+  margin-bottom: 10px;
 }
 .md-site-logo__meta {
   min-width: 0;
@@ -396,7 +535,21 @@ onMounted(() => {
   border: 1px solid var(--md-border);
   border-radius: var(--md-radius-sm);
   background: var(--md-surface);
+  cursor: pointer;
+  transition: border-color .15s ease, background .15s ease, box-shadow .15s ease;
 }
+.md-theme-card:hover { border-color: color-mix(in srgb, var(--md-primary) 45%, var(--md-border)); }
+.md-theme-card:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--md-primary) 55%, transparent);
+  outline-offset: 2px;
+}
+/* 选中 = 新访客的默认主题：主色描边 + 极浅主色底，点击目标一眼可辨 */
+.md-theme-card.is-default {
+  border-color: var(--md-primary);
+  background: color-mix(in srgb, var(--md-primary) 4%, var(--md-surface));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--md-primary) 30%, transparent);
+}
+.md-theme-card.is-saving { cursor: progress; }
 .md-theme-card__swatch {
   display: flex;
   height: 46px;
@@ -435,6 +588,11 @@ onMounted(() => {
   border: 1px solid var(--md-border);
   color: var(--md-text-3);
   font-size: 11px;
+}
+.md-theme-card__tag.is-accent {
+  border-color: color-mix(in srgb, var(--md-primary) 55%, transparent);
+  color: var(--md-primary);
+  background: var(--md-primary-soft);
 }
 .md-theme-card__desc {
   flex: 1;

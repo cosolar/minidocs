@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { tenantApi } from '@/admin/api'
 import MdIcon from '@/admin/components/MdIcon.vue'
+import HelpTip from '@/shared/components/HelpTip.vue'
 import { useOrgStore } from '@/admin/stores/org'
 import type { DiscoverOrgVO } from '@/shared/api/types'
 
@@ -71,7 +72,7 @@ onMounted(async () => {
   <div style="display: grid; gap: 16px">
     <div class="md-card-panel">
       <div class="md-panel-head">
-        <h2>发现组织</h2>
+        <h2>发现组织<HelpTip :width="340" text="只有勾选了「出现在发现列表」的组织会出现在这里，看到的字段也都是公开字段；成员构成与内部知识库一概不展示。加入后你就能看到该组织的内部知识库。" /></h2>
         <div class="md-head-row">
           <el-input
             v-model="keyword"
@@ -87,10 +88,6 @@ onMounted(async () => {
         </div>
       </div>
       <div class="md-panel-body">
-        <p class="md-copy-hint">
-          只有勾选了「出现在发现列表」的组织会出现在这里，看到的字段也都是公开字段；
-          成员构成与内部知识库一概不展示。加入后你就能看到该组织的内部知识库。
-        </p>
         <el-skeleton v-if="loading && !rows.length" :rows="4" animated />
         <p v-else-if="!rows.length" class="md-ad-sub">没有可加入的组织。可以让管理员按用户名邀请你，或从顶栏「新建组织」自己开一个。</p>
         <div v-else class="md-ad-list">

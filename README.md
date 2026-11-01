@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="docs/images/logo.png" height="150" alt="logo.png" />
+  <img src="https://oss.towao.com/proxy/plain/img/2026/20261031201539282661062.png" height="150" alt="MiniDocs 极简智库" />
 </p>
 
-<h1 align="center">MiniDocs 知识库</h1>
+<h1 align="center">极简智库 MiniDocs</h1>
 
 <p align="center">
   <a href="https://github.com/cosolar/minidocs/actions/workflows/ci.yml"><img src="https://github.com/cosolar/minidocs/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
@@ -35,7 +35,7 @@ MiniDocs 面向「自己维护一批文档、并且要把它分享出去」的�
 **阅读**
 
 - 阅读页与分享页共用同一条渲染管线，所见即所得
-- 明亮 / 暗黑主题；阅读设置可切换阅读主题包（内置五套，管理员可安装 / 卸载自定义主题）、
+- 明亮 / 暗黑主题；阅读设置可切换阅读主题包（内置九套，管理员可安装 / 卸载自定义主题、指定新访客的默认主题）、
   正文字号与字体（思源黑体、霞鹜文楷、站酷快乐体等）；分享页还可调正文宽度
 - 上 / 下一篇导航、站内全文检索（内存倒排索引，命中直达标题）
 

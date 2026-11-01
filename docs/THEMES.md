@@ -22,10 +22,14 @@
 
 | id | 名称 | 风格 |
 | --- | --- | --- |
-| `default` | 澄澈 | MiniDocs 默认：雾蓝底、蓝青强调。**不落 JSON**，色值由 `variables.css` 提供，不可卸载 |
+| `default` | 澄澈 | MiniDocs 默认：雾蓝底、蓝青强调。同样是内置 JSON 包（`default.json`），不可卸载、不可被同名包覆盖 |
+| `ayu` | 暖橙 | 暖白底、低饱和正文与橙点缀（参考 Ayu Light），暗档取 Ayu Dark |
+| `celadon` | 青瓷 | 米青纸面配墨绿字，主色取自 Logo 青绿釉色，暗档为墨绿深底 |
 | `gatsby` | 紫笺 | 暖纸底、衬线标题与深紫强调（参考 Typora Gatsby） |
+| `jiang` | 绛霞 | 暖白底、绛红强调与玫瑰渐变，暗档为深酒红底 |
 | `newsprint` | 铅字 | 米白纸面、全衬线排版与黑白强调，像一份旧报纸 |
 | `nord` | 北境 | 极地蓝灰与雾青点缀，低饱和（参考 Nord 配色） |
+| `pine` | 松涛 | 纯白底、青绿强调与墨绿点缀，与整站品牌色同源 |
 | `solarized` | 暖沙 | 米黄纸面配青蓝墨色（参考 Solarized 配色） |
 | `vitepress` | 青提 | 纯白底、克制绿色强调与方形标题（参考 VitePress 文档站） |
 

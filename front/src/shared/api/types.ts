@@ -465,6 +465,14 @@ export interface SiteConfig {
   logo?: string
   logoSrc?: string
   baseUrl?: string
+  /** Logo 显示宽度（px）；缺省跟随各品牌位自己的默认尺寸 */
+  logoWidth?: number
+  /** Logo 显示高度（px）；缺省跟随各品牌位自己的默认尺寸 */
+  logoHeight?: number
+  /** 只显示 Logo 图片，隐藏名称与副标题（仅在已上传 Logo 时生效） */
+  logoOnly?: boolean
+  /** 默认阅读主题 id（管理员配置）；只作用于没选过主题的新访客 */
+  readerTheme?: string
 }
 
 export interface SuggestItem {

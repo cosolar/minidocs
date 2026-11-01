@@ -67,16 +67,16 @@ button { font-family: inherit; }
 .md-brand { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
 .md-brand__logo {
   width: 34px; height: 34px; border-radius: 10px;
-  background: linear-gradient(135deg, #3b6cf6, #2f8cf6);
+  background: linear-gradient(135deg, #2a8f82, #3fae9d);
   color: #fff; display: grid; place-items: center;
-  box-shadow: 0 2px 8px rgba(59, 108, 246, .3);
+  box-shadow: 0 2px 8px rgba(42, 143, 130, .3);
   overflow: hidden;
 }
-/* 上传了自定义 Logo：换成中性底 + 发丝线，图片铺满，不再叠品牌渐变 */
-.md-brand__logo.is-image { background: var(--md-surface-2); box-shadow: none; border: 1px solid var(--md-border); }
-.md-brand__logo.is-image img { width: 100%; height: 100%; object-fit: cover; display: block; }
-/* 内置 Logo 自带透明底与圆形轮廓：去掉方框底板，免得圆标外面再套一层圆角方块 */
-.md-brand__logo.is-image.is-builtin { background: transparent; border-color: transparent; }
+/* 上传的 Logo 一律裸图：底板（中性色 + 发丝线 + 圆角）会把自带背景的标志框成一张贴纸，与导航栏脱节。
+   grid-template-rows 把行高钉死在盒子上：auto 行会按图片原始正方尺寸撑开，自定义宽高就白配了 */
+.md-brand__logo.is-image { background: none; border: 0; box-shadow: none; border-radius: 0; grid-template-rows: 100%; }
+/* 自定义 Logo 一律 contain：非正方形的标志被 cover 裁掉时，管理员看到的会是「图传错了」 */
+.md-brand__logo.is-image img { width: 100%; height: 100%; object-fit: contain; display: block; }
 .md-brand__text { display: flex; flex-direction: column; line-height: 1.15; }
 .md-brand__text strong { font-size: 15px; }
 .md-brand__text small { font-size: 11px; color: var(--md-text-3); }
@@ -184,7 +184,7 @@ button { font-family: inherit; }
 .md-user { position: relative; }
 .md-avatar {
   width: 34px; height: 34px; border-radius: 50%;
-  border: 0; background: linear-gradient(135deg, #6c8cff, #a855f7);
+  border: 0; background: linear-gradient(135deg, #35b3a0, #1f7a6e);
   color: #fff; font-weight: 600; cursor: pointer; text-transform: uppercase;
   display: grid; place-items: center; overflow: hidden;
 }
@@ -894,7 +894,7 @@ button { font-family: inherit; }
 .md-lock__icon {
   width: 72px; height: 72px; margin: 0 auto 20px; border-radius: 24px;
   display: grid; place-items: center; color: #fff;
-  background: linear-gradient(140deg, var(--md-primary), #22d3ee);
+  background: linear-gradient(140deg, var(--md-primary), #2eb8a3);
   box-shadow:
     0 16px 32px -12px color-mix(in srgb, var(--md-primary) 45%, transparent),
     inset 0 1px 0 rgba(255, 255, 255, .28);
@@ -1028,9 +1028,6 @@ button { font-family: inherit; }
 /* 品牌：站名与副标题压到次要层级，「谁家的站」不该与库名争眼 */
 .md-share__top .md-brand__text strong { color: var(--md-text); }
 .md-share__top .md-brand__text small { color: var(--md-text-3); }
-/* 上传的自定义 Logo 换成中性底 + 发丝线，浅色横带上才不突兀 */
-.md-share__top .md-brand__logo.is-image { background: var(--md-surface-2); border-color: var(--md-border); }
-.md-share__top .md-brand__logo.is-image.is-builtin { background: transparent; border-color: transparent; }
 /* 知识库与导航菜单之间比别处多一档空档：两组性质不同（一个是身份、一个是导航） */
 .md-share__top .md-share__menu { margin-left: 4px; }
 .md-share__actions { margin-left: auto; display: flex; align-items: center; gap: 10px; }
@@ -1247,7 +1244,7 @@ button { font-family: inherit; }
 .md-share__kb-cover {
   width: 26px; height: 26px; border-radius: 8px; flex-shrink: 0; overflow: hidden;
   display: grid; place-items: center;
-  background: linear-gradient(135deg, var(--md-primary), #22d3ee);
+  background: linear-gradient(135deg, var(--md-primary), #2eb8a3);
   color: #fff;
 }
 /* 不再放封面图：块内恒为渐变底 + 白色图标 */

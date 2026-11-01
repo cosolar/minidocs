@@ -10,6 +10,7 @@ import type { KbActionName, KbRosterVO, KbVO, OrgMemberVO } from '@/shared/api/t
 import ShareDialog from '@/admin/components/ShareDialog.vue'
 import KbRowActions from '@/admin/components/KbRowActions.vue'
 import MdIcon from '@/admin/components/MdIcon.vue'
+import HelpTip from '@/shared/components/HelpTip.vue'
 import { useIsMobile } from '@/admin/composables/useIsMobile'
 import {
   maintainScopeHint,
@@ -794,11 +795,9 @@ watch(org, () => {
                 <el-input v-model="form.gitUsername" maxlength="128" placeholder="公开仓库可留空" />
               </el-form-item>
             </div>
-            <el-form-item label="访问令牌">
+            <el-form-item>
+              <template #label>访问令牌<HelpTip text="令牌加密后落库，保存后不再回显，只用于服务端访问仓库。地址里若带了 user:token@，入库时会自动剥掉。" /></template>
               <el-input v-model="form.gitToken" type="password" show-password maxlength="512" placeholder="私有仓库必填" />
-              <div class="md-form-hint">
-                令牌加密后落库，保存后不再回显，只用于服务端访问仓库。地址里若带了 <code>user:token@</code>，入库时会自动剥掉。
-              </div>
             </el-form-item>
             <el-alert
               type="info"
@@ -828,7 +827,8 @@ watch(org, () => {
               <el-input v-model="form.gitUsername" maxlength="128" placeholder="公开仓库可留空" />
             </el-form-item>
           </div>
-          <el-form-item label="访问令牌">
+          <el-form-item>
+            <template #label>访问令牌<HelpTip text="令牌加密后落库，保存后不再回显。留空表示沿用原来那个。" /></template>
             <el-input
               v-model="form.gitToken"
               type="password"
@@ -836,9 +836,6 @@ watch(org, () => {
               maxlength="512"
               :placeholder="form.gitTokenSet ? '已配置，留空则不修改' : '私有仓库必填'"
             />
-            <div class="md-form-hint">
-              令牌加密后落库，保存后不再回显。留空表示沿用原来那个。
-            </div>
           </el-form-item>
           <el-alert
             type="warning"
@@ -849,7 +846,12 @@ watch(org, () => {
         </section>
 
         <section class="md-kb-group">
-          <h4 class="md-kb-group__title">可见范围与维护权限</h4>
+          <h4 class="md-kb-group__title">
+            可见范围与维护权限
+            <HelpTip :width="340">
+              以上两项都只作用于平台内。要让这个库出现在门户上、让不登录的人也能访问，还需要另外创建一份整库分享链接（卡片右侧「分享」）；链接是否设访问密码，决定它在门户上显示为「共享」还是「加密」。这两层互相独立。
+            </HelpTip>
+          </h4>
           <div class="md-kb-cols">
             <el-form-item label="可见范围（平台内谁能读）">
               <el-radio-group v-model="form.visibility">
@@ -859,30 +861,22 @@ watch(org, () => {
               </el-radio-group>
               <div class="md-form-hint">{{ visibilityHint(form.visibility) }}</div>
             </el-form-item>
-            <el-form-item :label="formMode === 'create' ? '维护档位（谁能改）' : '维护档位'">
+            <el-form-item>
+              <template #label>
+                {{ formMode === 'create' ? '维护档位（谁能改）' : '维护档位' }}<HelpTip
+                  v-if="formMode === 'edit'"
+                  text="改档位与名单在卡片的「权限」里，那是另一项治理动作，需要单独留痕。"
+                />
+              </template>
               <el-radio-group v-if="formMode === 'create'" v-model="form.maintainScope">
                 <el-radio-button value="owner_only">仅我自己</el-radio-button>
                 <el-radio-button value="members">维护名单</el-radio-button>
                 <el-radio-button value="org_all">全组织可写</el-radio-button>
               </el-radio-group>
               <el-input v-else :model-value="maintainScopeLabel(form.maintainScope)" disabled />
-              <div class="md-form-hint">
-                {{ formMode === 'create'
-                  ? maintainScopeHint(form.maintainScope)
-                  : '改档位与名单在卡片的「权限」里，那是另一项治理动作，需要单独留痕。' }}
-              </div>
+              <div v-if="formMode === 'create'" class="md-form-hint">{{ maintainScopeHint(form.maintainScope) }}</div>
             </el-form-item>
           </div>
-          <!--
-            这一段是整组里最要紧的一句话：上面两个下拉都只在「平台内」生效，
-            而用户建完库最想要的「让外面的人看到」属于发布那一层。
-            少了它，「可见范围选了所有登录用户但门户上搜不到」就会被当成 bug。
-          -->
-          <p class="md-form-hint md-kb-group__note">
-            以上两项都只作用于<b>平台内</b>。要让这个库出现在门户上、让不登录的人也能访问，
-            还需要另外创建一份<b>整库分享链接</b>（卡片右侧「分享」）；链接是否设访问密码，
-            决定它在门户上显示为「共享」还是「加密」。这两层互相独立。
-          </p>
         </section>
 
         <section class="md-kb-group">

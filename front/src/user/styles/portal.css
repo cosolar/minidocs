@@ -482,120 +482,105 @@
  */
 
 /*
- * 页脚：全透明，只留一条顶边发丝线。
+ * 页脚：品牌大块 + 三栏链接 + 版权行。
  *
- * <p><b>不再自己铺背景图，也不再磨砂。</b>背后就是整页那张山水，铺图等于把它盖住；
- * 而 backdrop-filter 那层模糊在这张图上几乎没有可辨的效果 —— 山水的层次本来就很软，
- * 磨完与不磨看不出来，却要让浏览器多合成一遍、还让文字边缘发虚。</p>
- *
- * <p>所以直接全透明：山水原样透上来，文字压在浅色的水面与山影上仍然清楚
- * （深色文字 + 浅底，这个组合本来就够）。</p>
- *
- * <p><b>顶边那条发丝线是唯一剩下的分界</b>：去掉底色之后，玻璃与内容之间就没有色差了，
- * 线必须留着 —— 否则页脚会直接化进背景里，看起来像背景没画完。</p>
- *
- * <p><b>出血到视口两边</b>（负 margin 抵消 .md-portal 的 22px padding），但内部的
- * .md-footer__inner 仍限宽居中：只有这一层满宽，文字不跟着拉宽。这是项目里既有的
- * 「贴死」做法 —— 阅读页与分享页的三栏都这样把边界让到屏幕外。</p>
+ * <p>页脚是一条通栏色带：向页面底色调进少量正文深色（text 5%→2.5%）拉出
+ * 一层明确但克制的明度差，顶部一条分隔线收边；surface-2 在部分主题里与
+ * bg 几乎同色，靠它分不出层次。山水背景到此被这层实底盖住，多栏小字
+ * 全部走普通正文色，读得清。出血到视口两边（负 margin 抵消
+ * .md-portal 的 22px padding），内部的 .md-footer__inner 仍限宽居中，
+ * 与内容列对齐。</p>
  */
 .md-portal .md-footer {
   position: relative;
   max-width: none;
   margin: 0 -22px;
-  padding: 0;
+  padding: 48px 22px 0;
   border: 0;
-  border-top: 1px solid color-mix(in srgb, var(--md-surface) 55%, transparent);
+  border-top: 1px solid color-mix(in srgb, var(--md-border-strong) 60%, transparent);
   border-radius: 0;
-  background: transparent;
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--md-text) 5%, var(--md-bg)),
+    color-mix(in srgb, var(--md-text) 2.5%, var(--md-bg))
+  );
   box-shadow: none;
 }
-/* 出血之后内容要多留一倍水平内边距：文字仍按内容列居中，但不能贴到屏幕边 */
-.md-portal .md-footer__inner { padding-left: 44px; padding-right: 44px; }
-
 
 .md-footer__inner {
   position: relative;
   z-index: 1;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 7px;
+  gap: 26px;
   width: 100%;
   max-width: 1180px;
   margin: 0 auto;
-  /* 页脚高度：内容 67px + 上下 28px ≈ 95px。再矮就压到 30px 的标志块上下了 */
-  padding: 11px 24px 9px;
+  padding: 0 44px 22px;
 }
 
-/*
- * 社交入口与版权同一行。
- *
- * <p>原来社交独占一排，页脚因此多出三十多像素 —— 而它在设计图里本来就在版权那一行的
- * 左边。合行之后整页脚从三段压成两段。</p>
- */
-.md-footer__row {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 14px;
-  flex-wrap: wrap;
+/* 品牌栏占宽约四成，右侧三栏均分；窄屏降成两列、再降单列 */
+.md-footer__grid {
+  display: grid;
+  grid-template-columns: minmax(260px, 1.5fr) repeat(3, minmax(110px, 1fr));
+  gap: 36px 32px;
+  align-items: start;
 }
 
-.md-footer__brand { position: relative; z-index: 1; display: flex; align-items: center; gap: 9px; }
+.md-footer__brand { display: grid; gap: 14px; justify-items: start; }
+.md-footer__brand-row { display: flex; align-items: center; gap: 11px; }
 .md-footer__logo {
-  width: 26px; height: 26px; border-radius: 9px; flex-shrink: 0;
+  height: 48px; flex-shrink: 0;
   display: grid; place-items: center; color: #fff;
-  background: linear-gradient(140deg, var(--md-primary), #22d3ee);
-  box-shadow: 0 5px 14px color-mix(in srgb, var(--md-primary) 30%, transparent);
-  overflow: hidden;
+  background: linear-gradient(140deg, var(--md-primary), #2eb8a3);
+  box-shadow: 0 5px 14px color-mix(in srgb, var(--md-primary) 28%, transparent);
+  overflow: hidden; border-radius: 12px;
 }
-/* 上传了自定义 Logo：换成中性底 + 发丝线，图片铺满，不再叠品牌渐变 */
-.md-footer__logo.is-image { background: var(--md-surface-2); box-shadow: none; border: 1px solid var(--md-border); }
-.md-footer__logo.is-image img { width: 100%; height: 100%; object-fit: cover; display: block; }
-/* 内置 Logo 自带透明底与圆形轮廓：去掉方框底板 */
-.md-footer__logo.is-image.is-builtin { background: transparent; border-color: transparent; }
-.md-footer__text { position: relative; z-index: 1; display: flex; flex-direction: column; line-height: 1.25; }
-.md-footer__text strong { font-size: 13.5px; font-weight: 600; color: var(--md-text); }
-.md-footer__text small { font-size: 11.5px; color: var(--md-text-3); }
-
-/* 社交入口：一排半透明白底的小圆钮，与上面的标志共用一份「压在图上」的底 */
-.md-footer__social { display: flex; align-items: center; }
-.md-footer__social-btn {
-  display: grid; place-items: center;
-  width: 24px; height: 24px; border-radius: 50%;
-  color: var(--md-text-2);
-  background: transparent;
-  border: 1px solid color-mix(in srgb, var(--md-border) 60%, transparent);
-
-  transition: color .15s ease, background-color .15s ease, border-color .15s ease;
+/* 上传的 Logo 一律裸图：底板会把自带背景的标志框成一张贴纸。
+   横长图按高度等比缩放撑开，别压进方形框；用 flex + max-height，
+   grid 隐式行高依赖内容会让百分比高度失效 */
+.md-footer__logo.is-image { background: none; border: 0; box-shadow: none; border-radius: 0; display: flex; align-items: center; }
+.md-footer__logo.is-image img { height: auto; max-height: 100%; width: auto; max-width: 200px; object-fit: contain; display: block; }
+.md-footer__text { display: flex; flex-direction: column; line-height: 1.25; }
+.md-footer__text strong { font-size: 17px; font-weight: 650; color: var(--md-text); }
+.md-footer__text small { font-size: 12px; color: var(--md-text-3); }
+.md-footer__desc {
+  margin: 0; max-width: 380px;
+  color: var(--md-text-2); font-size: 13px; line-height: 1.75;
 }
-.md-footer__social-btn:hover {
-  color: var(--md-primary);
-  background: color-mix(in srgb, var(--md-surface) 92%, transparent);
-  border-color: color-mix(in srgb, var(--md-primary) 40%, transparent);
+.md-footer__badges { display: flex; flex-wrap: wrap; gap: 8px; }
+.md-footer__badge {
+  padding: 3px 10px; border-radius: 999px;
+  color: var(--md-text-2); font-size: 11.5px;
+  border: 1px solid color-mix(in srgb, var(--md-border-strong) 70%, transparent);
+  background: color-mix(in srgb, var(--md-surface) 72%, transparent);
 }
 
-.md-footer__copy {
-  position: relative; z-index: 1;
-  margin: 0; color: var(--md-text-3); font-size: 12px;
-  display: flex; align-items: center; gap: 9px;
-  padding: 2px 9px;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--md-surface) 62%, transparent);
+.md-footer__col { display: grid; gap: 9px; align-content: start; justify-items: start; }
+.md-footer__col h3 {
+  margin: 0 0 3px; color: var(--md-text); font-size: 13px; font-weight: 650;
 }
-.md-footer__dot { width: 3px; height: 3px; border-radius: 50%; background: currentColor; opacity: .55; }
-
-/*
- * 暗色下的玻璃。
- *
- * <p>34% 的白在深底上会显灰，整块看起来像蒙了层雾 —— 换成同等透明度的深色，
- * 「磨砂」的观感靠 saturate 与模糊撑着，不靠底色有多白。</p>
- */
-[data-theme='dark'] .md-portal .md-footer {
-  background: color-mix(in srgb, var(--md-bg) 46%, transparent);
-  border-top-color: rgba(255, 255, 255, .08);
+.md-footer__col a,
+.md-footer__col .router-link-active {
+  color: var(--md-text-2); font-size: 13px; text-decoration: none;
+  transition: color .15s ease;
 }
+.md-footer__col a:hover { color: var(--md-primary); }
 
-@media (max-width: 720px) {
-  .md-footer__inner { padding: 14px 18px 12px; }
+.md-footer__bottom {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+  padding-top: 16px;
+  border-top: 1px solid color-mix(in srgb, var(--md-border) 70%, transparent);
+}
+.md-footer__copy { margin: 0; color: var(--md-text-3); font-size: 12.5px; }
+.md-footer__note { color: var(--md-text-3); font-size: 12.5px; }
+
+@media (max-width: 860px) {
+  .md-footer__grid { grid-template-columns: 1fr 1fr; }
+  .md-footer__brand { grid-column: 1 / -1; }
+}
+@media (max-width: 560px) {
+  .md-footer__grid { grid-template-columns: 1fr; gap: 24px; }
+  .md-footer__inner { padding: 0 22px 18px; }
+  .md-footer__bottom { flex-direction: column; align-items: flex-start; }
 }

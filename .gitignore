@@ -28,6 +28,8 @@
 
 # 本地验证用的 vault 副本、启动日志与临时 token —— 里面有真实数据，绝不入库
 /.verify/
+# dev 配置下 VAULT_HOME 的默认位置：里面是真实文档
+/.dev-vault/
 
 # 前端构建产物：front/ 构建时直接写入后端 resources（admin/ + user/），随 jar 分发，不入库
 /backend/src/main/resources/static/

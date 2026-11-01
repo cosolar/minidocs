@@ -135,10 +135,10 @@ async function share() {
 <template>
   <header class="md-share__top">
     <router-link class="md-brand" to="/">
-      <span class="md-brand__logo is-image" :class="{ 'is-builtin': !site.value.logoSrc }" aria-hidden="true">
+      <span class="md-brand__logo is-image" :style="site.logoStyle" aria-hidden="true">
         <img :src="site.value.logoSrc || DEFAULT_LOGO" alt="" />
       </span>
-      <span class="md-brand__text">
+      <span v-if="!site.logoOnly" class="md-brand__text">
         <strong>{{ site.value.name }}</strong>
         <small v-if="site.value.subtitle">{{ site.value.subtitle }}</small>
       </span>

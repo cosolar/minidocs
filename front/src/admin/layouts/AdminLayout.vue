@@ -256,10 +256,10 @@ watch(() => route.fullPath, () => {
   <div class="md-admin">
     <aside class="md-sidebar" :class="{ 'is-collapsed': navCollapsed, 'is-mobile-open': mobileNavOpen }">
       <router-link class="md-sidebar__brand" to="/console">
-        <span class="md-sidebar__logo is-image" :class="{ 'is-builtin': !site.value.logoSrc }" aria-hidden="true">
+        <span class="md-sidebar__logo is-image" :style="site.logoStyle" aria-hidden="true">
           <img :src="site.value.logoSrc || DEFAULT_LOGO" alt="" />
         </span>
-        <span v-if="!navCollapsed" class="md-sidebar__title">
+        <span v-if="!navCollapsed && !site.logoOnly" class="md-sidebar__title">
           {{ site.value.name }}<small>管理后台</small>
         </span>
       </router-link>

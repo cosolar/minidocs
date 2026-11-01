@@ -376,7 +376,7 @@ INSERT IGNORE INTO schema_version (version, script, applied_at) VALUES
 -- INSERT IGNORE：管理员已在后台改过时不覆盖他填的值。
 
 INSERT IGNORE INTO site_config (id, config, updated_at) VALUES
-    (1, '{"name":"MiniDocs","subtitle":"极简知识库","baseUrl":"https://kb.example.com"}', NOW());
+    (1, '{"name":"MiniDocs","subtitle":"极简智库","baseUrl":"https://kb.example.com"}', NOW());
 
 
 -- 8.3 初始管理员（可选，**默认注释**）

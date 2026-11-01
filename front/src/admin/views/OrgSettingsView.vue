@@ -12,6 +12,7 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { orgApi } from '@/admin/api'
 import MdIcon from '@/admin/components/MdIcon.vue'
+import HelpTip from '@/shared/components/HelpTip.vue'
 import { useIsMobile } from '@/admin/composables/useIsMobile'
 import { useOrgStore } from '@/admin/stores/org'
 import { useAuthStore } from '@/admin/stores/auth'
@@ -181,7 +182,7 @@ onMounted(load)
   <div v-loading="loading" style="display: grid; gap: 16px">
     <div class="md-card-panel">
       <div class="md-panel-head">
-        <h2>组织资料</h2>
+        <h2>组织资料<HelpTip v-if="detail" :width="360">标识（slug）{{ detail.slug }} 不参与改名：它是链接与磁盘目录的一部分，换掉等于把所有外链作废。</HelpTip></h2>
         <span v-if="detail" class="md-ad-chip">{{ detail.myRole }}</span>
       </div>
       <div class="md-panel-body">
@@ -192,7 +193,8 @@ onMounted(load)
           <el-form-item label="简介">
             <el-input v-model="profile.description" type="textarea" :rows="2" maxlength="255" show-word-limit />
           </el-form-item>
-          <el-form-item label="Logo 地址（组织内知识库封面同源，留空即清除）">
+          <el-form-item>
+            <template #label>Logo 地址<HelpTip text="组织内知识库的封面与它同源；留空即清除。" /></template>
             <el-input v-model="profile.logoUrl" maxlength="512" placeholder="/vaults/o1/xx/cover.png 或绝对 URL" />
           </el-form-item>
           <el-form-item label="加入方式">
@@ -213,9 +215,6 @@ onMounted(load)
         <p v-if="!canEditProfile" class="md-copy-hint">
           组织资料由 OWNER 维护；你在这一档可以改的是成员与自己的库。
         </p>
-        <p v-if="detail" class="md-copy-hint">
-          标识（slug）{{ detail.slug }} 不参与改名：它是链接与磁盘目录的一部分，换掉等于把所有外链作废。
-        </p>
         <p v-if="isPersonal" class="md-copy-hint">
           个人组织随账号自动创建，不能添加成员，也不能删除。
         </p>
@@ -224,7 +223,10 @@ onMounted(load)
 
     <div class="md-card-panel">
       <div class="md-panel-head">
-        <h2>成员</h2>
+        <h2>成员<HelpTip :width="360">
+          OWNER 只有一个且只能靠转让产生；管理员能添加与移出普通成员、处理申请，但任免管理员只能由
+          OWNER 操作 —— 按钮显隐读的就是后端给的这一条动作（TENANT_APPOINT_ADMIN）。
+        </HelpTip></h2>
         <span class="md-ad-chip">{{ members.length }} 人</span>
       </div>
       <div class="md-panel-body">
@@ -332,10 +334,6 @@ onMounted(load)
             </template>
           </el-table-column>
         </el-table>
-        <p class="md-copy-hint">
-          OWNER 只有一个且只能靠转让产生；管理员能添加与移出普通成员、处理申请，但任免管理员只能由
-          OWNER 操作 —— 按钮显隐读的就是后端给的这一条动作（TENANT_APPOINT_ADMIN）。
-        </p>
       </div>
     </div>
 
