@@ -4,23 +4,26 @@ import Icon from '@/user/components/Icon.vue'
 import { useSessionStore } from '@/user/stores/session'
 import { portalKbUrl } from '@/shared/portal'
 import { appHref } from '@/shared/appBase'
-import KbGlyph from '@/shared/components/KbGlyph.vue'
 import type { KbVO } from '@/shared/api/types'
 
 const props = defineProps<{ kb: KbVO }>()
 
 const session = useSessionStore()
 
-/** 无封面时按 slug 稳定取一组渐变色，让默认封面彼此有区分度 */
+/**
+ * 无封面时按 slug 稳定取一组浅色水彩底。
+ *
+ * <p>参考稿的封面是插画而不是纯色块，所以这里只要一层「天空色」，
+ * 山、雾、小舟由模板里的 SVG 用白色半透明叠出来；六组色相让同屏卡片有区分，
+ * 明度都压在浅档，顶部药丸与标题仍然最好读。</p>
+ */
 const PALETTES = [
-  ['#3b82f6', '#22d3ee'],
-  ['#8b5cf6', '#6366f1'],
-  ['#10b981', '#34d399'],
-  ['#f59e0b', '#fbbf24'],
-  ['#ec4899', '#a855f7'],
-  ['#0ea5e9', '#14b8a6'],
-  ['#f43f5e', '#fb923c'],
-  ['#6366f1', '#0ea5e9']
+  ['#d3ece5', '#6bb6a6'],
+  ['#d6eaf6', '#78afce'],
+  ['#dcefd7', '#88bd88'],
+  ['#f2e8d3', '#c9b184'],
+  ['#dde6f0', '#8ba3ba'],
+  ['#eae1f3', '#a996c6']
 ] as const
 
 const palette = computed(() => {
@@ -30,7 +33,10 @@ const palette = computed(() => {
   return PALETTES[hash % PALETTES.length]
 })
 
-const initial = computed(() => (props.kb.name || '?').trim().charAt(0).toUpperCase())
+/** 封面地址失效（被删、换域名）时退回渐变占位，不能把浏览器的破图图标摆在卡片头上 */
+const coverFailed = ref(false)
+watch(() => props.kb.coverSrc, () => (coverFailed.value = false))
+const showCover = computed(() => !!props.kb.coverSrc && !coverFailed.value)
 /**
  * 徽标按「分享是否加密」两态：共享 = 分享未加密，加密 = 分享已加密（需口令）。
  *
@@ -43,7 +49,7 @@ const initial = computed(() => (props.kb.name || '?').trim().charAt(0).toUpperCa
  * 「这条分享链有没有设访问密码」。</p>
  */
 const shareStatus = computed(() => (props.kb.shareStatus === 'private' ? 'private' : 'public'))
-const badgeClass = computed(() => `is-${shareStatus.value}`)
+const statusClass = computed(() => `is-${shareStatus.value}`)
 const shareIcon = computed(() => (shareStatus.value === 'private' ? 'lock' : 'globe'))
 const shareLabel = computed(() => (shareStatus.value === 'private' ? '加密' : '共享'))
 const isMine = computed(() => !!session.user && session.user.id === props.kb.ownerId)
@@ -54,18 +60,8 @@ const manageUrl = computed(() => appHref(props.kb.tenantSlug
   : '/console'))
 /** 门户是跨组织的（规范 F10「列表标注所属组织」）；组织名拿不到时退回 slug，至少能区分 */
 const orgLabel = computed(() => props.kb.tenantName || props.kb.tenantSlug || '未归属组织')
-/** 创建者与创建时间提到标题下，作为「这是谁的库、建了多久」的归属线索 */
+/** 标题下只留「谁 · 哪个组织」的归属信息；创建时间收进悬停提示，底栏放最近更新 */
 const ownerLabel = computed(() => props.kb.ownerName || '未知用户')
-const createdText = computed(() => {
-  const matched = /^(\d{4})-(\d{2})-(\d{2})/.exec(props.kb.createdAt || '')
-  return matched ? `${matched[1]}-${matched[2]}-${matched[3]}` : ''
-})
-/** 标签按文案哈希取色：同一标签在任何卡片上颜色一致，一排标签又不至于糊成同色 */
-function tagTone(tag: string) {
-  let hash = 0
-  for (let i = 0; i < tag.length; i++) hash = (hash * 31 + tag.charCodeAt(i)) >>> 0
-  return `is-tone-${hash % 5}`
-}
 
 const copied = ref(false)
 let copyTimer: number | undefined
@@ -159,13 +155,11 @@ function placeMenu() {
   const rect = trigger.getBoundingClientRect()
   const height = menu.offsetHeight
   const width = menu.offsetWidth
-  // 门户整页不滚、只有卡片区滚，所以「下方放不下就朝上翻」看这片区域的底沿，不是视口底沿
-  const box = trigger.closest('.md-cards')?.getBoundingClientRect()
-  const high = box?.top ?? 0
-  const low = Math.min(box?.bottom ?? window.innerHeight, window.innerHeight) - 4
+  // 卡片区不再自己滚动，菜单的可放区域就是视口
+  const low = window.innerHeight - 8
   const below = rect.bottom + 6
-  // 下方放不下就朝上翻，并保证菜单两头都不超出卡片区
-  const y = below + height <= low ? below : Math.max(high, Math.min(rect.top - height - 6, low - height))
+  // 下方放不下就朝上翻，并保证菜单两头都不超出视口
+  const y = below + height <= low ? below : Math.max(8, Math.min(rect.top - height - 6, low - height))
   menu.style.top = `${y}px`
   menu.style.left = `${Math.max(8, Math.min(rect.right - width, window.innerWidth - width - 8))}px`
 }
@@ -179,19 +173,56 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <article class="md-card">
+  <article class="md-card" :style="{ '--cover-a': palette[0], '--cover-b': palette[1] }">
+    <!-- 竖版卡片：顶部一条水彩封面，正文在下，右下一颗圆形箭头 -->
     <router-link
       class="md-card__cover"
       :to="link"
-      :style="{ '--cover-a': palette[0], '--cover-b': palette[1] }"
     >
-      <img v-if="kb.coverSrc" class="md-card__cover-img" :src="kb.coverSrc" alt="" loading="lazy">
-      <span v-else class="md-card__cover-art" />
-      <span v-if="!kb.coverSrc" class="md-card__mark">{{ initial }}</span>
-      <span class="md-card__badge" :class="badgeClass">
-        <Icon :name="shareIcon" :size="12" />{{ shareLabel }}
+      <img v-if="showCover" class="md-card__cover-img" :src="kb.coverSrc" alt="" loading="lazy" @error="coverFailed = true">
+      <span v-else class="md-card__cover-art" aria-hidden="true">
+        <svg viewBox="0 0 400 170" preserveAspectRatio="xMidYMid slice">
+          <circle class="md-art__soft" cx="316" cy="40" r="20" fill="rgba(255,255,255,.7)" />
+          <path class="md-art__soft" d="M0 116Q38 82 78 96Q118 110 154 90Q190 74 228 94Q266 114 304 96Q340 80 372 94Q386 100 400 96V170H0Z" fill="rgba(20,84,72,.16)" />
+          <path class="md-art__soft" d="M0 140Q46 114 90 128Q134 142 174 120Q214 100 256 126Q298 150 338 130Q368 116 400 128V170H0Z" fill="rgba(255,255,255,.52)" />
+          <path class="md-art__soft" d="M0 156Q74 142 146 152Q218 162 288 150Q344 140 400 150V170H0Z" fill="rgba(255,255,255,.74)" />
+          <path d="M0 163Q100 155 200 161Q300 167 400 159V170H0Z" fill="rgba(26,76,68,.12)" />
+          <path d="M286 132q26 3 44 0M300 140q18 2 30 0" stroke="rgba(24,74,66,.22)" stroke-width="1.4" stroke-linecap="round" fill="none" />
+          <g fill="rgba(26,76,68,.5)">
+            <path d="M198 141c10-6 22-6 32 0-10 6-22 6-32 0Z" />
+            <rect x="213.2" y="124" width="1.6" height="15" rx=".8" />
+            <path d="M215 127l11 7h-11Z" fill="rgba(252,254,253,.86)" />
+          </g>
+          <path d="M104 62q5-5 10 0M118 57q4-4 8 0" stroke="rgba(255,255,255,.55)" stroke-width="1.4" stroke-linecap="round" fill="none" />
+        </svg>
+      </span>
+      <span class="md-card__badge" :class="statusClass" :title="shareStatus === 'private' ? '分享已加密，需要访问密码' : '分享未加密'">
+        <Icon :name="shareIcon" :size="11" />{{ shareLabel }}
       </span>
     </router-link>
+
+    <div class="md-card__body">
+      <div class="md-card__head">
+        <span class="md-card__mark"><Icon name="books" :size="14" /></span>
+        <h3 class="md-card__title">
+          <router-link :to="link">{{ kb.name }}</router-link>
+        </h3>
+      </div>
+
+      <p class="md-card__desc">{{ kb.description || '暂无描述' }}</p>
+
+      <div class="md-card__foot">
+        <span class="md-card__meta-item">
+          <Icon name="file" :size="13" />{{ kb.docCount }} 篇
+        </span>
+        <span class="md-card__meta-item md-card__meta-item--org" :title="`${orgLabel} · ${ownerLabel}`">
+          <Icon name="building" :size="13" /><span class="md-card__meta-text">{{ orgLabel }}</span>
+        </span>
+        <router-link class="md-card__go" :to="link" :aria-label="`阅读《${kb.name}》`">
+          <Icon name="arrowRight" :size="15" />
+        </router-link>
+      </div>
+    </div>
 
     <!-- 「更多」浮在封面右上角：必须是 cover 的兄弟节点，落在 router-link 里点一下会顺带跳转 -->
     <div ref="moreRef" class="md-card__more">
@@ -205,7 +236,7 @@ onBeforeUnmount(() => {
         :aria-expanded="menuOpen"
         @click="menuOpen = !menuOpen"
       >
-        <Icon :name="copied ? 'check' : 'more'" :size="16" />
+        <Icon :name="copied ? 'check' : 'more'" :size="15" />
       </button>
       <Teleport to="body">
         <div v-if="menuOpen" ref="menuRef" class="md-card__menu" role="menu">
@@ -217,51 +248,6 @@ onBeforeUnmount(() => {
           </a>
         </div>
       </Teleport>
-    </div>
-
-    <div class="md-card__body">
-      <div class="md-card__head">
-        <span class="md-card__glyph" :style="{ '--cover-a': palette[0], '--cover-b': palette[1] }">
-          <KbGlyph :size="19" />
-        </span>
-        <h3 class="md-card__title">
-          <router-link :to="link">{{ kb.name }}</router-link>
-        </h3>
-      </div>
-
-      <p class="md-card__byline" :title="`${ownerLabel} · ${orgLabel}${createdText ? ` · 创建于 ${createdText}` : ''}`">
-        <Icon name="user" :size="12" />
-        <span class="md-card__byline-name">{{ ownerLabel }} · {{ orgLabel }}</span>
-        <span v-if="createdText" class="md-card__byline-date">· 创建于 {{ createdText }}</span>
-      </p>
-
-      <p class="md-card__desc">{{ kb.description || '暂无描述' }}</p>
-
-      <div v-if="kb.tags.length" class="md-card__tags">
-        <span v-for="tag in kb.tags.slice(0, 4)" :key="tag" class="md-chip" :class="tagTone(tag)">{{ tag }}</span>
-      </div>
-    </div>
-
-    <div class="md-card__foot">
-      <!--
-        「进入」在前、元信息在后：.md-card__meta 上有 margin-left:auto，会把自己推到右端，
-        两个子元素的顺序因此不能反 —— 反了就变成元信息贴左、进入悬在最右边（曾经就是这样）。
-      -->
-      <router-link class="md-enter" :to="link">
-        进入<Icon name="arrowRight" :size="13" />
-      </router-link>
-
-      <div class="md-card__meta">
-        <span class="md-card__meta-item">
-          <Icon name="file" :size="13" />{{ kb.docCount }} 篇文档
-        </span>
-        <template v-if="kb.updatedText">
-          <span class="md-card__dot" />
-          <span class="md-card__meta-item">
-            <Icon name="clock" :size="13" />最近更新 {{ kb.updatedText }}
-          </span>
-        </template>
-      </div>
     </div>
   </article>
 </template>

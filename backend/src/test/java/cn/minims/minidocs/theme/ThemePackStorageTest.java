@@ -57,6 +57,44 @@ class ThemePackStorageTest {
     }
 
     @Test
+    @DisplayName("default 每次启动都跟随程序内版本刷新，旧配色不会滞留在磁盘上")
+    void defaultPackAlwaysRefreshes() throws Exception {
+        Path target = themesDir().resolve("default.json");
+        Files.writeString(target, """
+                {"id":"default","name":"旧默认","version":"0.0.1","license":"MIT",
+                 "light":{"--md-primary":"#000000"},"dark":{"--md-primary":"#000000"}}
+                """, StandardCharsets.UTF_8);
+
+        // 模拟升级重启：其它内置主题沿用种子标记，default 以 jar 内版本覆盖
+        ThemeServiceImpl restarted = newService();
+        restarted.init();
+
+        assertThat(restarted.list())
+                .filteredOn(pack -> "default".equals(pack.id()))
+                .singleElement()
+                .satisfies(pack -> {
+                    assertThat(pack.name()).isEqualTo("澄澈");
+                    assertThat(pack.light()).containsEntry("--md-primary", "#128577");
+                    assertThat(pack.dark()).hasSameSizeAs(pack.light());
+                });
+    }
+
+    @Test
+    @DisplayName("default 也可以卸载：重启不复活，恢复内置主题后回来")
+    void defaultCanBeUninstalled() {
+        service.uninstall("default");
+        assertThat(service.list()).extracting(ThemePackVO::id).doesNotContain("default");
+
+        ThemeServiceImpl restarted = newService();
+        restarted.init();
+        assertThat(restarted.list())
+                .as("卸载标记存在时，default 不该被启动种子写回来")
+                .extracting(ThemePackVO::id).doesNotContain("default");
+
+        assertThat(restarted.reseed()).extracting(ThemePackVO::id).contains("default");
+    }
+
+    @Test
     @DisplayName("内置主题卸载后重启不复活；恢复内置主题才回来")
     void uninstalledBuiltinDoesNotResurrect() {
         service.uninstall("nord");
@@ -114,9 +152,8 @@ class ThemePackStorageTest {
     }
 
     @Test
-    @DisplayName("默认主题不可卸载；不存在的主题返回未找到")
+    @DisplayName("卸载不存在的主题返回未找到")
     void uninstallGuards() {
-        assertThatThrownBy(() -> service.uninstall("default")).hasMessageContaining("不可卸载");
         assertThatThrownBy(() -> service.uninstall("no-such-theme")).hasMessageContaining("不存在");
     }
 

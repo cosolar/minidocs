@@ -4,8 +4,8 @@ import { useRoute } from 'vue-router'
 import Icon from '@/user/components/Icon.vue'
 import { useSessionStore } from '@/user/stores/session'
 import { useSearchPanel } from '@/user/composables/useSearchPanel'
+import { useSettingsStore } from '@/shared/stores/settings'
 import { useSiteStore } from '@/shared/stores/site'
-import { DEFAULT_LOGO } from '@/shared/brand'
 import { appHref } from '@/shared/appBase'
 
 /**
@@ -19,8 +19,22 @@ import { appHref } from '@/shared/appBase'
  */
 const session = useSessionStore()
 const search = useSearchPanel()
+const settings = useSettingsStore()
 const site = useSiteStore()
 const route = useRoute()
+
+/**
+ * 顶栏的白天/黑夜切换只改本机偏好，不发网关：
+ * 门户和阅读页都有访客，给游客发设置请求只会换回 401；这与阅读设置面板里的主题开关一致。
+ */
+const prefersDark = window.matchMedia('(prefers-color-scheme: dark)')
+const isDark = computed(() => settings.value.themeMode === 'dark'
+  || (settings.value.themeMode === 'system' && prefersDark.matches))
+const themeLabel = computed(() => `切换到${isDark.value ? '明亮' : '暗黑'}模式`)
+
+function toggleTheme() {
+  settings.patchLocal({ themeMode: isDark.value ? 'light' : 'dark' })
+}
 
 /** 登录后回到当前这一页：门户顶栏的登录按钮不该把人甩到工作区 */
 const loginHref = computed(() => appHref(`/login?redirect=${encodeURIComponent(route.fullPath)}`))
@@ -101,7 +115,7 @@ async function logout() {
     <div class="md-topbar__inner">
       <router-link class="md-brand" to="/">
         <span class="md-brand__logo is-image" :style="site.logoStyle" aria-hidden="true">
-          <img :src="site.value.logoSrc || DEFAULT_LOGO" alt="" />
+          <img :src="site.brandSrc" alt="" />
         </span>
         <span v-if="!site.logoOnly" class="md-brand__text">
           <strong>{{ site.value.name }}</strong>
@@ -112,6 +126,17 @@ async function logout() {
       <nav class="md-topbar__actions">
         <button type="button" class="md-icon-btn" title="搜索（Ctrl K）" aria-label="搜索" @click="search.open">
           <Icon name="search" :size="17" />
+        </button>
+
+        <button
+          type="button"
+          class="md-icon-btn"
+          :title="themeLabel"
+          :aria-label="themeLabel"
+          :aria-pressed="isDark"
+          @click="toggleTheme"
+        >
+          <Icon :name="isDark ? 'sun' : 'moon'" :size="17" />
         </button>
 
         <template v-if="!session.loggedIn">

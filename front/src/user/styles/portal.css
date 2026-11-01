@@ -1,586 +1,1165 @@
 /* MiniDocs 门户首页样式（用户侧） */
 
 /*
- * 门户铺满一屏、整页不带滚动条：唯一滚动的是下面的卡片区（.md-cards）。
- * 高度写 100% 而不是 100vh —— 父级 #md-view 已经是定高的全站唯一滚动区，
- * 内容刚好一屏时它自然不滚，滚动条就只可能出现在卡片区。
- * 宽度不设上限：内容 100% 铺满视口，左右只留 padding 做呼吸边距。
+ * 主标题落点的毛笔字：Ma Shan Zheng 完整 CJK 字体有好几 MB，
+ * 这里只打包了「灵」「感」两个字形（约 1.9KB）的 WOFF2 子集，
+ * 许可证随构建产物放在 public/OFL-MaShanZheng.txt。
+ */
+@font-face {
+  font-family: 'MD Brush';
+  src: url('../assets/fonts/mashanzheng-lingan.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+/*
+ * 门户首页：浅薄荷底上的「纸面门面」。
+ *
+ * <p>首屏不用深色大块：左边一句主张、一个带青绿按钮的大搜索框与几个示例词，
+ * 右边一幅水彩山湖，底下一排五格能力条。往下是区块标题与横向知识库卡，
+ * 通体接近白纸，青绿只出现在按钮、色块与细线上。</p>
+ *
+ * <p>门户走文档流：Hero、能力条、工具条、卡片、页脚依次排下来，由全站唯一的
+ * {@code #md-view} 统一滚动。</p>
+ *
+ * <p>版心通栏：内容不收进 1200px 的中间列，左右只留随视口伸缩的页边距
+ * （{@code --md-gutter}）。宽屏上卡片自然多排几列。</p>
  */
 .md-portal {
-  display: flex; flex-direction: column; height: 100%;
-  width: 100%; padding: 24px 22px 0;
-  /*
-   * 门户整页的远景：一张水墨山水。
-   *
-   * <p>门户页不滚（滚的是卡片区），所以背景钉在这一层、用 cover 铺满视口即可，
-   * 不需要 fixed —— 那样会在 iOS 上出特有的那套滚动抖动。</p>
-   *
-   * <p>图本身很淡（上白下青），文字压在上面仍然清楚，所以不给内容加额外的底；
-   * 真要加就该加在卡片上，而不是给整页蒙一层灰。</p>
-   */
-  background: var(--md-bg) url('../assets/portal-bg.png') center center / cover no-repeat;
+  --md-gutter: clamp(18px, 3.2vw, 56px);
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+  background:
+    radial-gradient(1200px 640px at 82% -10%,
+      color-mix(in srgb, var(--md-primary) 13%, transparent), transparent 68%),
+    radial-gradient(900px 520px at 2% 4%,
+      color-mix(in srgb, var(--md-primary) 8%, transparent), transparent 66%),
+    linear-gradient(180deg, #eef9f5 0%, #f7fbfa 480px, var(--md-bg) 980px);
+  background-repeat: no-repeat;
 }
-/* 暗色：图是浅色的，直接铺会变成一整屏亮底。压低对比并盖一层深色，
-   保住「远景」的感觉又不至于刺眼 */
 [data-theme='dark'] .md-portal {
-  background-image:
-    linear-gradient(color-mix(in srgb, var(--md-bg) 78%, transparent),
-      color-mix(in srgb, var(--md-bg) 84%, transparent)),
-    url('../assets/portal-bg.png');
+  background:
+    radial-gradient(1100px 600px at 80% -10%,
+      color-mix(in srgb, var(--md-primary) 10%, transparent), transparent 66%),
+    radial-gradient(800px 480px at 0% 2%,
+      color-mix(in srgb, var(--md-primary) 5%, transparent), transparent 64%),
+    linear-gradient(180deg, #0d1b18 0%, var(--md-bg) 620px);
 }
-/* 卡片区之外的每一段都保持自身高度，压缩全部让给卡片区 */
-.md-portal > .md-stat-grid,
-.md-portal > .md-filters,
-.md-portal > .md-footer { flex-shrink: 0; }
 
-/* ------------------------------------------------------------------ 统计卡片 */
-/*
- * 统计区背景：三层，随主题走。
- *
- * <p>参考稿是一张「柔光波纹 + 几个装饰球」的浅蓝横幅。这里用 CSS 复刻而不是贴图：
- * 贴一张1080px 的位图要为它加 100KB+ 资源、且在暗色下必然显脏，而 CSS 三层渐变
- * 跟着色板变量走，暗色只需换一档色值。</p>
- *
- * <p>层次（由内到外）：底色渐变 → 波纹团（{@code ::before}）→ 装饰球与圆点
- * （{@code ::after}）。三层都是「说不出在哪、但少了就空」的淡 —— 浓一点就变成贴纸。</p>
- */
-.md-stat-grid {
-  position: relative;
-  overflow: hidden;
-  display: grid; grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 14px; margin: 0 0 18px;
-  padding: 16px;
-  border-radius: 20px;
-  background:
-    radial-gradient(120% 150% at 6% 0%, rgba(255, 255, 255, .92) 0%, transparent 48%),
-    radial-gradient(95% 130% at 96% 104%, #d9e7fa 0%, transparent 54%),
-    linear-gradient(158deg, #f3f8fe 0%, #e9f1fd 46%, #f5faff 100%);
+/* 通栏内容区：Hero、工具条、卡片、页脚共用同一组左右页边距 */
+.md-portal__inner {
+  flex: 1 0 auto;
+  width: 100%;
+  padding: 0 var(--md-gutter);
 }
-/* 波纹：三团错位的柔光椭圆，靠 blur 化成起伏的绸带而不是三个圆 */
-.md-stat-grid::before {
-  content: '';
-  position: absolute;
-  inset: -22% -10%;
-  pointer-events: none;
-  background:
-    radial-gradient(46% 56% at 16% 76%, rgba(140, 186, 246, .34), transparent 70%),
-    radial-gradient(40% 50% at 58% 4%, rgba(176, 208, 249, .30), transparent 72%),
-    radial-gradient(30% 42% at 97% 58%, rgba(193, 186, 246, .22), transparent 74%);
-  filter: blur(7px);
-}
-/* 装饰球与圆点：左上小球带一颗更小的，右下一颗大球 —— 只两处，多了就成点点印花 */
-.md-stat-grid::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background:
-    radial-gradient(circle 20px at 7% 24%, rgba(126, 166, 242, .50), rgba(126, 166, 242, 0) 72%),
-    radial-gradient(circle 4px at 12.5% 17%, rgba(126, 166, 242, .42), rgba(126, 166, 242, 0) 72%),
-    radial-gradient(circle 30px at 95% 82%, rgba(152, 142, 240, .44), rgba(152, 142, 240, 0) 72%);
-}
-/* 暗色：底色换成深蓝一族，波纹与球整体压暗 —— 浅色波纹压在深底上会变成一条亮带 */
-[data-theme='dark'] .md-stat-grid {
-  background:
-    radial-gradient(120% 150% at 6% 0%, rgba(58, 78, 116, .55) 0%, transparent 48%),
-    radial-gradient(95% 130% at 96% 104%, rgba(30, 44, 74, .8) 0%, transparent 54%),
-    linear-gradient(158deg, #141a26 0%, #111722 46%, #151c2a 100%);
-}
-[data-theme='dark'] .md-stat-grid::before { opacity: .5; }
-[data-theme='dark'] .md-stat-grid::after { opacity: .45; }
 
-/*
- * 卡片：玻璃。
- *
- * <p>底衬换成半透明白 + backdrop-filter，卡片下面那三层波纹才会「透上来」——
- * 不然卡片是一块不透明的白块，背景做再多也只是它周围的一圈装饰。</p>
- *
- * <p>装饰块（{@code ::after}）在每张卡的右下角，用各自色相的极淡渐变斜置一块几何形，
- * 呼应参考稿里那张卡片右侧的插画。不放真图：五张卡五张插画要多五份资源，而这些
- * 形状只是让卡片右下角不那么空，抽象一点没人会指着说「这里该有个图标」。</p>
- */
-.md-stat {
-  --tone: var(--md-primary);
-  --tone-soft: var(--md-primary-soft);
+/* ------------------------------------------------------------------ Hero */
+.md-hero {
   position: relative;
-  overflow: hidden;
-  z-index: 1;
-  display: flex; align-items: center; gap: 13px; min-width: 0;
-  background: color-mix(in srgb, var(--md-surface) 76%, transparent);
-  -webkit-backdrop-filter: blur(10px) saturate(140%);
-  backdrop-filter: blur(10px) saturate(140%);
-  border: 1px solid color-mix(in srgb, var(--md-surface) 92%, transparent);
-  border-radius: 16px; padding: 14px 16px;
-  box-shadow: 0 6px 18px rgba(37, 99, 235, .07);
-  transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease;
+  padding: clamp(20px, 2.6vw, 42px) 0 clamp(8px, 1vw, 14px);
 }
-.md-stat::after {
-  content: '';
-  position: absolute;
-  right: -14px; bottom: -16px;
-  width: 62px; height: 62px;
-  border-radius: 20px;
-  transform: rotate(14deg);
-  background: linear-gradient(140deg, var(--tone-soft), transparent 72%);
-  opacity: .8;
-  pointer-events: none;
+
+.md-hero__grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, .82fr);
+  gap: clamp(20px, 3vw, 48px);
+  align-items: center;
 }
-/* 悬停时装饰块再淡一点：它是背景，不该在交互时抢注意力 */
-.md-stat:hover::after { opacity: .5; }
-.md-stat:hover { transform: translateY(-2px); box-shadow: var(--md-shadow); }
-/* 暗色下玻璃要有边界，否则卡片与背景糊成一片 */
-[data-theme='dark'] .md-stat {
+
+.md-hero__intro { min-width: 0; }
+
+/* 眉题：淡薄荷药丸 + 一粒青绿闪电，安静地说明「这是什么站」 */
+.md-hero__eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0 0 clamp(14px, 1.4vw, 18px);
+  padding: 7px 15px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--md-primary) 9%, var(--md-surface));
+  color: var(--md-primary);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: .02em;
+}
+[data-theme='dark'] .md-hero__eyebrow {
+  background: color-mix(in srgb, var(--md-primary) 18%, var(--md-surface));
+  color: color-mix(in srgb, var(--md-primary) 38%, #d8f3ec);
+}
+
+.md-hero__title {
+  margin: 0;
+  color: var(--md-text);
+  font-size: clamp(34px, 4.1vw, 62px);
+  font-weight: 800;
+  line-height: 1.18;
+  letter-spacing: -.032em;
+}
+/*
+ * 落点用毛笔字：比正文标题再大一点、微微下沉，笔画自然越过字身线，
+ * 整句仍是深色主张，只有「灵感」换成实心青绿。
+ */
+.md-hero__title-mark {
+  display: inline-block;
+  margin-left: .06em;
+  padding: 0 .04em;
+  font-family: 'MD Brush', 'Ma Shan Zheng', 'KaiTi', 'STKaiti', cursive;
+  font-size: 1.14em;
+  font-weight: 400;
+  line-height: 1;
+  letter-spacing: .01em;
+  color: var(--md-primary);
+  transform: translateY(.05em);
+}
+[data-theme='dark'] .md-hero__title-mark {
+  color: color-mix(in srgb, var(--md-primary) 32%, #86ecda);
+}
+
+.md-hero__lead {
+  max-width: 640px;
+  margin: clamp(12px, 1.2vw, 16px) 0 0;
+  color: var(--md-text-2);
+  font-size: clamp(13.5px, .98vw, 15px);
+  line-height: 1.8;
+}
+
+/* ------------------------------------------------------------------ 搜索 */
+/*
+ * 搜索框是 Hero 的主操作：一张浮起的白纸，按钮压在框内右端。
+ * 焦点态用一圈主色淡光而不是加粗描边，和纸面质感更协调。
+ */
+.md-search {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: min(100%, 640px);
+  height: 64px;
+  margin-top: clamp(20px, 2vw, 28px);
+  padding: 0 8px 0 20px;
+  border: 1px solid color-mix(in srgb, var(--md-primary) 14%, var(--md-border));
+  border-radius: 18px;
+  background: var(--md-surface);
+  box-shadow:
+    0 20px 44px -26px rgba(9, 74, 63, .42),
+    0 2px 6px rgba(9, 74, 63, .04);
+  transition: border-color .18s ease, box-shadow .18s ease;
+}
+.md-search:focus-within {
+  border-color: color-mix(in srgb, var(--md-primary) 52%, transparent);
+  box-shadow:
+    0 0 0 4px color-mix(in srgb, var(--md-primary) 12%, transparent),
+    0 20px 44px -26px rgba(9, 74, 63, .4);
+}
+[data-theme='dark'] .md-search {
+  box-shadow: 0 20px 44px -26px rgba(0, 0, 0, .7);
+}
+.md-search > .md-icon { color: var(--md-primary); }
+.md-search input {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  border: 0;
+  outline: 0;
   background: transparent;
-  border-color: rgba(255, 255, 255, .09);
-  box-shadow: 0 6px 18px rgba(0, 0, 0, .28);
+  color: var(--md-text);
+  font-size: 15px;
+  font-family: inherit;
 }
-.md-stat.is-blue { --tone: #3b82f6; --tone-soft: rgba(59, 130, 246, .13); }
-.md-stat.is-green { --tone: #16a34a; --tone-soft: rgba(22, 163, 74, .13); }
-.md-stat.is-violet { --tone: #8b5cf6; --tone-soft: rgba(139, 92, 246, .14); }
-.md-stat.is-amber { --tone: #d97706; --tone-soft: rgba(217, 119, 6, .13); }
-/* 深色下必须提亮：#16a34a / #8b5cf6 压在 #161922 底上对比度不够，与 variables.css 的可见性配色同一处理 */
-[data-theme='dark'] .md-stat.is-blue { --tone: #7aa7ff; --tone-soft: rgba(96, 148, 255, .16); }
-[data-theme='dark'] .md-stat.is-green { --tone: #4ade80; --tone-soft: rgba(34, 197, 94, .16); }
-[data-theme='dark'] .md-stat.is-violet { --tone: #a78bfa; --tone-soft: rgba(139, 92, 246, .2); }
-[data-theme='dark'] .md-stat.is-amber { --tone: #fbbf24; --tone-soft: rgba(245, 158, 11, .16); }
-/* 徽章改成圆形：参考稿里五个都是圆，方的与之不搭 */
-.md-stat__icon {
-  width: 40px; height: 40px; border-radius: 50%; flex-shrink: 0;
-  display: grid; place-items: center; color: var(--tone);
-  background: linear-gradient(145deg, var(--tone-soft), transparent 92%);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--tone) 16%, transparent);
+.md-search input::placeholder { color: var(--md-text-3); }
+/* 自己画了清空按钮，去掉 WebKit 自带的灰色小叉，免得同一格出现两个 */
+.md-search input::-webkit-search-cancel-button { -webkit-appearance: none; appearance: none; }
+.md-search__clear {
+  width: 26px;
+  height: 26px;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  background: var(--md-surface-2);
+  color: var(--md-text-3);
+  cursor: pointer;
+  transition: background-color .14s ease, color .14s ease;
 }
-.md-stat__text { display: flex; flex-direction: column; min-width: 0; }
-.md-stat__label { font-size: 12px; color: var(--md-text-3); }
-/* 等宽数字：五张统计里「12」和「156」宽度不同，不锁宽会让五张卡的数值左右跳 */
-.md-stat__value {
-  font-size: 24px; font-weight: 700; line-height: 1.25;
-  letter-spacing: -.03em; font-variant-numeric: tabular-nums;
-}
-.md-stat__hint {
-  font-size: 11.5px; color: var(--md-text-3);
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-}
-.md-stat__hint.is-trend { color: var(--md-success); font-weight: 600; }
+.md-search__clear:hover { background: var(--md-primary-soft); color: var(--md-primary); }
 
-/* ------------------------------------------------------------------ 筛选栏 */
+.md-search__submit {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 48px;
+  padding: 0 27px;
+  border: 0;
+  border-radius: 13px;
+  background: linear-gradient(135deg,
+    var(--md-primary) 0%,
+    color-mix(in srgb, var(--md-primary) 72%, var(--md-accent)) 100%);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 650;
+  font-family: inherit;
+  letter-spacing: .02em;
+  cursor: pointer;
+  box-shadow: 0 10px 22px -12px color-mix(in srgb, var(--md-primary) 75%, transparent);
+  transition: filter .15s ease, transform .15s ease, box-shadow .15s ease;
+}
+.md-search__submit:hover {
+  filter: brightness(1.05);
+  transform: translateY(-1px);
+  box-shadow: 0 14px 26px -12px color-mix(in srgb, var(--md-primary) 80%, transparent);
+}
+.md-search__submit:active { transform: translateY(0); }
+/* 暗色主色更亮，白字对比不够，按钮文字换深色 */
+[data-theme='dark'] .md-search__submit { color: #06231f; }
+
+/* 热门搜索：几粒小药丸，点了直接当关键词查 */
+.md-hero__hot {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  width: min(100%, 640px);
+  margin-top: clamp(14px, 1.4vw, 18px);
+}
+.md-hero__hot-label {
+  margin-right: 2px;
+  color: var(--md-text-3);
+  font-size: 12.5px;
+}
+.md-hot {
+  height: 30px;
+  padding: 0 12px;
+  border: 1px solid color-mix(in srgb, var(--md-primary) 12%, var(--md-border));
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--md-surface) 72%, transparent);
+  color: var(--md-text-2);
+  font-size: 12.5px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: color .15s ease, border-color .15s ease, background-color .15s ease, transform .15s ease;
+}
+.md-hot:hover {
+  color: var(--md-primary);
+  border-color: color-mix(in srgb, var(--md-primary) 40%, transparent);
+  background: var(--md-surface);
+  transform: translateY(-1px);
+}
+/* ------------------------------------------------------------------ 水彩插画 */
+/* 插画靠右栏外沿：和左边的搜索框留出呼吸，不挤在正中 */
+.md-hero__art {
+  position: relative;
+  justify-self: end;
+  width: 100%;
+  max-width: clamp(300px, 32vw, 540px);
+  /* 插画色板：暗色下整套换成「夜色」，而不是给白底图加一层压暗滤镜 */
+  --art-sky-top: #f6fdfa;
+  --art-sky-bottom: #ddf3ec;
+  --art-far-top: #bfe5da;
+  --art-far-bottom: #9cd0c3;
+  --art-mid-top: #88cabb;
+  --art-mid-bottom: #5aa899;
+  --art-near-top: #3f9486;
+  --art-near-bottom: #1f6b60;
+  --art-lake-top: #c3e8de;
+  --art-lake-bottom: #8ecabd;
+  --art-sun-top: #fff7e5;
+  --art-sun-bottom: #f6d9a4;
+  --art-halo: #f7d9a4;
+  --art-glow: #7fd8c6;
+  --art-mist: #f8fefc;
+  --art-wash-1: #c9ece2;
+  --art-wash-2: #a6dbce;
+  --art-reflection: #ecfaf5;
+  --art-ink: #14564d;
+  --art-sail: #2c7d6f;
+  --art-bird: #3d7f75;
+  --art-reed: #1c6458;
+  --art-grain: #14685c;
+  --art-dot: #2c7d6f;
+  --art-accent: #f0c98a;
+}
+[data-theme='dark'] .md-hero__art {
+  --art-sky-top: #1a3530;
+  --art-sky-bottom: #0f2521;
+  --art-far-top: #2c5c54;
+  --art-far-bottom: #214a44;
+  --art-mid-top: #31766b;
+  --art-mid-bottom: #245b52;
+  --art-near-top: #1c4b43;
+  --art-near-bottom: #0c2723;
+  --art-lake-top: #1b4a42;
+  --art-lake-bottom: #11322d;
+  --art-sun-top: #d8bd86;
+  --art-sun-bottom: #a8894f;
+  --art-halo: #c9a86c;
+  --art-glow: #2fa38f;
+  --art-mist: #8fc9bd;
+  --art-wash-1: #2a5f56;
+  --art-wash-2: #24534b;
+  --art-reflection: #7fc4b6;
+  --art-ink: #a9e3d4;
+  --art-sail: #7cc4b4;
+  --art-bird: #8fc7b9;
+  --art-reed: #8fc7b9;
+  --art-grain: #bfe6da;
+  --art-dot: #8fc7b9;
+  --art-accent: #d9b37a;
+}
+.md-hero__art-svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+  filter: drop-shadow(0 30px 50px rgba(10, 80, 68, .12));
+  animation: md-art-float 9s ease-in-out infinite alternate;
+}
+[data-theme='dark'] .md-hero__art-svg {
+  filter: drop-shadow(0 30px 50px rgba(0, 0, 0, .5));
+}
+@keyframes md-art-float {
+  from { transform: translateY(0); }
+  to { transform: translateY(-8px); }
+}
+
+/* ------------------------------------------------------------------ 能力条 */
 /*
- * 不再套一层卡片：原来「卡片里再装分段控件、搜索框、下拉、切换器」是四层盒子摞一起，
- * 视觉噪音比信息还多。改成扁平工具条 + 一条发丝线收尾，与下面的卡片区自然分层。
+ * 五格磨砂玻璃卡：半透明白、背景模糊，格与格之间只用一根发丝线。
+ * 参考稿的重点在「浮起的玻璃」——不是实心白卡，所以底色只给到半透明，
+ * 再用一圈内高光把上沿提亮。
  */
-.md-filters {
-  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
-  padding: 0 0 14px; margin-bottom: 14px;
-  border-bottom: 1px solid var(--md-border);
+.md-features {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  margin: clamp(26px, 3vw, 40px) 0 0;
+  padding: 8px clamp(10px, 1.2vw, 18px);
+  border: 1px solid rgba(255, 255, 255, .62);
+  border-radius: 18px;
+  background: linear-gradient(118deg,
+    rgba(255, 255, 255, .52) 0%,
+    rgba(255, 255, 255, .2) 44%,
+    rgba(255, 255, 255, .36) 100%);
+  -webkit-backdrop-filter: blur(20px) saturate(170%);
+  backdrop-filter: blur(20px) saturate(170%);
+  box-shadow:
+    0 26px 60px -38px rgba(8, 64, 55, .5),
+    inset 0 1px 0 rgba(255, 255, 255, .8),
+    inset 0 -1px 0 rgba(255, 255, 255, .3);
+  list-style: none;
+}
+[data-theme='dark'] .md-features {
+  border-color: rgba(255, 255, 255, .12);
+  background: linear-gradient(118deg,
+    rgba(255, 255, 255, .1) 0%,
+    rgba(255, 255, 255, .03) 44%,
+    rgba(255, 255, 255, .07) 100%);
+  box-shadow:
+    0 26px 60px -32px rgba(0, 0, 0, .8),
+    inset 0 1px 0 rgba(255, 255, 255, .12);
+}
+.md-feature {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  padding: 14px clamp(10px, 1.2vw, 18px);
+}
+.md-feature + .md-feature::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 20%;
+  bottom: 20%;
+  width: 1px;
+  background: color-mix(in srgb, var(--md-text) 12%, transparent);
+}
+.md-feature__icon {
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--md-primary) 8%, transparent);
+  color: var(--md-primary);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--md-primary) 7%, transparent);
+}
+[data-theme='dark'] .md-feature__icon {
+  color: color-mix(in srgb, var(--md-primary) 52%, #7fe8d5);
+}
+.md-feature__text {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+.md-feature__text strong {
+  color: var(--md-text);
+  font-size: 14px;
+  font-weight: 650;
+  white-space: nowrap;
+}
+.md-feature__text small {
+  overflow: hidden;
+  color: var(--md-text-3);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.md-seg { display: flex; gap: 3px; padding: 3px; border-radius: 12px; background: var(--md-surface-2); flex-shrink: 0; }
-.md-seg__btn {
-  display: inline-flex; align-items: center; gap: 6px;
-  height: 28px; padding: 0 13px; border: 0; border-radius: 9px; background: none;
-  color: var(--md-text-2); font-size: 13px; font-family: inherit; cursor: pointer; white-space: nowrap;
+/* ------------------------------------------------------------------ 列表区 */
+.md-browse { padding: clamp(30px, 3vw, 46px) 0 clamp(56px, 6vw, 90px); }
+
+.md-browse__head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: clamp(14px, 1.4vw, 20px);
+}
+.md-browse__lead {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+/* 区块标题前一根青绿竖条：比整行大字更轻，仍是全页最清楚的分节记号 */
+.md-browse__bar {
+  width: 4px;
+  height: 24px;
+  flex-shrink: 0;
+  border-radius: 3px;
+  background: linear-gradient(180deg,
+    var(--md-primary),
+    color-mix(in srgb, var(--md-accent) 80%, transparent));
+}
+.md-browse__title {
+  margin: 0;
+  color: var(--md-text);
+  font-size: clamp(22px, 1.9vw, 30px);
+  font-weight: 750;
+  letter-spacing: -.02em;
+}
+
+/* 标题右侧的统计：一行数字，不用卡片，不与下面的知识库卡抢层级 */
+.md-statsline {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  color: var(--md-text-3);
+  font-size: 12.5px;
+}
+.md-stat {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 5px;
+  padding: 0 14px;
+  white-space: nowrap;
+}
+.md-stat + .md-stat { border-left: 1px solid var(--md-border); }
+.md-stat b {
+  color: var(--md-text);
+  font-size: 15px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+/*
+ * 吸顶工具条：向下翻卡片时筛选与排序始终在手边。
+ * 做成一条浮起的圆角横条，卡片从下面经过时不会被一整条实色色带截断。
+ */
+.md-toolbar {
+  position: sticky;
+  top: 10px;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 1px solid color-mix(in srgb, var(--md-primary) 10%, var(--md-border));
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--md-surface) 90%, transparent);
+  -webkit-backdrop-filter: blur(18px) saturate(140%);
+  backdrop-filter: blur(18px) saturate(140%);
+  box-shadow: 0 12px 30px -26px rgba(8, 64, 55, .55);
+}
+
+/* 页签是分段控件：选中档抬起一张白片，数字跟在标签后，不靠三种颜色区分 */
+.md-tabs {
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--md-primary) 7%, var(--md-bg));
+}
+.md-tab {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 7px 14px;
+  border: 0;
+  border-radius: 10px;
+  background: none;
+  color: var(--md-text-3);
+  font-size: 13.5px;
+  font-weight: 550;
+  font-family: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color .15s ease, background-color .15s ease, box-shadow .15s ease;
+}
+.md-tab:hover { color: var(--md-text); }
+.md-tab em {
+  color: currentColor;
+  font-style: normal;
+  font-size: 11px;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  opacity: .72;
+}
+.md-tab.is-active {
+  background: var(--md-surface);
+  color: var(--md-primary);
+  font-weight: 650;
+  box-shadow: 0 2px 8px rgba(4, 32, 28, .12);
+}
+.md-tab.is-active em { opacity: 1; }
+
+.md-toolbar__right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.md-sort {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  height: 33px;
+  border: 1px solid color-mix(in srgb, var(--md-primary) 10%, var(--md-border));
+  border-radius: 999px;
+  background: var(--md-surface);
+  color: var(--md-text-3);
+}
+.md-sort__select {
+  height: 100%;
+  padding: 0 30px 0 13px;
+  border: 0;
+  border-radius: 999px;
+  outline: 0;
+  appearance: none;
+  background: none;
+  color: var(--md-text);
+  font-size: 12.5px;
+  font-family: inherit;
+  cursor: pointer;
+}
+.md-sort > .md-icon {
+  position: absolute;
+  right: 11px;
+  pointer-events: none;
+}
+
+.md-viewswitch {
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--md-border);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--md-primary) 6%, var(--md-bg));
+}
+.md-viewswitch button {
+  width: 29px;
+  height: 27px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 999px;
+  background: none;
+  color: var(--md-text-3);
+  cursor: pointer;
   transition: background-color .15s ease, color .15s ease, box-shadow .15s ease;
 }
-.md-seg__btn:hover { color: var(--md-text); }
-.md-seg__btn em { font-style: normal; font-size: 11px; color: var(--md-text-3); transition: color .15s ease; }
-
-/*
- * 三档各一个色相（全部=蓝 / 共享=绿 / 加密=琥珀），与侧栏、工作区工具条共用同一套令牌。
- *
- * <p>常态是「极淡底 + 同色系描边 + 文字用该色」，选中态换成该色相的实心。两个决定：</p>
- *
- * <p><b>选中态用各自色相的实心，而不是统一主色。</b>统一主色会让「当前在哪一档」和
- * 「这一档是谁」分走两套颜色 —— 选中「加密」时按钮是绿的，identity 就丢了。实心 +
- * 色相同时承担两件事：填充表示「在」，颜色表示「谁」。</p>
- *
- * <p><b>计数跟着变浅一档</b>，不然实心块里的深色数字会像没被选中。</p>
- */
-.md-seg__btn--blue   { --tone: #3b6cf6; }
-.md-seg__btn--green  { --tone: #16a34a; }
-.md-seg__btn--amber  { --tone: #d97706; }
-
-.md-seg__btn {
-  border: 1px solid color-mix(in srgb, var(--tone, transparent) 22%, transparent);
-  background: color-mix(in srgb, var(--tone, transparent) 8%, transparent);
-  color: color-mix(in srgb, var(--tone, var(--md-text-2)) 84%, var(--md-text));
-}
-.md-seg__btn em { color: color-mix(in srgb, var(--tone, var(--md-text-3)) 62%, var(--md-text-3)); }
-.md-seg__btn:hover {
-  border-color: color-mix(in srgb, var(--tone, var(--md-primary)) 45%, transparent);
-  background: color-mix(in srgb, var(--tone, transparent) 14%, transparent);
-}
-
-.md-seg__btn.is-active {
-  background: var(--tone); color: #fff; font-weight: 600;
-  border-color: transparent;
-  box-shadow: 0 3px 10px color-mix(in srgb, var(--tone) 34%, transparent);
-}
-.md-seg__btn.is-active em { color: rgba(255, 255, 255, .82); }
-.md-seg__btn.is-active:hover { background: var(--tone); color: #fff; }
-
-/*
- * 搜索框是右侧动作组的第一项：定宽 260px 且不参与压缩，整组一起贴右沿。
- * 两条都不能省：flex:1 会把它顶回页签旁边（变回「靠左」）；
- * 允许收缩则空间一紧就被挤成 200px 上下，输入框里连 placeholder 都露不全。
- * 真的放不下时交给 .md-filters 的换行把整组挪到下一行，而不是把控件压扁。
- */
-.md-search-inline {
-  flex: 0 0 260px;
-  display: flex; align-items: center; gap: 8px; height: 34px; padding: 0 12px;
-  border: 1px solid var(--md-border); border-radius: 10px;
-  background: var(--md-surface-2); color: var(--md-text-3);
-  transition: border-color .15s ease, background-color .15s ease, box-shadow .15s ease;
-}
-.md-search-inline:focus-within {
-  border-color: var(--md-primary); background: var(--md-surface);
-  box-shadow: 0 0 0 3px var(--md-primary-soft);
-}
-.md-search-inline input {
-  flex: 1; min-width: 0; border: 0; outline: 0; background: transparent;
-  color: var(--md-text); font-size: 13px; font-family: inherit;
-}
-.md-search-inline input::placeholder { color: var(--md-text-3); }
-
-/* 动作组整体不参与收缩：空间不够时整组换行，比把里面的搜索框/按钮逐个压扁体面得多 */
-.md-filters__right { margin-left: auto; display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
-
-.md-select-wrap { position: relative; display: inline-flex; align-items: center; }
-.md-select-wrap > .md-icon { position: absolute; right: 10px; color: var(--md-text-3); pointer-events: none; }
-.md-select {
-  appearance: none; height: 34px; padding: 0 30px 0 12px;
-  border: 1px solid var(--md-border-strong); border-radius: 10px;
-  background: var(--md-surface); color: var(--md-text);
-  font-size: 13px; font-family: inherit; outline: none; cursor: pointer;
-  transition: border-color .15s ease;
-}
-.md-select:focus { border-color: var(--md-primary); }
-
-.md-viewswitch { display: flex; border: 1px solid var(--md-border-strong); border-radius: 10px; overflow: hidden; }
-.md-viewswitch button {
-  width: 36px; height: 32px; border: 0; background: var(--md-surface);
-  color: var(--md-text-3); cursor: pointer; display: grid; place-items: center;
-  transition: background-color .15s ease, color .15s ease;
-}
 .md-viewswitch button:hover { color: var(--md-text); }
-.md-viewswitch button + button { border-left: 1px solid var(--md-border); }
-.md-viewswitch button.is-active { background: var(--md-primary-soft); color: var(--md-primary); }
+.md-viewswitch button.is-active {
+  background: var(--md-surface);
+  color: var(--md-primary);
+  box-shadow: 0 2px 6px rgba(4, 32, 28, .12);
+}
 
 /* ------------------------------------------------------------------ 卡片网格 */
-/*
- * 这一区是门户唯一的滚动区：flex: 1 吃掉标题/统计/筛选/页脚剩下的高度，卡片超出就在这里滚。
- * 不给最小高度兜底 —— 一旦卡片区有个下限，视口不够高时整页就会被顶出滚动条，
- * 变成「整页 + 卡片区」两条滚动条，正是这里要避免的。装不下的情况交给下面的媒体查询整页滚。
- * align-content 必须写：网格默认把多余高度摊给行，一屏只有一行卡片时会被拉成整屏高。
- * 上下左右的内边距是给卡片悬停那几像素上浮与投影留的位置，负外边距把占位还回去，
- * 于是卡片内容与上面的横幅严格左右对齐，投影又不会被滚动区裁掉。
- */
+/* 参考稿是 5~6 列的小卡：auto-fill 让宽屏自然排到 6 列，窄屏一路退回单列 */
 .md-cards {
-  display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px;
-  flex: 1; min-height: 0; overflow: hidden auto; overscroll-behavior: contain;
-  align-content: start; scrollbar-width: thin;
-  padding: 4px 8px; margin: -4px -8px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(248px, 1fr));
+  gap: 16px;
+  padding-top: 18px;
 }
-.md-cards::-webkit-scrollbar { width: var(--md-scrollbar-size); }
-.md-cards::-webkit-scrollbar-thumb {
-  background: var(--md-scrollbar-thumb); border-radius: 8px;
-  border: 2px solid transparent; background-clip: padding-box;
-}
-/* 卡片自己裁 overflow 收圆角；「更多」菜单是 Teleport 到 body 的，不会被一起裁掉 */
+
+/*
+ * 竖版卡片：内缩 8px 白边，封面是一条约 2.35:1 的水彩横幅；
+ * 正文只留「图标 + 标题 / 一行描述 / 文档数与归属 + 圆形箭头」。
+ * 白纸 + 极轻的投影，悬停时整张抬起、箭头变实心青绿。
+ */
 .md-card {
-  position: relative; display: flex; flex-direction: column; min-width: 0;
-  background: var(--md-surface); border: 1px solid var(--md-border);
-  border-radius: 16px; overflow: hidden;
-  transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: 8px;
+  overflow: hidden;
+  background: var(--md-surface);
+  border: 1px solid color-mix(in srgb, var(--md-primary) 7%, var(--md-border));
+  border-radius: 18px;
+  box-shadow:
+    0 1px 2px rgba(12, 60, 52, .03),
+    0 16px 36px -30px rgba(12, 60, 52, .45);
+  transition: transform .22s ease, box-shadow .22s ease, border-color .22s ease;
 }
-.md-card:hover { transform: translateY(-3px); box-shadow: var(--md-shadow); border-color: var(--md-border-strong); }
+.md-card:hover {
+  transform: translateY(-4px);
+  border-color: color-mix(in srgb, var(--md-primary) 26%, var(--md-border));
+  box-shadow:
+    0 2px 4px rgba(12, 60, 52, .04),
+    0 28px 52px -28px rgba(8, 64, 55, .42);
+}
+[data-theme='dark'] .md-card {
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, .4),
+    0 16px 36px -28px rgba(0, 0, 0, .8);
+}
+[data-theme='dark'] .md-card:hover {
+  box-shadow:
+    0 2px 4px rgba(0, 0, 0, .45),
+    0 28px 52px -26px rgba(0, 0, 0, .85);
+}
 
-/*
- * 封面是一张 152px 的实拍大图（无图时退化成同尺寸渐变插画 + 首字母水印）：
- * 门户卡片的第一眼印象由封面承担，压扁成一条色带就失去了「这是本什么库」的暗示。
- * 悬停时图片轻微放大，配合卡片上浮形成层次。
- */
-.md-card__cover { position: relative; display: block; height: 152px; flex-shrink: 0; overflow: hidden; }
+/* 封面：全宽水彩横幅；真实封面图同样裁进这条比例里 */
+.md-card__cover {
+  position: relative;
+  display: block;
+  width: 100%;
+  aspect-ratio: 2.35 / 1;
+  overflow: hidden;
+  border-radius: 12px;
+  background: linear-gradient(150deg, var(--cover-a, #d3ece5), var(--cover-b, #6bb6a6));
+}
 .md-card__cover-img {
-  position: absolute; inset: 0; width: 100%; height: 100%;
-  object-fit: cover; display: block; transition: transform .45s ease;
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  transition: transform .6s ease;
 }
-.md-card:hover .md-card__cover-img { transform: scale(1.045); }
+.md-card:hover .md-card__cover-img { transform: scale(1.04); }
 .md-card__cover-art {
-  position: absolute; inset: 0;
-  background: linear-gradient(135deg, var(--cover-a, #3b82f6), var(--cover-b, #22d3ee));
+  position: absolute;
+  inset: 0;
+  display: block;
 }
-/* 叠一层柔光与压角，让纯渐变也有插画质感 */
-.md-card__cover-art::after {
-  content: ''; position: absolute; inset: 0;
-  background:
-    radial-gradient(240px 140px at 14% 0%, rgba(255, 255, 255, .45), transparent 72%),
-    radial-gradient(280px 170px at 96% 112%, rgba(0, 0, 0, .22), transparent 70%);
-}
-/* 底部压一层暗角：白玻璃徽标压在浅色照片上时靠它兜住对比度 */
-.md-card__cover::after {
-  content: ''; position: absolute; inset: auto 0 0; height: 58%;
-  background: linear-gradient(to top, rgba(10, 12, 18, .34), transparent);
-  pointer-events: none;
-}
-.md-card__mark {
-  position: absolute; right: 12px; bottom: -28px;
-  font-size: 118px; font-weight: 800; line-height: 1; letter-spacing: -.05em;
-  color: rgba(255, 255, 255, .22); user-select: none; pointer-events: none;
-}
-/* 可见性徽标：白玻璃 + 语义图标。实色胶囊在三档配色之间会打架，白底压得住任何封面色 */
+.md-card__cover-art svg { width: 100%; height: 100%; display: block; }
+.md-art__soft { filter: blur(2.5px); }
+/* 暗色下只有封面压暗，药丸和「更多」仍保持可读 */
+[data-theme='dark'] .md-card__cover-art,
+[data-theme='dark'] .md-card__cover-img { filter: brightness(.8) saturate(1.05); }
+
+/* 分享状态浮在封面左上：白底药丸，压在插画上也清楚 */
 .md-card__badge {
-  position: absolute; left: 12px; top: 12px; z-index: 1;
-  display: inline-flex; align-items: center; gap: 5px;
-  height: 24px; padding: 0 10px; border-radius: 999px;
-  background: rgba(255, 255, 255, .93); color: #1f2937;
-  font-size: 11.5px; font-weight: 600; backdrop-filter: blur(6px);
-  box-shadow: 0 2px 8px rgba(10, 12, 18, .2);
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 9px 3px 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, .92);
+  backdrop-filter: blur(4px);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.5;
+  white-space: nowrap;
+  box-shadow: 0 2px 8px rgba(10, 60, 52, .14);
 }
-.md-card__badge.is-public .md-icon { color: #16a34a; }
-.md-card__badge.is-org .md-icon { color: #6366f1; }
-.md-card__badge.is-private .md-icon { color: #d97706; }
+.md-card__badge.is-public { color: #127a4f; }
+.md-card__badge.is-private { color: #a8620a; }
+[data-theme='dark'] .md-card__badge { background: rgba(10, 26, 23, .78); }
+[data-theme='dark'] .md-card__badge.is-public { color: #7ee0ad; }
+[data-theme='dark'] .md-card__badge.is-private { color: #f5c164; }
 
-.md-card__body { flex: 1; min-width: 0; padding: 14px 16px 12px; }
-/* 标题行带一枚渐变小方块：纯文字标题在一排卡里认不出「这是什么」，色块给了锚点 */
-.md-card__head { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
-.md-card__glyph {
-  width: 34px; height: 34px; border-radius: 10px; flex-shrink: 0;
-  display: grid; place-items: center; color: #fff;
-  background: linear-gradient(140deg, var(--cover-a, #3b82f6), var(--cover-b, #22d3ee));
-  box-shadow: 0 4px 10px color-mix(in srgb, var(--cover-a, #3b82f6) 28%, transparent);
+.md-card__body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 11px 8px 4px;
 }
-.md-card__title { margin: 0; min-width: 0; font-size: 15.5px; font-weight: 650; line-height: 1.4; }
-.md-card__title a { display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; }
+.md-card__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+/* 标题前的小色块跟着封面走，一排卡片之间能靠颜色快速认库 */
+.md-card__mark {
+  flex-shrink: 0;
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  background: linear-gradient(140deg, color-mix(in srgb, var(--cover-b, #6bb6a6) 58%, #0b3b34), color-mix(in srgb, var(--cover-b, #6bb6a6) 34%, #0b3b34));
+  color: #fff;
+  box-shadow: 0 3px 8px -2px color-mix(in srgb, var(--cover-b, #6bb6a6) 55%, transparent);
+}
+
+.md-card__title {
+  margin: 0;
+  min-width: 0;
+  font-size: 15px;
+  font-weight: 650;
+  line-height: 1.35;
+  letter-spacing: -.01em;
+}
+.md-card__title a {
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  color: var(--md-text);
+  transition: color .15s ease;
+}
 .md-card__title a:hover { color: var(--md-primary); }
-/* 创建者 · 组织 · 创建时间：组织名是跨组织门户里区分同名库的唯一线索（规范 F10），
- * 日期段不参与压缩 —— 宁可截断名字，也别把「创建于」吃掉半截 */
-.md-card__byline {
-  display: flex; align-items: center; gap: 5px; margin: 0 0 9px;
-  color: var(--md-text-3); font-size: 11.5px; min-width: 0;
-}
-.md-card__byline-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.md-card__byline-date { flex-shrink: 0; white-space: nowrap; }
-.md-card__desc {
-  margin: 0; min-height: 40px;
-  color: var(--md-text-2); font-size: 12.5px; line-height: 1.6;
-  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
-}
-.md-card__tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
-.md-chip {
-  padding: 3px 9px; border-radius: 999px; white-space: nowrap;
-  background: var(--md-surface-2); color: var(--md-text-2); font-size: 11px;
-}
-/* 标签取五档柔和底色：同一标签在任何卡片上颜色稳定，一排标签又不至于糊成同色。
- * 暗色下只提亮文字（底色本身就是半透明，跟着背景走即可） */
-.md-chip.is-tone-0 { background: rgba(59, 130, 246, .14); color: #2563eb; }
-.md-chip.is-tone-1 { background: rgba(22, 163, 74, .14); color: #15803d; }
-.md-chip.is-tone-2 { background: rgba(139, 92, 246, .15); color: #7c3aed; }
-.md-chip.is-tone-3 { background: rgba(217, 119, 6, .16); color: #b45309; }
-.md-chip.is-tone-4 { background: rgba(236, 72, 153, .14); color: #db2777; }
-[data-theme='dark'] .md-chip.is-tone-0 { color: #7aa7ff; }
-[data-theme='dark'] .md-chip.is-tone-1 { color: #4ade80; }
-[data-theme='dark'] .md-chip.is-tone-2 { color: #a78bfa; }
-[data-theme='dark'] .md-chip.is-tone-3 { color: #fbbf24; }
-[data-theme='dark'] .md-chip.is-tone-4 { color: #f472b6; }
 
-/*
- * 元信息与动作合并成一条底栏：原来「篇数/时间」一行、「进入/更多」又一行，
- * 卡片底部叠了两条分隔线，又高又碎。合并后整张卡矮一截，视线也只有一个落点。
- */
-.md-card__foot {
-  display: flex; align-items: center; gap: 9px;
-  padding: 10px 14px 12px; border-top: 1px solid var(--md-border);
+.md-card__desc {
+  margin: 7px 0 0;
+  color: var(--md-text-3);
+  font-size: 12px;
+  line-height: 1.6;
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
-/*
- * 「进入」钉在底栏左侧当主入口，元信息用 margin-left:auto 让到右边收尾。
- * 左侧放主操作符合「先看怎么进去、再看更新于何时」的阅读顺序，视线不用横跨整条底栏。
- */
-.md-card__meta {
-  display: flex; align-items: center; gap: 7px;
-  min-width: 0; margin-left: auto;
-  color: var(--md-text-3); font-size: 11.5px;
+
+/* 底栏：文档数 · 所属组织；右侧留给那颗圆形箭头 */
+.md-card__foot {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: auto;
+  padding-top: 10px;
+  color: var(--md-text-3);
+  font-size: 11.5px;
 }
 .md-card__meta-item {
-  display: inline-flex; align-items: center; gap: 4px;
-  min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  white-space: nowrap;
 }
-.md-card__dot { width: 3px; height: 3px; border-radius: 50%; background: var(--md-border-strong); flex-shrink: 0; }
+.md-card__meta-item .md-icon { color: var(--md-text-3); }
+.md-card__meta-item--org { flex: 0 1 auto; overflow: hidden; }
+.md-card__meta-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-/* 「进入」平时是主色淡底、悬停才实心：一屏 20 张卡全是实心蓝会糊成一片，主次反而丢了 */
-.md-enter {
-  display: inline-flex; align-items: center; gap: 4px; flex-shrink: 0;
-  height: 30px; padding: 0 14px; border-radius: 999px;
-  background: var(--md-primary-soft); color: var(--md-primary);
-  font-size: 12.5px; font-weight: 600;
-  transition: background-color .15s ease, color .15s ease;
+/* 圆形箭头：卡片唯一的主操作，悬停时从描边变成实心青绿 */
+.md-card__go {
+  flex-shrink: 0;
+  margin-left: auto;
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--md-primary) 20%, var(--md-border));
+  border-radius: 50%;
+  background: var(--md-surface);
+  color: var(--md-primary);
+  transition: background-color .16s ease, color .16s ease, border-color .16s ease;
 }
-.md-enter:hover { background: var(--md-primary); color: #fff; }
-.md-enter .md-icon { transition: transform .15s ease; }
-.md-enter:hover .md-icon { transform: translateX(2px); }
+.md-card__go .md-icon { transition: transform .18s ease; }
+.md-card:hover .md-card__go,
+.md-card__go:hover {
+  border-color: var(--md-primary);
+  background: var(--md-primary);
+  color: #fff;
+}
+[data-theme='dark'] .md-card:hover .md-card__go,
+[data-theme='dark'] .md-card__go:hover { color: #06231f; }
+.md-card:hover .md-card__go .md-icon { transform: translateX(2px); }
 
-/* 「更多」压在封面右上角：暗玻璃圆钮，压在照片上也看得清 */
-.md-card__more { position: absolute; right: 10px; top: 10px; z-index: 2; }
+/* 「更多」压在封面右上角：白底小圆钮，压在插画上也看得见 */
+.md-card__more { position: absolute; right: 16px; top: 16px; z-index: 2; }
 .md-more {
-  width: 28px; height: 28px; border-radius: 999px;
-  display: grid; place-items: center;
-  border: 0; background: rgba(15, 17, 23, .42); color: #fff;
-  cursor: pointer; backdrop-filter: blur(6px);
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .2);
-  transition: background-color .14s ease;
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, .9);
+  color: #465a66;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(10, 60, 52, .14);
+  backdrop-filter: blur(4px);
+  transition: background-color .14s ease, color .14s ease, box-shadow .14s ease;
 }
-.md-more:hover, .md-more.is-open { background: rgba(15, 17, 23, .7); }
-/* 外观而已：菜单由 KbCard Teleport 到 body，位置是 JS 按视口算的 fixed 坐标 */
+[data-theme='dark'] .md-more { background: rgba(10, 26, 23, .78); color: #cbd8d4; }
+.md-more:hover,
+.md-more.is-open {
+  background: var(--md-primary);
+  color: #fff;
+  box-shadow: 0 4px 12px -2px color-mix(in srgb, var(--md-primary) 55%, transparent);
+}
+/* 只负责外观：菜单由 KbCard Teleport 到 body，位置是 JS 按视口算的 fixed 坐标 */
 .md-card__menu {
-  position: fixed; z-index: 60; min-width: 148px; padding: 5px;
-  background: var(--md-surface); border: 1px solid var(--md-border);
-  border-radius: 10px; box-shadow: var(--md-shadow);
+  position: fixed;
+  z-index: 60;
+  min-width: 148px;
+  padding: 5px;
+  border: 1px solid var(--md-border);
+  border-radius: 10px;
+  background: var(--md-surface);
+  box-shadow: var(--md-shadow);
 }
 .md-card__menu-item {
-  display: flex; align-items: center; gap: 7px; width: 100%;
-  padding: 7px 9px; border: 0; border-radius: 7px; background: none;
-  color: var(--md-text); font-size: 12.5px; font-family: inherit; text-align: left; cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  width: 100%;
+  padding: 7px 9px;
+  border: 0;
+  border-radius: 7px;
+  background: none;
+  color: var(--md-text);
+  font-size: 12.5px;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
 }
 .md-card__menu-item:hover { background: var(--md-surface-2); color: var(--md-text); }
 
-/* 列表视图：一行一件事，封面缩成左侧色块，底栏收到行尾 */
-.md-cards.is-list { grid-template-columns: 1fr; }
-.md-cards.is-list .md-card { flex-direction: row; align-items: stretch; }
-.md-cards.is-list .md-card__cover { width: 168px; height: auto; min-height: 112px; align-self: stretch; }
-.md-cards.is-list .md-card__mark { right: 4px; bottom: -18px; font-size: 78px; }
-/* 行式布局下「更多」要贴回封面右上角：它相对整张卡定位，不修就会飘到正文上方 */
-.md-cards.is-list .md-card__more { right: auto; left: 130px; }
-.md-cards.is-list .md-card__body { display: flex; flex-direction: column; justify-content: center; padding: 14px 16px; }
-.md-cards.is-list .md-card__desc { min-height: 0; -webkit-line-clamp: 1; }
-/* 标签在紧凑行里让位给名称与组织；要看标签切回网格视图 */
-.md-cards.is-list .md-card__tags { display: none; }
-.md-cards.is-list .md-card__foot { flex-shrink: 0; gap: 16px; padding: 0 16px 0 0; border-top: 0; }
+/* 列表视图：一行一个库，封面放回左侧，描述留两行 */
+.md-cards.is-list { grid-template-columns: 1fr; gap: 12px; }
+.md-cards.is-list .md-card { flex-direction: row; align-items: stretch; border-radius: 18px; }
+.md-cards.is-list .md-card__cover {
+  flex: 0 0 clamp(200px, 22vw, 280px);
+  width: auto;
+  aspect-ratio: auto;
+  align-self: stretch;
+  border-radius: 12px;
+}
+.md-cards.is-list .md-card__body { flex: 1; padding: 14px 20px 12px; justify-content: center; }
+.md-cards.is-list .md-card__head { padding-right: 34px; }
+.md-cards.is-list .md-card__desc { -webkit-line-clamp: 2; max-width: 900px; }
+.md-cards.is-list .md-card__foot { padding-top: 12px; }
+.md-cards.is-list .md-card__more { top: 16px; right: 16px; }
 
-/* ------------------------------------------------------------------ 无限滚动 */
-/* 提示行是网格的子项，必须横跨整行，否则会在网格里白占一格 */
+/* ------------------------------------------------------------------ 加载 / 空态 */
+/* 提示行在网格外，翻到底时是一句安静的小字，不占卡片格 */
 .md-cards__end {
-  grid-column: 1 / -1; margin: 0; padding: 8px 0 2px;
-  text-align: center; color: var(--md-text-3); font-size: 12.5px;
+  margin: 0;
+  padding: 22px 0 4px;
+  text-align: center;
+  color: var(--md-text-3);
+  font-size: 12.5px;
 }
 
-.md-empty-hint { color: var(--md-text-3); text-align: center; padding: 30px 0; }
-.md-empty-state { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 26px 0 34px; }
+.md-empty-hint {
+  padding: 40px 0;
+  text-align: center;
+  color: var(--md-text-3);
+  font-size: 13px;
+}
+.md-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 64px 0 72px;
+  text-align: center;
+}
 .md-empty-state__icon {
-  width: 60px; height: 60px; border-radius: 20px; margin-bottom: 4px;
-  display: grid; place-items: center;
-  color: var(--md-primary); background: var(--md-primary-soft);
+  width: 58px;
+  height: 58px;
+  display: grid;
+  place-items: center;
+  margin-bottom: 8px;
+  border-radius: 50%;
+  background: var(--md-surface);
+  color: var(--md-primary);
+  box-shadow:
+    0 0 0 9px var(--md-primary-soft),
+    0 14px 28px -18px rgba(4, 32, 28, .4);
 }
-.md-empty-state .md-empty-hint { padding: 0 0 10px; }
-/* 空列表时由这块占位继承卡片区的高度，页脚才不会被抬到屏幕中间 */
-.md-portal .md-empty-state { flex: 1; min-height: 0; justify-content: center; }
-/* ------------------------------------------------------------------ 页脚落款 */
-/*
- * 整页不滚了，原来那 40px 底部留白（滚动到底的缓冲）收掉，左右交给 .md-portal 的 padding；
- * 共享样式里 .md-footer 自带 1280px 居中上限，门户铺满视口后这里一并放开。
- * 落款从「左右各摆一句」改成居中三段式，并从一条分隔线升级成一张带柔光与点阵的底座卡片：
- * 它是整页最后一个视觉元素，用卡片语言收尾，页面才有头有尾；中轴排布也和上方
- * 统计卡、筛选栏对得上，不再是一句飘着的版权。
- */
+.md-empty-state__title {
+  margin: 0;
+  color: var(--md-text);
+  font-size: 15px;
+  font-weight: 600;
+}
+.md-empty-state__text {
+  margin: 0 0 10px;
+  color: var(--md-text-3);
+  font-size: 13px;
+}
 
+/* 首屏骨架：按真实尺寸占位，数据回来时页面不跳 */
+.md-skel {
+  display: block;
+  border-radius: 6px;
+  background: linear-gradient(100deg,
+    color-mix(in srgb, var(--md-primary) 6%, var(--md-surface-2)) 22%,
+    color-mix(in srgb, var(--md-primary) 12%, var(--md-surface)) 40%,
+    color-mix(in srgb, var(--md-primary) 6%, var(--md-surface-2)) 58%);
+  background-size: 220% 100%;
+  animation: md-skel 1.6s linear infinite;
+}
+@keyframes md-skel {
+  from { background-position: 120% 0; }
+  to { background-position: -120% 0; }
+}
+.md-skel--eyebrow { width: 180px; height: 26px; border-radius: 999px; margin-bottom: 20px; }
+.md-skel--title { width: min(560px, 76%); height: 62px; margin-bottom: 16px; }
+.md-skel--lead { width: min(600px, 88%); height: 15px; margin-top: 6px; }
+.md-skel--search { width: min(640px, 96%); height: 64px; border-radius: 18px; margin-top: 26px; }
+.md-skel--hot { width: min(380px, 72%); height: 30px; border-radius: 999px; margin-top: 16px; }
+.md-skel--art { display: block; width: 100%; aspect-ratio: 560 / 400; border-radius: 28px; }
+.md-skel--features { display: block; height: 84px; border-radius: 20px; margin-top: clamp(26px, 3vw, 40px); }
+.md-skel-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(248px, 1fr));
+  gap: 16px;
+  margin-top: clamp(30px, 3vw, 46px);
+}
+.md-skel--card { height: 214px; border-radius: 18px; }
+
+/* ------------------------------------------------------------------ 页脚 */
 /*
- * 页脚：品牌大块 + 三栏链接 + 版权行。
- *
- * <p>页脚是一条通栏色带：向页面底色调进少量正文深色（text 5%→2.5%）拉出
- * 一层明确但克制的明度差，顶部一条分隔线收边；surface-2 在部分主题里与
- * bg 几乎同色，靠它分不出层次。山水背景到此被这层实底盖住，多栏小字
- * 全部走普通正文色，读得清。出血到视口两边（负 margin 抵消
- * .md-portal 的 22px padding），内部的 .md-footer__inner 仍限宽居中，
- * 与内容列对齐。</p>
+ * 页脚参考「品牌 + 四项能力 + 居中版权」的横向版式：
+ * 左端是标识与一句话介绍，右端四格各一枚圆底图标 + 主张，
+ * 底部一条细线收口，版权居中。淡彩湖山整幅铺底，顶部渐隐进页面。
  */
 .md-portal .md-footer {
   position: relative;
+  display: block;
   max-width: none;
-  margin: 0 -22px;
-  padding: 48px 22px 0;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
   border: 0;
-  border-top: 1px solid color-mix(in srgb, var(--md-border-strong) 60%, transparent);
   border-radius: 0;
-  background: linear-gradient(
-    180deg,
-    color-mix(in srgb, var(--md-text) 5%, var(--md-bg)),
-    color-mix(in srgb, var(--md-text) 2.5%, var(--md-bg))
-  );
+  background: linear-gradient(180deg, #f7fbfa 0%, #eef8f4 100%);
   box-shadow: none;
+  color: var(--md-text-3);
+  font-size: 13px;
+}
+[data-theme='dark'] .md-portal .md-footer {
+  background: linear-gradient(180deg, var(--md-bg) 0%, #0d1b18 100%);
+}
+.md-footer__bg {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: url('../assets/portal-bg.png') center bottom / 120% auto no-repeat;
+  opacity: .85;
+  -webkit-mask-image: linear-gradient(180deg, transparent 0%, rgba(0, 0, 0, .55) 42%, #000 100%);
+  mask-image: linear-gradient(180deg, transparent 0%, rgba(0, 0, 0, .55) 42%, #000 100%);
+}
+[data-theme='dark'] .md-footer__bg {
+  opacity: .2;
+  filter: saturate(.75) brightness(.85);
 }
 
-.md-footer__inner {
+.md-portal .md-footer__inner {
   position: relative;
   z-index: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 26px;
   width: 100%;
-  max-width: 1180px;
-  margin: 0 auto;
-  padding: 0 44px 22px;
+  padding: clamp(22px, 2.2vw, 32px) var(--md-gutter) clamp(12px, 1.2vw, 16px);
 }
 
-/* 品牌栏占宽约四成，右侧三栏均分；窄屏降成两列、再降单列 */
 .md-footer__grid {
   display: grid;
-  grid-template-columns: minmax(260px, 1.5fr) repeat(3, minmax(110px, 1fr));
-  gap: 36px 32px;
+  grid-template-columns: minmax(240px, 1fr) minmax(0, 1.9fr);
+  gap: clamp(28px, 4vw, 72px);
   align-items: start;
 }
 
 .md-footer__brand { display: grid; gap: 14px; justify-items: start; }
-.md-footer__brand-row { display: flex; align-items: center; gap: 11px; }
+.md-footer__brand-row { display: flex; align-items: center; gap: 12px; }
 .md-footer__logo {
-  height: 48px; flex-shrink: 0;
-  display: grid; place-items: center; color: #fff;
-  background: linear-gradient(140deg, var(--md-primary), #2eb8a3);
-  box-shadow: 0 5px 14px color-mix(in srgb, var(--md-primary) 28%, transparent);
-  overflow: hidden; border-radius: 12px;
+  height: 52px;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 15px;
+  background: var(--md-brand-gradient);
+  color: #fff;
+  box-shadow: var(--md-brand-shadow);
 }
-/* 上传的 Logo 一律裸图：底板会把自带背景的标志框成一张贴纸。
-   横长图按高度等比缩放撑开，别压进方形框；用 flex + max-height，
-   grid 隐式行高依赖内容会让百分比高度失效 */
-.md-footer__logo.is-image { background: none; border: 0; box-shadow: none; border-radius: 0; display: flex; align-items: center; }
-.md-footer__logo.is-image img { height: auto; max-height: 100%; width: auto; max-width: 200px; object-fit: contain; display: block; }
+/* 上传的 Logo 一律裸图：底板会把自带背景的标志框成一张贴纸 */
+.md-footer__logo.is-image {
+  display: flex;
+  align-items: center;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+}
+.md-footer__logo.is-image img {
+  width: auto;
+  height: auto;
+  max-width: 200px;
+  max-height: 100%;
+  object-fit: contain;
+  display: block;
+}
+/* 与顶栏同理：上传的 Logo 一律裸图，不在暗色下另垫底板 */
 .md-footer__text { display: flex; flex-direction: column; line-height: 1.25; }
-.md-footer__text strong { font-size: 17px; font-weight: 650; color: var(--md-text); }
-.md-footer__text small { font-size: 12px; color: var(--md-text-3); }
-.md-footer__desc {
-  margin: 0; max-width: 380px;
-  color: var(--md-text-2); font-size: 13px; line-height: 1.75;
+.md-footer__text strong { color: var(--md-text); font-size: 19px; font-weight: 650; }
+.md-footer__text small {
+  color: color-mix(in srgb, var(--md-primary) 42%, var(--md-text-3));
+  font-size: 12.5px;
 }
-.md-footer__badges { display: flex; flex-wrap: wrap; gap: 8px; }
-.md-footer__badge {
-  padding: 3px 10px; border-radius: 999px;
-  color: var(--md-text-2); font-size: 11.5px;
-  border: 1px solid color-mix(in srgb, var(--md-border-strong) 70%, transparent);
-  background: color-mix(in srgb, var(--md-surface) 72%, transparent);
+.md-footer__desc {
+  max-width: 300px;
+  margin: 0;
+  color: var(--md-text-2);
+  font-size: 12.5px;
+  line-height: 1.65;
 }
 
-.md-footer__col { display: grid; gap: 9px; align-content: start; justify-items: start; }
-.md-footer__col h3 {
-  margin: 0 0 3px; color: var(--md-text); font-size: 13px; font-weight: 650;
+.md-footer__features {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: clamp(14px, 2vw, 28px);
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
 }
-.md-footer__col a,
-.md-footer__col .router-link-active {
-  color: var(--md-text-2); font-size: 13px; text-decoration: none;
-  transition: color .15s ease;
+.md-footer__feature { display: grid; gap: 5px; align-content: start; justify-items: start; }
+.md-footer__feature-icon {
+  width: 40px;
+  height: 40px;
+  margin-bottom: 4px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--md-primary) 9%, var(--md-surface));
+  color: var(--md-primary);
+  box-shadow: 0 8px 18px -14px rgba(9, 74, 63, .55);
 }
-.md-footer__col a:hover { color: var(--md-primary); }
+[data-theme='dark'] .md-footer__feature-icon {
+  background: color-mix(in srgb, var(--md-primary) 16%, var(--md-surface));
+  color: color-mix(in srgb, var(--md-primary) 38%, #d8f3ec);
+}
+.md-footer__feature strong { color: var(--md-text); font-size: 14px; font-weight: 650; }
+.md-footer__feature small { color: var(--md-text-3); font-size: 12px; line-height: 1.5; }
 
 .md-footer__bottom {
-  display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
-  padding-top: 16px;
-  border-top: 1px solid color-mix(in srgb, var(--md-border) 70%, transparent);
+  margin-top: clamp(18px, 2vw, 26px);
+  padding-top: 12px;
+  border-top: 1px solid color-mix(in srgb, var(--md-primary) 12%, var(--md-border));
+  text-align: center;
 }
-.md-footer__copy { margin: 0; color: var(--md-text-3); font-size: 12.5px; }
-.md-footer__note { color: var(--md-text-3); font-size: 12.5px; }
+.md-footer__copy {
+  margin: 0;
+  color: var(--md-text-3);
+  font-size: 11.5px;
+  letter-spacing: .01em;
+}
 
-@media (max-width: 860px) {
-  .md-footer__grid { grid-template-columns: 1fr 1fr; }
-  .md-footer__brand { grid-column: 1 / -1; }
+/* ------------------------------------------------------------------ 响应式 */
+@media (max-width: 1080px) {
+  /* 中屏让插画退场：先把主张、搜索与能力条安顿好，硬塞一张图只会把首屏撑长 */
+  .md-hero__grid { grid-template-columns: 1fr; gap: 0; }
+  .md-hero__art { display: none; }
+  .md-hero__intro { max-width: 780px; }
+
+  /* 五格能力条折成三列，去掉竖分隔线，避免断行处出现半截竖线 */
+  .md-features { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .md-feature + .md-feature::before { display: none; }
+
+  .md-stat { padding: 0 10px; }
+  .md-stat:first-child { padding-left: 0; }
 }
-@media (max-width: 560px) {
+
+@media (max-width: 900px) {
   .md-footer__grid { grid-template-columns: 1fr; gap: 24px; }
-  .md-footer__inner { padding: 0 22px 18px; }
-  .md-footer__bottom { flex-direction: column; align-items: flex-start; }
+}
+
+@media (max-width: 760px) {
+  .md-hero { padding-top: 16px; }
+  .md-hero__title { font-size: clamp(30px, 7.8vw, 40px); }
+  .md-hero__lead { margin-top: 12px; font-size: 14px; line-height: 1.8; }
+  .md-search { height: 58px; padding: 0 6px 0 16px; border-radius: 16px; }
+  .md-search input { font-size: 14px; }
+  .md-search__submit { height: 44px; padding: 0 19px; border-radius: 12px; font-size: 13.5px; }
+
+  /* 能力条两列，第五格占满一行收尾；窄格子里允许说明换行，别用省略号切掉后半句 */
+  .md-features { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .md-feature:last-child { grid-column: 1 / -1; }
+  .md-feature__text strong { font-size: 13px; }
+  .md-feature__text small { font-size: 11.5px; white-space: normal; }
+
+  /* 标题右侧的数字行在窄屏让位给标题本身 */
+  .md-statsline { display: none; }
+  .md-browse__head { align-items: center; }
+
+  .md-toolbar { top: 8px; border-radius: 14px; }
+  /* 窄屏把页签铺满一行、排序与视图铺第二行，工具条不出现半截空位 */
+  .md-tabs { flex: 1 1 100%; }
+  .md-tab { flex: 1; justify-content: center; }
+  .md-toolbar__right { width: 100%; justify-content: space-between; }
+
+  .md-footer__features { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px 24px; }
+}
+
+@media (max-width: 560px) {
+  .md-hero__eyebrow { font-size: 11.5px; }
+  .md-hero__title { font-size: clamp(28px, 8.6vw, 36px); line-height: 1.18; }
+  .md-hero__lead { font-size: 13.5px; }
+  .md-search { height: 54px; }
+  .md-search__submit { height: 40px; padding: 0 16px; font-size: 13px; }
+  .md-hero__hot-label { flex-basis: 100%; margin-bottom: 2px; }
+
+  .md-feature { gap: 9px; padding: 10px 8px; }
+  .md-feature__icon { width: 36px; height: 36px; }
+
+  .md-browse { padding-top: 26px; }
+  .md-toolbar { padding: 6px; }
+  .md-cards { padding-top: 14px; }
+  .md-skel-grid { margin-top: 26px; }
+
+  .md-footer__inner { padding-top: 20px; }
+  .md-footer__logo { height: 44px; }
+  .md-footer__text strong { font-size: 17px; }
+  .md-footer__desc { font-size: 12px; }
+  .md-footer__copy { font-size: 11px; line-height: 1.7; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .md-card,
+  .md-card__cover-img,
+  .md-card__go,
+  .md-card__go .md-icon,
+  .md-search,
+  .md-search__submit,
+  .md-hot,
+  .md-more { transition: none; }
+  .md-hero__art-svg { animation: none; }
+  .md-card:hover { transform: none; }
+  .md-card:hover .md-card__cover-img { transform: none; }
+  .md-card:hover .md-card__go .md-icon { transform: none; }
+  .md-skel { animation: none; }
 }

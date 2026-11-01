@@ -19,7 +19,8 @@ public final class UserDtos {
 
     /** 对外用户信息。 */
     public record UserVO(Long id, String username, String displayName, String email,
-                         String role, String status, String avatarUrl, String avatarSrc, LocalDateTime createdAt) {
+                         String role, String status, String avatarUrl, String avatarSrc,
+                         LocalDateTime createdAt, Boolean emailVerified) {
 
         /** 头像接口在上下文内的路径，对外地址要再补上上下文前缀（见 {@link AppPaths}） */
         public static final String AVATAR_PREFIX = "/api/avatars/";
@@ -29,8 +30,11 @@ public final class UserDtos {
             // 库里存的是文件名，对外给拼好的地址；没有头像时两者都为 null，前端回退首字母
             String avatarSrc = avatarUrl == null || avatarUrl.isBlank() ? null
                     : AppPaths.of(AVATAR_PREFIX + avatarUrl);
+            // 邮箱验证状态给前端：注册后停在「去收邮件」那一步、登录后要不要弹补验证提示都读这一位。
+            // 平台 ADMIN 被闸门豁免，所以「未验证但已经进来了」是一种会真实出现的状态，不是矛盾。
             return new UserVO(user.getId(), user.getUsername(), user.getDisplayName(), user.getEmail(),
-                    user.getRole(), user.getStatus(), avatarUrl, avatarSrc, user.getCreatedAt());
+                    user.getRole(), user.getStatus(), avatarUrl, avatarSrc, user.getCreatedAt(),
+                    user.hasVerifiedEmail());
         }
     }
 

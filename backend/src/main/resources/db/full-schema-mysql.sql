@@ -6,16 +6,20 @@
 --       生产环境使用。导入本脚本后，应用启动时的 DbMigrator 会读 schema_version
 --       发现自己已追上版本，于是跳过全部迁移 —— 因此不需要给应用 DDL 权限。
 --
--- 与 db/migration/mysql/V1__init.sql … V7__site_config.sql 的关系：
---   本脚本 = 那 7 个迁移脚本**合并后的最终形态**（含 V2/V3 收紧后的 NOT NULL、
---   V3 替换过的唯一索引、V4 的 Git 来源列、V5 头像、V6 分享菜单、V7 站点配置）。
+-- 与 db/migration/mysql/V1__init.sql … V12__register_code.sql 的关系：
+--   本脚本 = 那 12 个迁移脚本**合并后的最终形态**（含 V2/V3 收紧后的 NOT NULL、
+--   V3 替换过的唯一索引、V4 的 Git 来源列、V5 头像、V6 分享菜单、V7 站点配置、
+--   V8 门户曝光范围、V9 仓库入口、V10 库级配置表、V11 邮箱验证列、V12 注册验证码表）。
 --   迁移脚本本身是主干资产、只读不改；本脚本是给部署用的派生产物。
+--
+--   派生产物容易忘记跟版本。每次新增迁移，这里要同步四处：建表语句、
+--   第 8.1 节的版本登记、第 9 节的自检期望数字，以及本行说明。
 --
 -- ---------------------------------------------------------------------------
 -- 适用场景（二选一，别混用）
 -- ---------------------------------------------------------------------------
 --   A. 全新安装：直接导入本脚本。
---   B. 已有旧库（已经跑过 V1~V7 的一部分）：**不要用本脚本**，改用迁移脚本逐版升级。
+--   B. 已有旧库（已经跑过 V1~V11 的一部分）：**不要用本脚本**，改用迁移脚本逐版升级。
 --      本脚本含 CREATE TABLE IF NOT EXISTS 与 ALTER 后的最终形态，对已有数据的库
 --      既不会补齐缺失的列，也无法安全处理回填语句。
 --
@@ -102,11 +106,18 @@ CREATE TABLE IF NOT EXISTS users (
     created_at    DATETIME     NOT NULL,
     updated_at    DATETIME     NOT NULL,
     avatar_url    VARCHAR(255) NULL,        -- V5
+    -- 以下 3 列来自 V11（注册邮箱验证）。语义见 mysql/V11__email_verification.sql。
+    -- DEFAULT 1 让历史账号导入即「已验证」，不会被刚上线的验证闸门挡在门外。
+    email_verified   TINYINT(1)   NOT NULL DEFAULT 1,
+    verify_token     VARCHAR(64)  NULL,     -- 一次性令牌，存 SHA-256 摘要而非原文
+    verify_expires_at DATETIME    NULL,     -- NULL = 没有待验证的链接
     PRIMARY KEY (id),
     UNIQUE KEY uk_users_username (username),
     -- email 允许 NULL，且 MySQL 的唯一索引不约束 NULL —— 这正是「不填邮箱的账号可以共存」
     -- 的原因。若改成 NOT NULL，未填邮箱的注册会直接撞唯一键。
-    UNIQUE KEY uk_users_email (email)
+    UNIQUE KEY uk_users_email (email),
+    -- 验证接口手里只有令牌，需要用它反查是哪个用户
+    KEY idx_users_verify_token (verify_token)
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci;
 
 
@@ -195,7 +206,7 @@ CREATE TABLE IF NOT EXISTS knowledge_base (
     git_url             VARCHAR(512) NULL,
     git_branch          VARCHAR(128) NULL,
     git_username        VARCHAR(128) NULL,
-    git_token           VARCHAR(1024) NULL,   -- 明文存储，见文末「安全须知」
+    git_token           VARCHAR(1024) NULL,   -- AES-GCM 密文（v1:<iv>:<摘要>），见文末「安全须知」
     git_last_sync_at    DATETIME     NULL,
     git_last_sync_status VARCHAR(512) NULL,
     git_last_sync_ok    TINYINT(1)   NULL,
@@ -240,6 +251,16 @@ CREATE TABLE IF NOT EXISTS kb_favorite (
     KEY idx_fav_kb (kb_id)
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci;
 
+-- 库级配置（V10）：隐藏规则 / 目录顺序 / 展示偏好，从库根目录的 .minidocs.json 搬进数据库。
+-- 主键用 storage_key 而非 kb_id：配置读写只拿得到库根目录，而 storage_key 在库的整个生命周期里不变。
+-- 存在一行即代表该库有非默认配置；三个分区全空时直接删行，不留空壳。
+CREATE TABLE IF NOT EXISTS kb_config (
+    storage_key VARCHAR(191) NOT NULL,
+    config_json MEDIUMTEXT   NOT NULL,
+    updated_at  DATETIME     NOT NULL,
+    PRIMARY KEY (storage_key)
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci;
+
 
 -- ----------------------------------------------------------------------------
 -- 5. 分享
@@ -268,6 +289,9 @@ CREATE TABLE IF NOT EXISTS shares (
     created_at    DATETIME     NOT NULL,
     updated_at    DATETIME     NOT NULL,
     menu_config   JSON         NULL,                           -- V6：分享页导航菜单，NULL = 用默认
+    portal_scope  VARCHAR(16)  NOT NULL DEFAULT 'anonymous',    -- V8：门户曝光范围，默认与历史行为等价
+    repo_url      VARCHAR(512) NULL,                           -- V9：开源仓库入口地址
+    show_repo     TINYINT(1)   NOT NULL DEFAULT 0,             -- V9：按钮是否显示（与地址分开，支持先配后亮）
     PRIMARY KEY (id),
     UNIQUE KEY uk_shares_token (token),
     -- 唯一键不含 owner_id：归属由 kb_id 决定，挂在 owner_id 上会让「换所有者」时的
@@ -339,17 +363,36 @@ CREATE TABLE IF NOT EXISTS site_config (
 
 
 -- ----------------------------------------------------------------------------
+-- 7.1 注册验证码（V12）
+-- ----------------------------------------------------------------------------
+-- 注册页「填邮箱 → 收 6 位码 → 带码注册」用。一行一个邮箱，email 做主键，
+-- 重发即覆盖旧码；验证通过整行删除。code_hash 是 SHA-256(email:code)，
+-- 不存原文 —— 真正的防线是 10 分钟有效期 + 最多 5 次尝试 + 用完即删。
+-- 表结构说明见 db/migration/mysql/V12__register_code.sql。
+
+CREATE TABLE IF NOT EXISTS register_code (
+    email      VARCHAR(128) NOT NULL,
+    code_hash  VARCHAR(64)  NOT NULL,
+    attempts   TINYINT      NOT NULL DEFAULT 0,
+    expires_at DATETIME     NOT NULL,
+    created_at DATETIME     NOT NULL,
+    updated_at DATETIME     NOT NULL,
+    PRIMARY KEY (email)
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci;
+
+
+-- ----------------------------------------------------------------------------
 -- 8. 初始数据
 -- ----------------------------------------------------------------------------
 
 -- 8.1 登记迁移版本 —— **本脚本最关键的一段**
 --
 -- 应用启动时 DbMigrator 会 SELECT version FROM schema_version，
--- 比对出 V1~V7 全部已应用，于是判定「已是最新版本」直接放行。
+-- 比对出 V1~V12 全部已应用，于是判定「已是最新版本」直接放行。
 -- 少了这一段，应用会去执行 V2 的 ALTER TABLE ADD COLUMN，
 -- 而列已经存在 → 启动直接失败。
 --
--- version 列的值是 '1'~'7'（文件名里 __ 之前的部分），不是 'V1'。
+-- version 列的值是 '1'~'12'（文件名里 __ 之前的部分），不是 'V1'。
 -- INSERT IGNORE 让重复导入本脚本时这段变成空操作。
 
 INSERT IGNORE INTO schema_version (version, script, applied_at) VALUES
@@ -359,7 +402,12 @@ INSERT IGNORE INTO schema_version (version, script, applied_at) VALUES
     ('4', 'V4__kb_git_source.sql',  NOW()),
     ('5', 'V5__user_avatar.sql',    NOW()),
     ('6', 'V6__share_menu_config.sql', NOW()),
-    ('7', 'V7__site_config.sql',    NOW());
+    ('7', 'V7__site_config.sql',    NOW()),
+    ('8', 'V8__share_portal_scope.sql', NOW()),
+    ('9', 'V9__share_repo_link.sql', NOW()),
+    ('10', 'V10__kb_config.sql',    NOW()),
+    ('11', 'V11__email_verification.sql', NOW()),
+    ('12', 'V12__register_code.sql', NOW());
 
 
 -- 8.2 站点配置（可选）
@@ -408,14 +456,14 @@ INSERT IGNORE INTO site_config (id, config, updated_at) VALUES
 -- ----------------------------------------------------------------------------
 -- 9. 导入后自检
 -- ----------------------------------------------------------------------------
--- 期望：14（13 张业务表 + schema_version）、7（迁移版本）、1（站点配置行）。
+-- 期望：16（15 张业务表 + schema_version）、12（迁移版本）、1（站点配置行）。
 -- 少于这个数说明脚本没执行完，先别启应用。
 
-SELECT COUNT(*) AS should_be_14_tables
+SELECT COUNT(*) AS should_be_16_tables
 FROM information_schema.TABLES
 WHERE TABLE_SCHEMA = DATABASE();
 
-SELECT COUNT(*) AS should_be_7_versions FROM schema_version;
+SELECT COUNT(*) AS should_be_12_versions FROM schema_version;
 
 SELECT id, config, updated_at FROM site_config;
 
@@ -426,11 +474,15 @@ SELECT id, config, updated_at FROM site_config;
 -- ============================================================================
 -- 安全须知
 -- ============================================================================
--- 1. knowledge_base.git_token 明文存放访问令牌。本项目未做加密（数据库层加密会让
---    「换密钥」变成一次停机操作，代价大于收益），因此**数据库的访问控制与备份的
---    保密等级就是令牌的安全边界**。若你的备份会流向别处，请先确认这能被接受。
+-- 1. knowledge_base.git_token 存的是 AES-GCM 密文（形如 v1:<iv>:<密文>），密钥由
+--    minidocs.jwt-secret 派生。因此**换 jwt-secret 等于让所有已存令牌解不开**：
+--    备份密钥，或在换密钥后到各云端知识库重新录入令牌。
+--    加密不改变另一件事：能读库又知道 jwt-secret 的人仍能解密，所以库的访问控制与
+--    备份的保密等级就是令牌的安全边界。若备份会流向别处，请先确认这能被接受。
 -- 2. 本脚本不含任何凭据明文；应用账号的密码在第 0 节里由你自己设置，且不要提交进版本库。
 -- 3. git_token 建议在知识库设置页按需最小授权（只读 + 单仓库），并定期轮换。
--- 4. 分享口令存哈希（password_hash），但 Git 令牌存明文 —— 这个不对称是刻意的：
---    口令只需校验相等，令牌必须能再次取用。
+-- 4. 分享口令存哈希（password_hash），Git 令牌存可逆密文 —— 这个不对称是刻意的：
+--    口令只需校验相等，令牌必须能再次取用来访问远端仓库。
+-- 5. 邮箱验证令牌（users.verify_token）存 SHA-256 摘要，不可逆；泄漏整张表也拿不到
+--    可用的验证链接。
 -- ============================================================================

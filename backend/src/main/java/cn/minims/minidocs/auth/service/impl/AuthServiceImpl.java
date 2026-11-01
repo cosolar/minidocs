@@ -8,18 +8,22 @@ import cn.minims.minidocs.auth.dto.AuthDtos.LoginResponse;
 import cn.minims.minidocs.auth.dto.AuthDtos.PasswordUpdateRequest;
 import cn.minims.minidocs.auth.dto.AuthDtos.RegisterRequest;
 import cn.minims.minidocs.auth.service.AuthService;
+import cn.minims.minidocs.auth.service.EmailVerificationService;
+import cn.minims.minidocs.auth.service.RegisterCodeService;
 import cn.minims.minidocs.common.api.ErrorCode;
 import cn.minims.minidocs.common.context.UserContext;
 import cn.minims.minidocs.common.exception.BizException;
 import cn.minims.minidocs.common.support.RateLimiter;
 import cn.minims.minidocs.common.util.TimeUtil;
 import cn.minims.minidocs.config.properties.MiniDocsProperties;
+import cn.minims.minidocs.site.support.MailSettings;
 import cn.minims.minidocs.tenant.service.TenantService;
 import cn.minims.minidocs.user.dto.UserDtos.UserVO;
 import cn.minims.minidocs.user.entity.User;
 import cn.minims.minidocs.user.service.SettingsService;
 import cn.minims.minidocs.user.service.UserService;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -44,6 +48,8 @@ public class AuthServiceImpl implements AuthService {
     private final PasswordEncoder passwordEncoder;
     private final RateLimiter rateLimiter;
     private final MiniDocsProperties properties;
+    private final EmailVerificationService emailVerificationService;
+    private final RegisterCodeService registerCodeService;
 
     @Override
     public LoginResponse login(LoginRequest request, String ip) {
@@ -61,6 +67,11 @@ public class AuthServiceImpl implements AuthService {
         if (!user.isActive()) {
             throw BizException.of(ErrorCode.UNAUTHORIZED, GENERIC_LOGIN_ERROR);
         }
+        // 密码已经验过，这里不再伪装成「密码错误」：拦的是「这个邮箱还没证明归你」，
+        // 说成口令不对只会让人反复改密码。豁免与回落规则见 EmailVerificationService。
+        if (emailVerificationService.blocksLogin(user)) {
+            throw emailVerificationService.emailNotVerified(user);
+        }
 
         StpUtil.login(user.getId());
         SaTokenInfo tokenInfo = StpUtil.getTokenInfo();
@@ -72,7 +83,7 @@ public class AuthServiceImpl implements AuthService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public UserVO register(RegisterRequest request) {
+    public UserVO register(RegisterRequest request, String baseUrl) {
         if (!properties.isRegisterEnabled()) {
             throw BizException.of(ErrorCode.FORBIDDEN, "自主注册已关闭，请联系管理员开通账号");
         }
@@ -81,8 +92,22 @@ public class AuthServiceImpl implements AuthService {
             throw BizException.exists("用户名已被占用");
         }
         String email = request.email() == null ? null : request.email().trim().toLowerCase(Locale.ROOT);
+        MailSettings mail = emailVerificationService.settings();
+        boolean codeRequired = mail.verificationRequired();
+        if (codeRequired && (email == null || email.isEmpty())) {
+            // 闸门开着时邮箱必填：缺了它就没有可验证的地址，把人放进来的唯一方式是让闸门形同虚设
+            throw BizException.param("请填写邮箱，注册后需要验证才能登录");
+        }
         if (email != null && !email.isEmpty() && userService.emailExists(email, null)) {
             throw BizException.exists("邮箱已被占用");
+        }
+        if (codeRequired) {
+            String emailCode = request.emailCode() == null ? "" : request.emailCode().trim();
+            if (emailCode.isEmpty()) {
+                throw BizException.param("请填写邮箱验证码");
+            }
+            // 码不对或过期就不建号：注册不该留下一个「进不去也重发不了」的半成品账号
+            registerCodeService.verify(email, emailCode);
         }
         User user = new User();
         user.setUsername(username);
@@ -93,9 +118,20 @@ public class AuthServiceImpl implements AuthService {
         // 自助注册即可用：v2 的准入由组织成员关系决定，不再有一层平台审核队列（规范 §3.1）。
         // 历史 pending / rejected 行继续被 AuthInterceptor 拦住，由平台后台处置 —— 那是账号级状态，与本条无关。
         user.setStatus(User.STATUS_ACTIVE);
+        String rawToken;
+        if (codeRequired) {
+            // 验证码已经证明这个收件箱归本人，账号直接落已验证；不再另发一封验证链接
+            user.setEmailVerified(true);
+            user.setVerifyToken(null);
+            user.setVerifyExpiresAt(null);
+            rawToken = null;
+        } else {
+            rawToken = emailVerificationService.prepareRegistration(user, mail);
+        }
         userService.save(user);
         // 注册即建个人组织：库归属不能取决于「是否已经建过库」
         tenantService.ensurePersonalTenant(user.getId());
+        emailVerificationService.dispatchAfterCommit(user, mail, rawToken, baseUrl);
         return UserVO.from(user);
     }
 
@@ -107,15 +143,15 @@ public class AuthServiceImpl implements AuthService {
         }
         return UserVO.from(user);
     }
-
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public UserVO updateAccount(AccountUpdateRequest request) {
+    public UserVO updateAccount(AccountUpdateRequest request, String baseUrl) {
         Long userId = UserContext.requireUserId();
         User user = userService.getById(userId);
         if (user == null) {
             throw BizException.of(ErrorCode.UNAUTHORIZED);
         }
+        String previousEmail = user.getEmail();
         if (request.username() != null && !request.username().isBlank()) {
             String username = request.username().trim().toLowerCase(Locale.ROOT);
             if (userService.usernameExists(username, userId)) {
@@ -128,6 +164,11 @@ public class AuthServiceImpl implements AuthService {
         }
         if (request.email() != null) {
             String email = trimToNull(request.email());
+            MailSettings mail = emailVerificationService.settings();
+            if (email == null && mail.verificationRequired() && !user.hasVerifiedEmail()) {
+                // 没验证过的人清掉邮箱 = 把自己锁在门外：闸门只认这个地址，清掉就再没有能收到链接的地方
+                throw BizException.param("邮箱还没验证，验证前不能清空");
+            }
             if (email != null) {
                 email = email.toLowerCase(Locale.ROOT);
                 if (userService.emailExists(email, userId)) {
@@ -135,8 +176,11 @@ public class AuthServiceImpl implements AuthService {
                 }
             }
             user.setEmail(email);
+            persistAccount(user, emailVerificationService
+                    .prepareEmailChange(user, previousEmail, mail), mail, baseUrl);
+            return UserVO.from(user);
         }
-        persistAccount(user);
+        persistAccount(user, null, emailVerificationService.settings(), baseUrl);
         return UserVO.from(user);
     }
 
@@ -146,14 +190,24 @@ public class AuthServiceImpl implements AuthService {
      * <p>{@code updateById} 会跳过 null，而「把显示名/邮箱清空」要写的正是 null：用整行更新时
      * 界面回显已清空、库里仍是旧值，刷新后邮箱又冒出来。列全部显式列出，顺带保证
      * {@code password_hash} 与 {@code role} 不会从这条流程被带出去。</p>
+     *
+     * <p>{@code rawToken} 非空表示这次改了邮箱且需要重新验证：连同那三列一起写，
+     * 提交后再把邮件发出去（发信失败由后台任务回落成已验证）。</p>
      */
-    private void persistAccount(User user) {
-        userService.update(Wrappers.<User>lambdaUpdate()
+    private void persistAccount(User user, String rawToken, MailSettings mail, String baseUrl) {
+        LambdaUpdateWrapper<User> update = Wrappers.<User>lambdaUpdate()
                 .eq(User::getId, user.getId())
                 .set(User::getUsername, user.getUsername())
                 .set(User::getDisplayName, user.getDisplayName())
                 .set(User::getEmail, user.getEmail())
-                .set(User::getUpdatedAt, TimeUtil.now()));
+                .set(User::getUpdatedAt, TimeUtil.now());
+        if (rawToken != null) {
+            update.set(User::getEmailVerified, user.getEmailVerified())
+                    .set(User::getVerifyToken, user.getVerifyToken())
+                    .set(User::getVerifyExpiresAt, user.getVerifyExpiresAt());
+        }
+        userService.update(update);
+        emailVerificationService.dispatchAfterCommit(user, mail, rawToken, baseUrl);
     }
 
     @Override

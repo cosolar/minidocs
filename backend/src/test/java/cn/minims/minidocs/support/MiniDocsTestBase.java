@@ -79,6 +79,15 @@ public abstract class MiniDocsTestBase {
     }
 
     /**
+     * 验证邮件链接的前缀。
+     *
+     * <p>测试里 SMTP 一律没配（{@code verificationRequired()} 因此为 false），这个值不会被用到；
+     * 传个常量而不是 {@code null}，是为了让用例不必去猜「注册接口什么时候才需要基址」。
+     * 真要走验证流程的用例自己拼地址。</p>
+     */
+    protected static final String TEST_BASE_URL = "http://localhost:9098/minidocs";
+
+    /**
      * 手动触发已登记的提交后钩子。
      *
      * <p>本基座每个用例回滚，所以 {@code afterCommit} 在测试里永远不会自己跑到 ——

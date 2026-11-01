@@ -11,11 +11,15 @@ public interface AuthService {
 
     LoginResponse login(LoginRequest request, String ip);
 
-    UserVO register(RegisterRequest request);
+    /**
+     * @param baseUrl 验证链接的前缀，由控制器按 {@code SiteBaseUrlResolver} 的优先级解析；
+     *                服务层不自己拿请求上下文，是为了让单测能直接调用（注册不发邮件时这个值用不上）
+     */
+    UserVO register(RegisterRequest request, String baseUrl);
 
     UserVO currentUser();
 
-    UserVO updateAccount(AccountUpdateRequest request);
+    UserVO updateAccount(AccountUpdateRequest request, String baseUrl);
 
     void updatePassword(PasswordUpdateRequest request);
 

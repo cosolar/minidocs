@@ -60,159 +60,552 @@
 }
 
 /* ------------------------------------------------------------------ 登录 / 注册页 */
-/* 登录页背景四层：底色 → 三团极光 → 56px 网格 → 淡噪点。网格给密度、噪点打散色带，纯渐变在大片留白上会显塑料 */
+/*
+ * 整屏左右分屏：左边一整幅薄荷水彩品牌区，右边平铺的表单面，两者都贴到视口边缘。
+ * 不做居中浮起的卡片 —— 没有圆角边框、没有投影、没有玻璃背板，页面本身就是版式。
+ *
+ * 高度锁在视口内（100% 由 #md-view 给，与全站唯一的滚动区同一口径）：登录与注册都是一屏的事，
+ * 页面级滚动条一出现就说明有一栏没排好。真放不下时由右栏自己滚（见 .md-login__panel），
+ * 左栏的微缩窗本来就按视口高度逐级收内容，不参与滚动。
+ */
 .md-login {
-  /* 滚动区（.md-view）已经把视口高度占满，这里只要 100%，写 100vh 会多出一屏可滚 */
   position: relative;
-  isolation: isolate;
-  min-height: 100%;
+  height: 100%;
   display: grid;
-  place-items: center;
-  background:
-    radial-gradient(920px 620px at 6% -10%, color-mix(in srgb, var(--md-primary) 26%, transparent), transparent 62%),
-    radial-gradient(760px 520px at 98% 2%, rgba(168, 85, 247, .20), transparent 60%),
-    radial-gradient(700px 700px at 82% 108%, rgba(34, 211, 238, .16), transparent 62%),
-    var(--md-bg);
-  padding: 28px 24px;
+  overflow: hidden;
+  background: var(--md-surface);
 }
-/* 网格：中心密、四周淡（靠 mask 收边） */
-.md-login::before {
-  content: '';
-  position: absolute; inset: 0; z-index: -1;
-  pointer-events: none;
-  background-image:
-    linear-gradient(to right, color-mix(in srgb, var(--md-text) 7%, transparent) 1px, transparent 1px),
-    linear-gradient(to bottom, color-mix(in srgb, var(--md-text) 7%, transparent) 1px, transparent 1px);
-  background-size: 56px 56px;
-  -webkit-mask-image: radial-gradient(120% 95% at 50% 0%, #000 18%, transparent 76%);
-  mask-image: radial-gradient(120% 95% at 50% 0%, #000 18%, transparent 76%);
-}
-/* 噪点：180px 湍流贴图平铺，专治大面积渐变的色带 */
-.md-login::after {
-  content: '';
-  position: absolute; inset: 0; z-index: -1;
-  pointer-events: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23n)' opacity='.5'/%3E%3C/svg%3E");
-  opacity: .5;
-}
-[data-theme='dark'] .md-login::after { opacity: .8; }
+[data-theme='dark'] .md-login { background: var(--md-bg); }
 
 .md-login__shell {
-  position: relative;
-  width: min(1040px, 100%);
+  width: 100%;
+  height: 100%;
+  min-height: 0;
   display: grid;
-  grid-template-columns: 1.05fr .95fr;
-  border: 1px solid var(--md-border);
-  border-radius: 22px;
-  background: var(--md-surface);
-  /* 两层影：紧贴卡片的一圈主色柔光把卡片从背景里「抬」起来，外面那层是长投影 */
-  box-shadow:
-    0 0 0 1px color-mix(in srgb, var(--md-primary) 8%, transparent),
-    0 34px 80px -30px rgba(24, 29, 51, .42),
-    var(--md-shadow-sm);
-  overflow: hidden;
-}
-/* 卡片顶沿一道高光：白卡放在深色背景上时，边缘最容易显得生硬 */
-.md-login__shell::before {
-  content: '';
-  position: absolute; inset: 0 0 auto; z-index: 2;
-  height: 1px;
-  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--md-text) 12%, transparent), transparent);
+  grid-template-columns: minmax(0, 1.06fr) minmax(0, .94fr);
 }
 
 /* ------------------------------------------------------------------ 左：品牌栏 */
 /*
- * 深色渐变 + 白色文字。暗色主题下这一栏仍是深色（对比白字），右栏转为深灰，
- * 两栏的明暗差把「说明 / 操作」分开，不靠描边。
+ * 薄荷纸面 + 湖山 + 两团柔光，上沿到视口顶、下沿到视口底。
+ * 不用深色大块：上传的透明 Logo（青绿字）压在深底上读不清，垫白底又违背「裸图」原则。
  */
 .md-login__intro {
   position: relative;
   display: flex;
   flex-direction: column;
-  gap: 26px;
-  padding: 40px 40px 32px;
-  color: #fff;
-  background: linear-gradient(155deg, #128577 0%, #10695e 40%, #145045 72%, #0f3a30 100%);
+  gap: 30px;
+  padding: clamp(30px, 4vw, 58px) clamp(30px, 4.6vw, 72px);
+  color: var(--md-text);
+  background:
+    radial-gradient(720px 520px at 96% 0%, rgba(255, 255, 255, .72), transparent 62%),
+    linear-gradient(165deg, #e8f8f2 0%, #d7efe6 50%, #eaf8f3 100%);
   overflow: hidden;
 }
-/* 右上角与左下角各一团柔光，渐变直落会显得平 */
-.md-login__intro::before,
+/* 湖山：铺在整栏下半部，顶沿渐隐，像一截展开的纸 */
+.md-login__intro::before {
+  content: '';
+  position: absolute;
+  left: -6%; right: -6%; bottom: 0;
+  height: 52%;
+  pointer-events: none;
+  background: var(--md-auth-art, none) center bottom / cover no-repeat;
+  background-color: transparent;
+  opacity: .72;
+  -webkit-mask-image: linear-gradient(180deg, transparent 0%, rgba(0, 0, 0, .55) 38%, #000 100%);
+  mask-image: linear-gradient(180deg, transparent 0%, rgba(0, 0, 0, .55) 38%, #000 100%);
+}
+/* 右下角一团水色，让渐变有落点 */
 .md-login__intro::after {
   content: '';
   position: absolute;
+  width: 420px; height: 420px;
+  right: -140px; bottom: -170px;
   border-radius: 50%;
   pointer-events: none;
+  background: radial-gradient(circle, rgba(18, 133, 119, .16), transparent 66%);
+  filter: blur(6px);
 }
-.md-login__intro::before {
-  width: 320px; height: 320px; right: -110px; top: -130px;
-  background: radial-gradient(circle, rgba(255, 255, 255, .22), transparent 68%);
+[data-theme='dark'] .md-login__intro {
+  color: #e9f8f3;
+  background:
+    radial-gradient(720px 520px at 96% 0%, color-mix(in srgb, var(--md-primary) 24%, transparent), transparent 62%),
+    linear-gradient(165deg, #0e2c26 0%, #0a201c 52%, #0d2a24 100%);
 }
-.md-login__intro::after {
-  width: 260px; height: 260px; left: -120px; bottom: -120px;
-  background: radial-gradient(circle, rgba(120, 220, 255, .18), transparent 70%);
+[data-theme='dark'] .md-login__intro::before { opacity: .16; }
+[data-theme='dark'] .md-login__intro::after {
+  background: radial-gradient(circle, rgba(127, 232, 213, .12), transparent 68%);
 }
+.md-login__intro > * { position: relative; z-index: 1; }
 
-.md-login__intro-top { position: relative; display: flex; align-items: center; gap: 12px; }
+.md-login__intro-top { display: flex; align-items: center; gap: 13px; }
 .md-login__logo {
-  width: 44px; height: 44px; border-radius: 13px; flex-shrink: 0;
-  background: rgba(255, 255, 255, .16);
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .28);
-  color: #fff; font-weight: 700; font-size: 21px; display: grid; place-items: center;
+  width: 48px; height: 48px; border-radius: 14px; flex-shrink: 0;
+  background: rgba(255, 255, 255, .6);
+  box-shadow: inset 0 0 0 1px rgba(18, 133, 119, .12);
+  color: var(--md-primary); font-weight: 700; font-size: 22px;
+  display: grid; place-items: center;
   overflow: hidden;
 }
 /* 上传的 Logo 一律裸图：底板会把自带背景的标志框成一张贴纸 */
 .md-login__logo.is-image { background: none; border: 0; box-shadow: none; border-radius: 0; grid-template-rows: 100%; }
 .md-login__logo.is-image img { width: 100%; height: 100%; object-fit: contain; display: block; }
-.md-login__intro-name { display: grid; gap: 1px; min-width: 0; }
-.md-login__intro-name strong { font-size: 17px; letter-spacing: -.01em; }
-.md-login__intro-name small { color: rgba(255, 255, 255, .68); font-size: 12px; }
+.md-login__intro-name { display: grid; gap: 2px; min-width: 0; }
+.md-login__intro-name strong { font-size: 19px; letter-spacing: -.01em; }
+.md-login__intro-name small { color: var(--md-text-3); font-size: 12.5px; }
+[data-theme='dark'] .md-login__intro-name small { color: rgba(233, 248, 243, .6); }
 
-.md-login__intro-body { position: relative; margin-top: auto; }
+/* ------------------------------------------------------------------ 品牌区装饰 */
+/*
+ * 留白处放一扇「知识库界面」的微缩窗：侧栏、知识库卡片、文档列表，
+ * 四周浮着四枚玻璃标签。比一张静态插画更有产品感，也把左栏中段填满。
+ *
+ * 尺寸按<b>这一格剩下多少空间</b>算，不按视口高度算：整页锁在视口内之后，
+ * 品牌栏要分给文案的高度是浮动的，46vh 这种写法在矮屏上会把标题盖住。
+ * 容器查询的 cqw / cqh 拿到的是让完文案后的真实盒子，窗因此只缩不撞。
+ */
+.md-login__art {
+  flex: 1 1 0;
+  min-height: 0;
+  display: grid;
+  place-items: center;
+  padding: 4px 0;
+  container-type: size;
+}
+.md-login__demo {
+  position: relative;
+  /* 84% 是给四周那四枚浮标签留的位：它们按 ±14% 探出窗外，按 100% 排会顶到整栏边缘被裁掉 */
+  width: min(470px, 84cqw, calc(100cqh * 470 / 330));
+  aspect-ratio: 470 / 330;
+  /* 窗自己也是容器：窗内哪几行要收，取决于窗现在多高（见下方 @container） */
+  container-type: size;
+}
+/* 盒子被文案挤得太矮时整扇窗收起：再缩下去只剩标题栏和两行，比没有更难解释 */
+@container (max-height: 220px) {
+  .md-login__demo { display: none; }
+}
+/* 窗后一团化开的水色，把微缩窗托起来 */
+.md-login__demo::before {
+  content: '';
+  position: absolute;
+  inset: 4% -7% -9%;
+  z-index: 0;
+  border-radius: 44% 56% 52% 48%;
+  background: radial-gradient(ellipse at 50% 70%,
+    color-mix(in srgb, var(--md-primary) 16%, transparent),
+    transparent 68%);
+  filter: blur(16px);
+}
+.md-login__demo-win {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, .9);
+  border-radius: 15px;
+  background: var(--md-surface);
+  box-shadow:
+    0 34px 70px -34px rgba(9, 74, 63, .5),
+    0 3px 10px rgba(9, 74, 63, .06);
+  transform: rotate(-1.2deg);
+}
+.md-login__demo-bar {
+  height: 13%;
+  min-height: 34px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 11px;
+  background: linear-gradient(180deg, #f4fcf8, #e8f7f1);
+  border-bottom: 1px solid color-mix(in srgb, var(--md-primary) 8%, var(--md-border));
+}
+.md-login__demo-dots { display: flex; gap: 3.5px; flex-shrink: 0; }
+.md-login__demo-dots i {
+  width: 5.5px;
+  height: 5.5px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--md-primary) 30%, var(--md-border));
+}
+.md-login__demo-search {
+  flex: 1;
+  height: 19px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, .92);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--md-primary) 8%, var(--md-border));
+  color: var(--md-text-3);
+  font-size: 9px;
+}
+.md-login__demo-search .md-icon { color: var(--md-text-3); }
+.md-login__demo-user {
+  width: 19px;
+  height: 19px;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: linear-gradient(140deg, #17a08d, #0f7d6e);
+  color: #fff;
+  font-size: 7px;
+  font-weight: 700;
+  letter-spacing: .02em;
+}
+.md-login__demo-body {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 88px minmax(0, 1fr);
+}
+.md-login__demo-side {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 8px 6px;
+  background: color-mix(in srgb, var(--md-primary) 4%, var(--md-surface));
+  border-right: 1px solid var(--md-border);
+}
+.md-login__demo-side span {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  height: 22px;
+  padding: 0 7px;
+  border-radius: 6px;
+  color: var(--md-text-3);
+  font-size: 9px;
+  white-space: nowrap;
+}
+.md-login__demo-side span.is-active {
+  background: color-mix(in srgb, var(--md-primary) 10%, transparent);
+  color: var(--md-primary);
+  font-weight: 600;
+}
+/* 侧栏底部压一张团队卡，既填住空白也交代「这是私有空间」 */
+.md-login__demo-me {
+  margin-top: auto;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 5px 2px;
+  border-top: 1px solid color-mix(in srgb, var(--md-text) 6%, transparent);
+}
+.md-login__demo-me i {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  border-radius: 6px;
+  background: linear-gradient(140deg, #17a08d, #0f7d6e);
+  color: #fff;
+  font-size: 6.5px;
+  font-style: normal;
+  font-weight: 700;
+}
+.md-login__demo-me span { min-width: 0; display: flex; flex-direction: column; line-height: 1.25; }
+.md-login__demo-me strong {
+  overflow: hidden;
+  color: var(--md-text-2);
+  font-size: 7.5px;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.md-login__demo-me small { color: var(--md-text-3); font-size: 6.5px; white-space: nowrap; }
+.md-login__demo-main {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 6px;
+  min-width: 0;
+  padding: 10px 11px;
+}
+.md-login__demo-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+.md-login__demo-head strong { color: var(--md-text); font-size: 10px; font-weight: 650; }
+.md-login__demo-head span { color: var(--md-text-3); font-size: 8.5px; }
+.md-login__demo-cards {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+.md-login__demo-card {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  padding: 5px;
+  border: 1px solid color-mix(in srgb, var(--md-primary) 7%, var(--md-border));
+  border-radius: 8px;
+  background: var(--md-surface);
+}
+.md-login__demo-cover {
+  position: relative;
+  height: 38px;
+  overflow: hidden;
+  border-radius: 5px;
+  background: linear-gradient(150deg, #d3ece5, #6bb6a6);
+}
+.md-login__demo-cover.is-b { background: linear-gradient(150deg, #d6eaf6, #78afce); }
+.md-login__demo-cover::before,
+.md-login__demo-cover::after {
+  content: '';
+  position: absolute;
+  border-radius: 50%;
+}
+.md-login__demo-cover::before {
+  width: 22px;
+  height: 22px;
+  right: 8px;
+  top: 4px;
+  background: rgba(255, 255, 255, .45);
+}
+.md-login__demo-cover::after {
+  left: -14%;
+  right: -14%;
+  bottom: -46%;
+  height: 90%;
+  border-radius: 50%;
+  background: rgba(20, 84, 72, .22);
+}
+.md-login__demo-card strong {
+  overflow: hidden;
+  color: var(--md-text);
+  font-size: 8.5px;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.md-login__demo-card small { color: var(--md-text-3); font-size: 8px; }
+.md-login__demo-row {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding-top: 5px;
+  border-top: 1px dashed color-mix(in srgb, var(--md-text) 7%, transparent);
+  color: var(--md-text-2);
+  font-size: 8.5px;
+}
+.md-login__demo-row .md-icon { color: var(--md-text-3); }
+.md-login__demo-row em { margin-left: auto; color: var(--md-text-3); font-style: normal; font-size: 7.5px; }
+.md-login__demo-foot {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-top: 6px;
+  color: var(--md-text-3);
+  font-size: 7.5px;
+}
+.md-login__demo-foot > span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.md-login__demo-avatars { display: flex; flex-shrink: 0; }
+.md-login__demo-avatars i {
+  width: 14px;
+  height: 14px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  border: 1.5px solid var(--md-surface);
+  background: linear-gradient(140deg, #7fcbbd, #2f9c8a);
+  color: #fff;
+  font-size: 6px;
+  font-style: normal;
+  font-weight: 700;
+}
+.md-login__demo-avatars i + i { margin-left: -4px; }
+.md-login__demo-avatars i:nth-child(2) { background: linear-gradient(140deg, #a9c6dd, #6796b8); }
+.md-login__demo-avatars i:nth-child(3) { background: linear-gradient(140deg, #e6cfa8, #c09a63); }
+.md-login__demo-chip {
+  position: absolute;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 26px;
+  padding: 0 10px;
+  border: 1px solid rgba(255, 255, 255, .9);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, .88);
+  box-shadow: 0 14px 28px -18px rgba(9, 74, 63, .5);
+  color: var(--md-text-2);
+  font-size: 10px;
+  font-weight: 600;
+  white-space: nowrap;
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  animation: md-auth-float 6s ease-in-out infinite;
+}
+.md-login__demo-chip .md-icon { color: var(--md-primary); }
+.md-login__demo-chip.is-a { left: -10%; top: 3%; rotate: -4deg; }
+.md-login__demo-chip.is-b { right: -14%; top: 23%; rotate: 3deg; animation-delay: -2s; }
+.md-login__demo-chip.is-c { left: -9%; bottom: 19%; rotate: -2deg; animation-delay: -4s; }
+.md-login__demo-chip.is-d { right: -10%; bottom: -6%; rotate: 2deg; animation-delay: -1s; }
+@keyframes md-auth-float {
+  0%, 100% { translate: 0 0; }
+  50% { translate: 0 -6px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .md-login__demo-chip { animation: none; }
+}
+[data-theme='dark'] .md-login__demo-win {
+  border-color: rgba(255, 255, 255, .1);
+  box-shadow:
+    0 34px 70px -30px rgba(0, 0, 0, .85),
+    0 3px 10px rgba(0, 0, 0, .3);
+}
+[data-theme='dark'] .md-login__demo-bar {
+  background: linear-gradient(180deg, #16342e, #122b26);
+}
+[data-theme='dark'] .md-login__demo-search {
+  background: rgba(255, 255, 255, .06);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .08);
+}
+[data-theme='dark'] .md-login__demo-side { background: rgba(255, 255, 255, .02); }
+[data-theme='dark'] .md-login__demo-card { background: rgba(255, 255, 255, .02); }
+[data-theme='dark'] .md-login__demo-chip {
+  border-color: rgba(255, 255, 255, .12);
+  background: rgba(18, 30, 27, .84);
+}
+/*
+ * 窗变小时逐级收内容，避免被窗口下沿裁掉。
+ *
+ * <p>判断依据是<b>窗自己现在多大</b>，不是视口多高：整页锁进视口后，窗的尺寸由左栏剩下多少
+ * 空间决定，同一个 945 高的视口在登录页与注册页拿到的窗高并不一样。</p>
+ */
+@container (max-height: 329px) {
+  .md-login__demo-row:nth-child(6) { display: none; }
+}
+@container (max-height: 268px) {
+  .md-login__demo-foot { display: none; }
+}
+@container (max-height: 236px) {
+  .md-login__demo-row:nth-child(5) { display: none; }
+}
+
+.md-login__intro-body { margin-top: 0; }
 .md-login__intro-body h1 {
-  margin: 0 0 10px;
-  font-size: 29px; line-height: 1.28; font-weight: 700; letter-spacing: -.02em;
+  margin: 0 0 14px;
+  font-size: clamp(30px, 2.7vw, 38px);
+  line-height: 1.3;
+  font-weight: 700;
+  letter-spacing: -.025em;
 }
-.md-login__intro-body > p { margin: 0 0 22px; color: rgba(255, 255, 255, .76); font-size: 13.5px; line-height: 1.7; }
+.md-login__intro-body > p {
+  max-width: 380px;
+  margin: 0 0 24px;
+  color: var(--md-text-2);
+  font-size: 13.5px;
+  line-height: 1.85;
+}
+[data-theme='dark'] .md-login__intro-body > p { color: rgba(233, 248, 243, .72); }
 
-.md-login__points { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
-.md-login__points li { display: flex; align-items: flex-start; gap: 11px; }
+.md-login__points { list-style: none; margin: 0; padding: 0; display: grid; gap: 14px; }
+.md-login__points li { display: flex; align-items: flex-start; gap: 12px; }
 .md-login__point-icon {
-  width: 30px; height: 30px; border-radius: 9px; flex-shrink: 0;
+  width: 36px; height: 36px; border-radius: 12px; flex-shrink: 0;
   display: grid; place-items: center;
-  background: rgba(255, 255, 255, .14);
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .2);
+  background: rgba(255, 255, 255, .68);
+  box-shadow: inset 0 0 0 1px rgba(18, 133, 119, .1);
+  color: var(--md-primary);
 }
-.md-login__points strong { display: block; font-size: 13.5px; font-weight: 600; }
-.md-login__points small { display: block; margin-top: 1px; color: rgba(255, 255, 255, .66); font-size: 12px; line-height: 1.55; }
+[data-theme='dark'] .md-login__point-icon {
+  background: rgba(255, 255, 255, .07);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .1);
+  color: color-mix(in srgb, var(--md-primary) 40%, #9df0e0);
+}
+.md-login__points strong { display: block; font-size: 13.5px; font-weight: 650; }
+.md-login__points small {
+  display: block;
+  margin-top: 2px;
+  color: var(--md-text-3);
+  font-size: 12px;
+  line-height: 1.6;
+}
+[data-theme='dark'] .md-login__points small { color: rgba(233, 248, 243, .62); }
 .md-login__intro-foot {
-  position: relative; margin: 0;
-  color: rgba(255, 255, 255, .5); font-size: 11.5px;
+  margin: 0;
+  color: var(--md-text-3);
+  font-size: 11.5px;
+  letter-spacing: .01em;
 }
+[data-theme='dark'] .md-login__intro-foot { color: rgba(233, 248, 243, .45); }
 
 /* ------------------------------------------------------------------ 右：表单栏 */
-.md-login__panel { display: flex; flex-direction: column; padding: 40px 40px 30px; }
-.md-login__head h2 { margin: 0; font-size: 21px; font-weight: 700; letter-spacing: -.01em; }
-.md-login__head p { margin: 5px 0 0; color: var(--md-text-3); font-size: 13px; }
-.md-login__form { margin-top: 24px; }
+/*
+ * 平铺的表单面：整列白底、贴住视口右缘，表单内容收在 408px 的阅读列里垂直居中。
+ * 与左栏之间只留一条发丝分隔线，不再做卡片边界。
+ */
+.md-login__panel {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  justify-content: safe center;
+  align-items: center;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: clamp(36px, 4.4vw, 72px) clamp(28px, 5vw, 88px);
+  background: var(--md-surface);
+  box-shadow: inset 1px 0 0 color-mix(in srgb, var(--md-primary) 9%, var(--md-border));
+}
+[data-theme='dark'] .md-login__panel {
+  background: var(--md-surface);
+  box-shadow: inset 1px 0 0 rgba(255, 255, 255, .07);
+}
+.md-login__panel > * { width: min(408px, 100%); }
+.md-login__head h2 { margin: 0; font-size: 24px; font-weight: 700; letter-spacing: -.02em; }
+.md-login__head p { margin: 6px 0 0; color: var(--md-text-3); font-size: 13px; }
+.md-login__form { margin-top: 26px; }
+
+/* 双列字段：用户名/昵称、密码/确认密码并排，表单更紧凑也更像一张排版过的留白页 */
+.md-login__row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 14px;
+}
+
+/*
+ * 「邮箱还没验证」横幅：占一整行，所以它自己要有下边距（表单的间距都长在 .el-form-item 上，
+ * 直接跟在它后面的非表单项拿不到那段空白）。字号压小一档，别盖过账密两栏。
+ */
+.md-login__gate { margin-bottom: 18px; text-align: left; }
+.md-login__gate .el-alert__title { font-size: 12.5px; line-height: 1.6; }
+.md-login__gate .el-alert__description { font-size: 12px; }
+.md-login__gate__action { display: inline-flex; align-items: center; gap: 2px; color: var(--md-text-3); }
+
+/* 补验证邮箱弹窗里的那段说明：地址要能被扫到，所以正文偏窄、行距放宽一点 */
+.md-verify-tip { margin: 0; color: var(--md-text-2); font-size: 13px; line-height: 1.7; }
+.md-verify-tip strong { color: var(--md-text); font-weight: 600; }
 
 /* 表单标签压小一号：默认的标签字号在两栏布局里比输入框还抢眼 */
-.md-login__form .el-form-item__label { padding-bottom: 5px; color: var(--md-text-2); font-size: 12.5px; font-weight: 600; }
+.md-login__form .el-form-item__label { padding-bottom: 6px; color: var(--md-text-2); font-size: 12.5px; font-weight: 600; }
 /*
- * 输入框：圆角与高度统一，聚焦时用主色描边 + 柔光（EP 默认那条偏亮的描边在蓝调页面里很跳）。
+ * 输入框：圆角与高度统一，聚焦时用主色描边 + 柔光（EP 默认那条偏亮的描边在浅色玻璃上很跳）。
  * 这里刻意不写 :deep() —— 本文件是全局样式表，不是 scoped，:deep() 只在 <style scoped> 里才被
  * 编译成合法选择器；写在全局表里浏览器会当成未知伪类，把整条规则连同它后面的声明一起丢掉。
  */
 .md-login__form .el-input__wrapper {
-  border-radius: 10px;
-  padding: 2px 13px;
-  background: var(--md-surface-2);
-  box-shadow: inset 0 0 0 1px var(--md-border);
+  min-height: 46px;
+  border-radius: 12px;
+  padding: 2px 14px;
+  background: color-mix(in srgb, var(--md-surface) 66%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--md-primary) 10%, var(--md-border));
   transition: box-shadow .16s ease, background-color .16s ease;
 }
-.md-login__form .el-input__wrapper:hover { box-shadow: inset 0 0 0 1px var(--md-border-strong); }
+.md-login__form .el-input__wrapper:hover {
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--md-primary) 22%, var(--md-border));
+}
 .md-login__form .el-input__wrapper.is-focus {
   background: var(--md-surface);
-  box-shadow: inset 0 0 0 1.5px var(--md-primary), 0 0 0 3px color-mix(in srgb, var(--md-primary) 16%, transparent);
+  box-shadow: inset 0 0 0 1.5px var(--md-primary), 0 0 0 4px color-mix(in srgb, var(--md-primary) 13%, transparent);
 }
 .md-login__form .el-input__prefix { color: var(--md-text-3); }
 /* 聚焦时前缀跟着变主色，输入框内外是一条连贯的反馈 */
@@ -220,12 +613,12 @@
 .md-login__form .el-input__inner { font-size: 14px; }
 
 .md-login__submit {
-  width: 100%; margin-top: 6px; height: 44px;
+  width: 100%; margin-top: 8px; height: 48px;
   display: inline-flex; align-items: center; justify-content: center; gap: 7px;
-  border: 0; border-radius: 10px;
-  font-size: 14.5px; font-weight: 600;
-  background: linear-gradient(135deg, var(--md-primary), #6f4bf0);
-  box-shadow: 0 10px 22px -10px color-mix(in srgb, var(--md-primary) 75%, transparent);
+  border: 0; border-radius: 12px;
+  font-size: 15px; font-weight: 600;
+  background: linear-gradient(135deg, #17a08d, #0f7d6e);
+  box-shadow: 0 14px 28px -14px rgba(16, 125, 110, .7);
   transition: transform .14s ease, box-shadow .14s ease, filter .14s ease;
 }
 .md-login__submit:hover { transform: translateY(-1px); filter: brightness(1.05); }
@@ -235,8 +628,8 @@
 
 .md-login__links {
   display: flex; align-items: center; justify-content: space-between; gap: 12px;
-  margin-top: 20px; padding-top: 16px;
-  border-top: 1px solid var(--md-border);
+  margin-top: 22px; padding-top: 16px;
+  border-top: 1px solid color-mix(in srgb, var(--md-primary) 10%, var(--md-border));
   color: var(--md-text-3); font-size: 12.5px;
 }
 .md-login__links a { color: var(--md-primary); text-decoration: none; }
@@ -249,21 +642,51 @@
  * ≤900px：两栏没法并排，左栏收成一条品牌头（Logo + 站名），要点列表与脚注收起 ——
  * 手机上首屏要留给表单，那三行说明会把「登录」推到折叠线以下。
  */
-@media (max-width: 900px) {
-  .md-login { padding: 18px 14px; }
-  .md-login__shell { grid-template-columns: 1fr; border-radius: 18px; }
-  .md-login__intro { flex-direction: row; align-items: center; gap: 12px; padding: 18px 20px; }
-  .md-login__intro::before { width: 200px; height: 200px; right: -80px; top: -100px; }
-  .md-login__intro::after { display: none; }
-  .md-login__intro-body, .md-login__intro-foot { display: none; }
-  .md-login__panel { padding: 26px 22px 22px; }
+@media (max-width: 920px) {
+  .md-login { display: block; }
+  /* 手机上仍不滚整页：品牌头按内容高度，剩下的全给表单栏，表单再长也在这一栏里滚 */
+  .md-login__shell {
+    display: grid;
+    grid-template-columns: 1fr;
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+  .md-login__intro {
+    min-height: 230px;
+    gap: 16px;
+    padding: 22px 22px 26px;
+  }
+  .md-login__intro-body { margin-top: auto; }
+  .md-login__art { display: none; }
+  .md-login__intro-body h1 { margin-bottom: 0; font-size: 24px; }
+  .md-login__intro-body > p,
+  .md-login__points,
+  .md-login__intro-foot { display: none; }
+  .md-login__panel {
+    justify-content: flex-start;
+    padding: 32px 22px 40px;
+    align-items: stretch;
+    box-shadow: inset 0 1px 0 color-mix(in srgb, var(--md-primary) 9%, var(--md-border));
+  }
+  .md-login__panel > * { width: 100%; }
   .md-login__links { flex-direction: column; align-items: flex-start; gap: 6px; }
 }
 
-@media (max-width: 420px) {
-  .md-login { padding: 0; }
-  .md-login__shell { border-radius: 0; border: 0; min-height: 100%; align-content: start; }
-  .md-login__panel { padding: 22px 18px 26px; }
+/* 矮屏：装饰随盒子一起缩，文案先让路 —— 微缩窗永远在场，只是小一点 */
+@media (min-width: 921px) and (max-height: 520px) {
+  /* 极矮（分屏/小窗）：要点与导语让路，标题、微缩窗与脚注还留着 */
+  .md-login__intro-body > p,
+  .md-login__points { display: none; }
+}
+@media (max-width: 920px) and (max-height: 640px) {
+  .md-login__intro { min-height: 150px; padding-bottom: 18px; }
+}
+
+@media (max-width: 560px) {
+  .md-login__intro { min-height: 190px; padding: 18px 18px 22px; }
+  .md-login__intro-body h1 { font-size: 22px; }
+  .md-login__panel { padding: 28px 18px 36px; }
+  .md-login__row { grid-template-columns: 1fr; gap: 0; }
+  .md-login__head h2 { font-size: 22px; }
 }
 
 /* ------------------------------------------------------------------ 布局 */
@@ -363,14 +786,44 @@
   background: none; color: var(--md-text-2); cursor: pointer;
 }
 .md-header__icon-btn:hover { background: var(--md-surface-2); color: var(--md-text); }
+/* 组织切换器 + 分隔线 + 页面标题：三者属于同一组「当前在哪」，分开留白但同组收拢 */
+.md-header__context { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.md-header__context .md-header__title {
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.md-header__divider { width: 1px; height: 22px; flex-shrink: 0; background: var(--md-border); }
+/*
+ * 组织切换器：顶栏里唯一带下拉的控件，按「按钮」而不是「标签」做。
+ * 左侧图标放进一块主色淡底的圆角方块当视觉锚点，名字用正文色与 600 字重，
+ * 与右侧 15.5px 的页面标题拉开层级；避免原先 12px 小胶囊那种「贴纸」感。
+ */
 .md-header__org {
-  padding: 2px 9px; border-radius: 999px; font-size: 12px;
-  background: var(--md-surface-2); border: 1px solid var(--md-border); color: var(--md-text-2);
-  max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-  display: inline-flex; align-items: center; gap: 5px; cursor: pointer;
+  height: 34px; padding: 0 10px 0 5px;
+  border-radius: 10px; font-size: 13px; font-weight: 600;
+  background: var(--md-surface); border: 1px solid var(--md-border); color: var(--md-text);
+  max-width: 240px; overflow: hidden;
+  display: inline-flex; align-items: center; gap: 7px;
+  cursor: pointer; user-select: none;
+  transition: background-color .15s ease, border-color .15s ease, box-shadow .15s ease;
+}
+.md-header__org:hover {
+  background: var(--md-surface-2);
+  border-color: color-mix(in srgb, var(--md-primary) 38%, var(--md-border));
+  box-shadow: 0 1px 2px color-mix(in srgb, var(--md-text) 6%, transparent);
+}
+.md-header__org:focus-visible { outline: 2px solid var(--md-primary); outline-offset: 2px; }
+.md-header__org-mark {
+  width: 24px; height: 24px; border-radius: 7px; flex-shrink: 0;
+  display: grid; place-items: center;
+  background: var(--md-primary-soft); color: var(--md-primary);
 }
 .md-header__org-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.md-header__org-caret { color: var(--md-text-3); font-size: 10px; }
+.md-header__org-caret {
+  color: var(--md-text-3);
+  transition: transform .18s ease, color .15s ease;
+}
+.md-header__org:hover .md-header__org-caret { color: var(--md-text-2); }
+.md-header__org.is-open .md-header__org-caret { transform: rotate(180deg); }
 /* 组织切换器条目：名字占宽，角色徽标贴右 */
 .md-ad-switch__name { display: inline-block; min-width: 96px; margin-right: 10px; }
 .md-header__spacer { flex: 1; }
@@ -391,7 +844,11 @@
  */
 @media (max-width: 1080px) {
   .md-header__title { display: none; }
+  /* 标题收掉后分隔线失去参照，留着只会是一条悬空的竖线 */
+  .md-header__divider { display: none; }
   .md-header__org { max-width: 120px; }
+  /* 个人区没有组织切换器，标题就是这一组唯一的「在哪」，再按上面的规则藏掉会让半条顶栏空着 */
+  .md-header__context.is-solo .md-header__title { display: block; }
 }
 @media (max-width: 900px) {
   .md-header { gap: 9px; padding: 0 10px; }
@@ -497,6 +954,8 @@
   color: var(--md-text-2); font-size: 12.8px; line-height: 1.62;
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
 }
+/* 标签单独占描述下面一行：与上面的状态章分开站，读的人不用先分辨哪枚是状态、哪枚是主题 */
+.md-kb-card__tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
 /* margin-top:auto 把元信息压到卡底：同一行的卡片高度一致，这行也会对齐 */
 .md-kb-card__meta {
   display: flex; flex-wrap: wrap; align-items: center;
@@ -543,7 +1002,7 @@
 .md-ad-chip--member { background: rgba(148, 163, 184, .18); color: var(--md-text-2); }
 /* 云端库标识：内容绑在线上 Git 仓库上，会随同步变化。font-weight 覆盖掉标题里的加粗 */
 .md-ad-chip--cloud { background: rgba(14, 165, 233, .16); color: #0369a1; font-weight: 400; }
-/* 标签与来源/可见性小章同排时压成中性灰：一屏彩色小章会互相抢戏，也分不清哪个是状态 */
+/* 标签压成中性灰：状态章用主色与语义色，标签只是内容主题，不该跟着抢戏 */
 .md-ad-chip--tag { background: rgba(148, 163, 184, .16); color: var(--md-text-2); font-weight: 400; }
 
 /* 组织设置里反复出现的「一行一件事」行：左侧说明，右侧动作 */
@@ -1834,7 +2293,7 @@ body.is-col-resizing .md-ws__bytemd-resizer::after { background: var(--md-primar
   .el-pagination__total { display: none; }
   /* 顶栏窄到放不下组织名时只留图标，胶囊不撑破整行 */
   .md-header__org-name { display: none; }
-  .md-header__org { padding: 4px 8px; }
+  .md-header__org { padding: 0 7px 0 5px; }
 }
 
 /* ---------------------------------------------------------- 工作区（编辑页）窄屏 */

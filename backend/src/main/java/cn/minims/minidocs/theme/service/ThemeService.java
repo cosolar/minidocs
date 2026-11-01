@@ -13,7 +13,7 @@ import java.util.List;
  */
 public interface ThemeService {
 
-    /** 已安装主题（含内置），默认主题不在列表里 —— 它由前端内置。 */
+    /** 已安装主题（含内置）。default 也是普通 JSON，装了就出现在列表里。 */
     List<ThemePackVO> list();
 
     /** 安装或覆盖一个主题包。 */

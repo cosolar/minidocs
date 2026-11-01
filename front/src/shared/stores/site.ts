@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import type { SiteConfig } from '@/shared/api/types'
+import { DEFAULT_FAVICON, DEFAULT_LOGO } from '@/shared/brand'
 
 /**
  * 站点品牌（名称 / 副标题 / Logo）的单一来源。
@@ -46,14 +47,29 @@ export const useSiteStore = defineStore('site', {
   state: () => ({ value: { ...DEFAULT_SITE } as SiteConfig }),
   getters: {
     /**
+     * 品牌位要显示的图片：优先横版 Logo，其次管理员上传的站点图标，最后内置圆形标记。
+     *
+     * <p>单个品牌位不再自己拼 {@code logoSrc || DEFAULT_LOGO}：新增图标兜底后，
+     * 六个宿主各写一遍很容易漏掉一处，看起来就像「图标只在某些页面生效」。</p>
+     */
+    brandSrc(state): string {
+      return state.value.logoSrc || state.value.iconSrc || DEFAULT_LOGO
+    },
+    /**
      * 品牌位 Logo 框的行内尺寸，只覆盖管理员显式配过的那一边。
      *
      * <p>没配就是空对象 —— 各品牌位（顶栏 34、侧栏 32、登录 44、页脚 26）继续用自己的默认值。
      * 页脚刻意不绑这个尺寸：那里是 26px 的小位，塞进一个 160×60 的横版标志会把整条页脚顶高，
      * 尺寸设置的作用范围因此是「除页脚外的品牌位」。</p>
+     *
+     * <p>没有 Logo、回落到站点图标时同样返回空对象：宽高是给横版图配的，
+     * 套到正方形图标上会把它拉变形，也不符合各品牌位原本的小尺寸。</p>
      */
     logoStyle(state): Record<string, string> {
       const style: Record<string, string> = {}
+      if (!state.value.logoSrc) {
+        return style
+      }
       if (state.value.logoWidth) {
         style.width = `${state.value.logoWidth}px`
       }
@@ -65,11 +81,12 @@ export const useSiteStore = defineStore('site', {
     /**
      * 是否「只出图、不出名称与副标题」。
      *
-     * <p>要求同时上传过 Logo：只开开关却没传图时，顶栏会只剩一个内置图标、站点叫什么全没了，
-     * 看起来像配置没生效。开关的存储值照旧回显给设置页，这里只约束渲染。</p>
+     * <p>要求至少有图可出：横版 Logo 或站点图标任一即可。只开开关却没传图时，
+     * 品牌位会只剩一个内置标记、站点叫什么全没了，看起来像配置没生效。
+     * 开关的存储值照旧回显给设置页，这里只约束渲染。</p>
      */
     logoOnly(state): boolean {
-      return Boolean(state.value.logoOnly) && Boolean(state.value.logoSrc)
+      return Boolean(state.value.logoOnly) && Boolean(state.value.logoSrc || state.value.iconSrc)
     }
   },
   actions: {
@@ -91,15 +108,16 @@ export const useSiteStore = defineStore('site', {
     applyToDom() {
       siteName = this.value.name || DEFAULT_SITE.name
       document.title = siteTitle(pageTitle)
-      // 上传了 Logo 就顺手当站点图标；没配则不动 index.html 的默认值
-      if (!this.value.logoSrc) return
+      // 标签页图标只认「站点图标」：横版 Logo 是给品牌位用的，压进 16px 只剩一条色带。
+      // 移除图标后要显式回到内置那张，否则会留着已经删掉的旧地址。
+      const icon = this.value.iconSrc || DEFAULT_FAVICON
       let link = document.querySelector<HTMLLinkElement>('link[rel="icon"]')
       if (!link) {
         link = document.createElement('link')
         link.rel = 'icon'
         document.head.appendChild(link)
       }
-      link.href = this.value.logoSrc
+      link.href = icon
     }
   }
 })

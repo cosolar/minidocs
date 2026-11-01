@@ -915,10 +915,10 @@ button { font-family: inherit; }
   justify-content: center; height: 46px; border-radius: 12px;
   font-size: 15px; font-weight: 600;
 }
-/* 主按钮给一层蓝紫渐变：这是这一屏唯一的动作，值得比别的按钮重一点 */
+/* 主按钮给一层青绿渐变：这是这一屏唯一的动作，值得比别的按钮重一点 */
 .md-lock__form .md-btn--primary {
   border-color: transparent;
-  background: linear-gradient(135deg, var(--md-primary), #6f4bf0);
+  background: linear-gradient(135deg, var(--md-primary), var(--md-accent));
   box-shadow: 0 10px 22px -10px color-mix(in srgb, var(--md-primary) 70%, transparent);
 }
 /* 口令错误：淡红底 + 圆角，比一行红字更容易被扫到 */

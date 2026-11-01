@@ -6,7 +6,6 @@ import ShareMenu from '@/user/components/ShareMenu.vue'
 import ReaderPrefsMenu from '@/user/components/ReaderPrefsMenu.vue'
 import KbGlyph from '@/shared/components/KbGlyph.vue'
 import { useSiteStore } from '@/shared/stores/site'
-import { DEFAULT_LOGO } from '@/shared/brand'
 import type { NavMenuItem } from '@/shared/api/types'
 
 /**
@@ -136,7 +135,7 @@ async function share() {
   <header class="md-share__top">
     <router-link class="md-brand" to="/">
       <span class="md-brand__logo is-image" :style="site.logoStyle" aria-hidden="true">
-        <img :src="site.value.logoSrc || DEFAULT_LOGO" alt="" />
+        <img :src="site.brandSrc" alt="" />
       </span>
       <span v-if="!site.logoOnly" class="md-brand__text">
         <strong>{{ site.value.name }}</strong>

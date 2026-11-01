@@ -137,15 +137,16 @@ FLUSH PRIVILEGES;
 backend/src/main/resources/db/full-schema-mysql.sql
 ```
 
-它是 V1~V7 合并后的**最终表结构**（含 V3 收紧后的 NOT NULL、V3 替换过的唯一索引、
-V4 的 Git 来源列、V5 头像、V6 分享菜单、V7 站点配置），可直接导入：
+它是 V1~V11 合并后的**最终表结构**（含 V3 收紧后的 NOT NULL、V3 替换过的唯一索引、
+V4 的 Git 来源列、V5 头像、V6 分享菜单、V7 站点配置、V8 门户曝光范围、V9 仓库入口、
+V10 库级配置表、V11 邮箱验证列），可直接导入：
 
 ```bash
 mysql -u root -p --database=minidocs < full-schema-mysql.sql
 ```
 
 导入后**必须确认脚本第 8.1 节的 `INSERT IGNORE INTO schema_version` 已执行**——
-它把 V1~V7 登记为「已应用」，应用启动时 `DbMigrator` 读到就会跳过全部迁移，
+它把 V1~V11 登记为「已应用」，应用启动时 `DbMigrator` 读到就会跳过全部迁移，
 于是应用账号只需要 `SELECT, INSERT, UPDATE, DELETE`：
 
 ```sql
@@ -157,7 +158,7 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON minidocs.* TO 'minidocs'@'%';
 > 必须在此处交接。
 >
 > 脚本整体幂等，可重复执行；初始数据一律 `INSERT IGNORE`，不会覆盖管理员已在后台改过的配置。
-> 第 9 节有自检查询（应为 14 张表 / 7 条版本 / 1 行站点配置）。
+> 第 9 节有自检查询（应为 15 张表 / 11 条版本 / 1 行站点配置）。
 >
 > **仅适用于全新安装**。已有数据的旧库请继续用 `db/migration/mysql/V*.sql` 逐版升级，
 > 那份才带数据回填语句。
@@ -470,7 +471,7 @@ journalctl -u minidocs -n 100 --no-pager
 | `SPRING_PROFILES_ACTIVE` | `dev` | `dev`=SQLite，`prod`=MySQL |
 | `DB_URL` | 见 `application-prod.yml` | 完整 JDBC 连接串，优先于 `DB_HOST` |
 | `DB_HOST` / `DB_USER` / `DB_PASSWORD` | `localhost` / `root` / 空 | MySQL 连接信息 |
-| `JWT_SECRET` | 内置开发密钥 | **生产必须覆盖**，≥ 32 字节 |
+| `JWT_SECRET` | 内置开发密钥 | **生产必须覆盖**，≥ 32 字节。它同时是登录态签名密钥和「站点设置里那条 SMTP 口令」的加密密钥 —— 换了它，已存的口令会解不开，需要重新填一次（见 8.2）|
 | `JWT_EXPIRES_IN` | `7d` | 登录态有效期 |
 | `ADMIN_USER` / `ADMIN_PASS` | `admin` / `admin123` | 内置管理员，仅初始化时使用 |
 | `REGISTER_ENABLED` | `true` | 自助注册开关；对外网建议 `false` |

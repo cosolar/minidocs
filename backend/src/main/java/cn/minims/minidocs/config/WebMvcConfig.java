@@ -64,11 +64,18 @@ public class WebMvcConfig implements WebMvcConfigurer {
                 .excludePathPatterns(
                         "/api/auth/login",
                         "/api/auth/register",
+                        "/api/auth/register/code",
+                        // 验证与重发都来自「还没登录」的人：链接里的一次性令牌就是凭证，
+                        // 而重发发生在登录被闸门拦下之后 —— 这两条若要求登录态，门就再也打不开了。
+                        // 限速与「不泄露账号存在性」在 EmailVerificationService 里，不在拦截器上。
+                        "/api/auth/verify-email",
+                        "/api/auth/resend-verification",
                         "/api/search",
                         "/api/search/suggest",
                         "/api/portal/**",
                         "/api/avatars/**",
                         "/api/site-logos/**",
+                        "/api/site-icons/**",
                         "/api/share/**");
 
         // 组织上下文只在路径里（§3.4）；join-request 的申请人按定义还不是成员，判定的那条

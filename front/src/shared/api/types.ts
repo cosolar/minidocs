@@ -436,6 +436,13 @@ export interface UserVO {
   avatarUrl?: string
   /** 头像可直接放进 img src 的地址；无头像时为空 */
   avatarSrc?: string
+  /**
+   * 这个账号的邮箱验证状态（库里那一列，历史账号为 true）。
+   *
+   * <p>注册后停在「去收邮件」、登录后要不要弹补验证提示都读这一位。平台管理员被登录闸门豁免，
+   * 所以「这一位是 false、人却已经进来了」是正常状态，不是矛盾。</p>
+   */
+  emailVerified?: boolean
   createdAt?: string
 }
 
@@ -453,8 +460,10 @@ export interface LoginResponse {
 /**
  * 站点品牌信息（后端 {@code SiteConfigVO}）。
  *
- * <p>全部署一份，门户顶栏、阅读页、分享页、后台侧栏共用。{@code logo} 是库里存的文件名，
- * {@code logoSrc} 才是可直接放进 {@code <img src>} 的地址；没配 Logo 时两者都缺键。</p>
+ * <p>全部署一份，门户顶栏、阅读页、分享页、后台侧栏共用。{@code logo} / {@code icon} 是库里存的文件名，
+ * {@code logoSrc} / {@code iconSrc} 才是可直接放进 {@code <img src>} 的地址；没配时对应字段缺键。
+ * {@code logo} 是横版品牌图，优先用于站内品牌位；{@code icon} 是正方形标记，用于浏览器标签页，
+ * 并在没有 Logo 时兜底品牌位。</p>
  *
  * <p>{@code baseUrl} 是「站点设置里配的基址」，没配时缺键 —— 此时实际生效的基址回落到
  * 部署配置 {@code PAGE_BASE_URL} 或按当前请求推导，两者不是一回事，别在别处当「生效值」用。</p>
@@ -464,6 +473,10 @@ export interface SiteConfig {
   subtitle?: string
   logo?: string
   logoSrc?: string
+  /** 站点图标文件名（正方形，浏览器标签页与无 Logo 时的品牌位） */
+  icon?: string
+  /** 站点图标的可访问地址 */
+  iconSrc?: string
   baseUrl?: string
   /** Logo 显示宽度（px）；缺省跟随各品牌位自己的默认尺寸 */
   logoWidth?: number
@@ -473,6 +486,40 @@ export interface SiteConfig {
   logoOnly?: boolean
   /** 默认阅读主题 id（管理员配置）；只作用于没选过主题的新访客 */
   readerTheme?: string
+  /**
+   * 注册是否真的要求邮箱验证。
+   *
+   * <p>这是后端「开关 + SMTP 是否配齐」与出来的结果，不是开关原值：开关开着但发件参数不全时
+   * 它是 false。注册页用它决定邮箱必填与注册后是否要停在「请查收邮件」，前端不要自己猜 ——
+   * 猜错就会出现「页面让人等邮件、后端已经放行」。</p>
+   */
+  emailVerifyRequired?: boolean
+}
+
+/**
+ * 邮件配置（后端 {@code SiteMailVO}），只出现在平台管理员通道。
+ *
+ * <p>口令永不回传，表单拿到的是 {@link smtpPasswordSet}：留空保存即沿用原值，
+ * 显式清除才会删掉。</p>
+ *
+ * <p>三个布尔是三件事：{@link mailReady} = 传输参数齐到有可能发出去；
+ * {@link emailVerifyEnabled} = 管理员存下的开关原值；{@link emailVerifyRequired} = 两者与起来后的实际行为。
+ * {@link smtpCredentialUnusable} 为 true 表示存过口令但当前密钥解不开，需要人重填一次。</p>
+ */
+export interface SiteMailVO {
+  smtpHost?: string
+  smtpPort?: number
+  /** 连接保护方式原值；缺键 = 未显式选择，由端口推断 */
+  smtpSecurity?: string
+  /** 实际生效的保护方式，用于把推断结果显示出来 */
+  smtpSecurityEffective?: string
+  smtpUsername?: string
+  smtpFrom?: string
+  smtpPasswordSet?: boolean
+  smtpCredentialUnusable?: boolean
+  mailReady?: boolean
+  emailVerifyEnabled?: boolean
+  emailVerifyRequired?: boolean
 }
 
 export interface SuggestItem {

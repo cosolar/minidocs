@@ -108,7 +108,7 @@ class OrgFlowTest extends MiniDocsTestBase {
         @Test
         @DisplayName("注册即 active，不再有平台待审队列")
         void registerIsImmediatelyUsable() {
-            var vo = authService.register(new RegisterRequest("dave", "Passw0rd!", "戴夫", "dave@example.com"));
+            var vo = authService.register(new RegisterRequest("dave", "Passw0rd!", "戴夫", "dave@example.com"), TEST_BASE_URL);
 
             User saved = userService.getById(vo.id());
             assertThat(saved.getStatus()).isEqualTo(User.STATUS_ACTIVE);
@@ -118,7 +118,7 @@ class OrgFlowTest extends MiniDocsTestBase {
         @Test
         @DisplayName("注册事务内建好个人组织与 OWNER 成员行")
         void registerBootstrapsPersonalOrg() {
-            var vo = authService.register(new RegisterRequest("erin", "Passw0rd!", "艾琳", null));
+            var vo = authService.register(new RegisterRequest("erin", "Passw0rd!", "艾琳", null), TEST_BASE_URL);
 
             Tenant personal = tenantService.ensurePersonalTenant(vo.id());
             assertThat(personal.getType()).isEqualTo(Tenant.TYPE_PERSONAL);
@@ -133,7 +133,7 @@ class OrgFlowTest extends MiniDocsTestBase {
         @Test
         @DisplayName("个人组织 slug 用 u- 前缀，与用户名的清洗结果一致")
         void personalSlugUsesReservedPrefix() {
-            var vo = authService.register(new RegisterRequest("Frank_Jr", "Passw0rd!", null, null));
+            var vo = authService.register(new RegisterRequest("Frank_Jr", "Passw0rd!", null, null), TEST_BASE_URL);
 
             assertThat(tenantService.ensurePersonalTenant(vo.id()).getSlug()).isEqualTo("u-frank_jr");
         }

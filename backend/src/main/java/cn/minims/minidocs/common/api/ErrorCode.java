@@ -15,9 +15,11 @@ public enum ErrorCode {
     FILE_TYPE_NOT_ALLOWED(40003, 400, "文件类型不允许"),
     GIT_NOT_BOUND(40004, 400, "该知识库未绑定 Git 仓库"),
     GIT_PARAM_INVALID(40005, 400, "Git 仓库配置不完整"),
+    VERIFY_LINK_INVALID(40006, 400, "验证链接无效或已过期"),
     UNAUTHORIZED(40100, 401, "未登录或登录态失效"),
     FORBIDDEN(40300, 403, "无权限"),
     ACCOUNT_DISABLED(40301, 403, "账号被禁用 / 待审核"),
+    EMAIL_NOT_VERIFIED(40302, 403, "邮箱尚未验证"),
     NOT_FOUND(40400, 404, "资源不存在"),
     GONE(41000, 410, "资源已失效"),
     ALREADY_EXISTS(40900, 409, "资源已存在"),
@@ -31,8 +33,10 @@ public enum ErrorCode {
     FILE_TOO_LARGE(41300, 413, "文件超过大小限制"),
     LOGIN_TOO_FREQUENT(42901, 429, "登录尝试过于频繁"),
     SHARE_PWD_TOO_FREQUENT(42902, 429, "分享密码尝试过于频繁"),
+    RESEND_TOO_FREQUENT(42903, 429, "验证邮件发送过于频繁"),
     SERVER_ERROR(50000, 500, "服务端异常"),
-    GIT_SYNC_FAILED(50200, 502, "Git 同步失败");
+    GIT_SYNC_FAILED(50200, 502, "Git 同步失败"),
+    MAIL_SEND_FAILED(50201, 502, "邮件发送失败");
 
     private final int code;
     private final int httpStatus;

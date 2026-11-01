@@ -46,6 +46,43 @@ public final class AuthDtos {
             @NotBlank(message = "密码不能为空")
             @Size(min = 6, max = 64, message = "密码长度需在 6-64 之间") String password,
             @Size(max = 64, message = "显示名长度不能超过 64") String displayName,
-            @Email(message = "邮箱格式不正确") String email) {
+            @Email(message = "邮箱格式不正确")
+            @Size(max = 128, message = "邮箱长度不能超过 128") String email,
+            @Pattern(regexp = "^\\d{6}$", message = "验证码应为 6 位数字") String emailCode) {
+
+        /** 兼容不带验证码的调用方：站点未开启邮箱验证时这条路径本来就不需要它。 */
+        public RegisterRequest(String username, String password, String displayName, String email) {
+            this(username, password, displayName, email, null);
+        }
+    }
+
+    /** 获取注册验证码：公开接口，按邮箱与来源 IP 限速，见 {@code RegisterCodeService}。 */
+    public record SendRegisterCodeRequest(
+            @NotBlank(message = "请填写邮箱")
+            @Email(message = "邮箱格式不正确")
+            @Size(max = 128, message = "邮箱长度不能超过 128") String email) {
+    }
+
+    /** 发码结果：前端据此起倒计时，邮件正文里的有效期也用它。 */
+    public record RegisterCodeVO(int cooldownSeconds, int validMinutes) {
+    }
+
+    /**
+     * 注册请求里的邮箱什么时候必填见 {@code EmailVerificationService#required()}：
+     * 验证开关打开时它是硬性要求，没开时留空照旧放行 —— 校验注解做不到这种条件判断，
+     * 所以必填由服务层判，这里只保证「填了就得是个像样的地址」。
+     */
+    public record VerifyEmailRequest(
+            @NotBlank(message = "验证链接不完整") String token) {
+    }
+
+    /** 公开的重发入口：用户名或邮箱都行，判定与回复都不区分二者，理由见服务层。 */
+    public record ResendVerificationRequest(
+            @NotBlank(message = "请填写用户名或邮箱")
+            @Size(max = 128, message = "长度不能超过 128") String account) {
+    }
+
+    /** 验证成功后回给落地页的信息：只有那个邮箱地址，让人确认验的是哪个。 */
+    public record VerificationResultVO(String email) {
     }
 }

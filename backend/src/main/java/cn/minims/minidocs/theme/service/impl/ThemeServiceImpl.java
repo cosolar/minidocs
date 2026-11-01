@@ -45,6 +45,10 @@ import java.util.regex.Pattern;
  * <p><b>内置主题只种一次：</b>每套内置主题落盘时写一个 {@code .seed-<id>} 标记。
  * 管理员卸载后只删 {@code .json}、保留标记，下次启动就不会「删了又回来」；
  * 想找回走「恢复内置主题」（{@link #reseed()}），那一层会忽略标记强制复制。</p>
+ *
+ * <p><b>default 与其它内置主题一样可卸载：</b>卸载只删 {@code .json}、保留标记，重启不会复活，
+ * 「恢复内置主题」能再写回来。区别只在升级：它没有编辑入口，磁盘上那份只能是旧版本，
+ * 所以只要没被卸载，启动时会用 jar 内的版本刷新内容，避免换肤后老部署一直停在旧配色。</p>
  */
 @Slf4j
 @Service
@@ -165,9 +169,8 @@ public class ThemeServiceImpl implements ThemeService {
     @Override
     public void uninstall(String id) {
         String normalized = requireId(id);
-        if (DEFAULT_THEME_ID.equals(normalized)) {
-            throw BizException.param("默认主题不可卸载");
-        }
+        // default 也允许卸载：卸掉后读者回落到 variables.css 的基础样式，
+        // 「恢复内置主题」能把 classpath 里的版本再写回来。
         Path target = themesDir().resolve(normalized + ".json");
         try {
             if (!Files.deleteIfExists(target)) {
@@ -219,13 +222,19 @@ public class ThemeServiceImpl implements ThemeService {
                 ThemePack pack = validate(JsonUtil.mapper().readValue(raw, ThemePack.class), fileName);
                 Path marker = dir.resolve(SEED_MARKER_PREFIX + pack.id());
                 Path target = dir.resolve(pack.id() + ".json");
-                if (!force && Files.exists(marker)) {
-                    continue;
-                }
-                if (!force && Files.exists(target)) {
-                    // 管理员自己放过同名包：尊重文件内容，只补标记，不覆盖
-                    Files.writeString(marker, "", StandardCharsets.UTF_8);
-                    continue;
+                // default 是保留 id、没有编辑入口，磁盘上那份只可能是旧版本：
+                // 只要它还在（没被卸载），就以 jar 内版本为准刷新内容。
+                boolean reserved = DEFAULT_THEME_ID.equals(pack.id());
+                if (!force) {
+                    if (Files.exists(marker)) {
+                        if (!(reserved && Files.exists(target))) {
+                            continue;
+                        }
+                    } else if (Files.exists(target)) {
+                        // 管理员自己放过同名包：尊重文件内容，只补标记，不覆盖
+                        Files.writeString(marker, "", StandardCharsets.UTF_8);
+                        continue;
+                    }
                 }
                 writeTo(target, JsonUtil.mapper().writerWithDefaultPrettyPrinter().writeValueAsString(pack));
                 Files.writeString(marker, "", StandardCharsets.UTF_8);

@@ -6,7 +6,7 @@
  * 人，不属于组织，放在组织下面会让人误以为「换个组织设置不同」，而且从阅读页顶栏点进来时
  * 并没有一个自然的 org 可填。组织自己的资料与成员治理在 {@code OrgSettingsView}。</p>
  */
-import { onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { authApi, avatarApi } from '@/admin/api'
 import MdIcon from '@/admin/components/MdIcon.vue'
@@ -22,6 +22,25 @@ const account = reactive({ username: '', displayName: '', email: '' })
 const password = reactive({ oldPassword: '', newPassword: '', confirm: '' })
 const accountSaving = ref(false)
 const passwordSaving = ref(false)
+const verifySending = ref(false)
+
+/**
+ * 邮箱这一栏现在要不要催人去验证。
+ *
+ * <p>只看后端回吐的 {@code emailVerified}：它是库里的原值，而「登录时会不会被挡」正是由这一列
+ * 与开关共同决定。前端不再判一次开关，免得出现「界面说没事、登录说有事」。</p>
+ */
+const emailUnverified = computed(() => auth.user?.emailVerified === false)
+
+async function sendOwnVerification() {
+  verifySending.value = true
+  try {
+    await authApi.resendOwnVerification()
+    ElMessage.success('验证邮件已发送。没有收到请检查邮箱是否填写正确，以及邮件是否在垃圾邮件箱里')
+  } finally {
+    verifySending.value = false
+  }
+}
 
 /* ------------------------------------------------------------------ 头像 */
 const AVATAR_MAX_SIZE = 2 * 1024 * 1024
@@ -80,12 +99,18 @@ const codeThemes = [
 async function saveAccount() {
   accountSaving.value = true
   try {
-    await auth.updateAccount({
+    const updated = await auth.updateAccount({
       username: account.username || undefined,
       displayName: account.displayName,
       email: account.email || undefined
     })
-    ElMessage.success('资料已更新')
+    // 站点开启验证时，改邮箱等于把「已验证」那个结论作废（旧的才是验证过的那个），
+    // 后端会顺手往新地址再发一封。这句必须说出口，否则人以为改完就生效。
+    if (updated.emailVerified === false) {
+      ElMessage.success('资料已更新，验证邮件已发往新邮箱，点开链接后这个地址才归你')
+    } else {
+      ElMessage.success('资料已更新')
+    }
   } finally {
     accountSaving.value = false
   }
@@ -161,8 +186,20 @@ onMounted(async () => {
           <el-form-item label="显示名">
             <el-input v-model="account.displayName" maxlength="64" />
           </el-form-item>
-          <el-form-item label="邮箱">
-            <el-input v-model="account.email" maxlength="128" />
+          <el-form-item>
+            <template #label>邮箱<HelpTip :width="360">
+              站点开启注册邮箱验证后，改邮箱会让「已验证」作废 —— 验证过的是旧地址，新地址要重新点一次链接。
+              没开启验证时改完即时生效，不发邮件。
+            </HelpTip></template>
+            <div class="md-account-email">
+              <el-input v-model="account.email" maxlength="128" autocomplete="email" placeholder="alice@example.com" />
+              <span v-if="emailUnverified" class="md-account-email__note">
+                <el-tag type="warning" size="small" effect="light">未验证</el-tag>
+                <el-button link type="primary" :loading="verifySending" @click="sendOwnVerification">
+                  <MdIcon name="mail" :size="13" />发送验证邮件
+                </el-button>
+              </span>
+            </div>
           </el-form-item>
           <el-form-item>
             <el-button type="primary" :loading="accountSaving" @click="saveAccount">
@@ -252,7 +289,7 @@ onMounted(async () => {
       <div class="md-panel-head"><h2>关于</h2></div>
       <div class="md-panel-body">
         <el-descriptions :column="1" border>
-          <el-descriptions-item label="版本">MiniDocs 1.2.1</el-descriptions-item>
+          <el-descriptions-item label="版本">MiniDocs 1.2.2</el-descriptions-item>
           <el-descriptions-item label="接口文档">
             <!-- swagger 由后端伺服，要带 context-path；页面基址是根，两者不是同一段 -->
             <a :href="appBackendHref('/swagger-ui.html')" target="_blank" style="color: var(--md-primary)">/swagger-ui.html</a>
@@ -265,3 +302,19 @@ onMounted(async () => {
     </div>
   </div>
 </template>
+
+<style scoped>
+/* 验证状态挂在输入框下方而不是右侧：按钮文案长，塞进 520px 栏宽里会和邮箱正文抢行 */
+.md-account-email {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  width: 100%;
+}
+.md-account-email__note {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+</style>

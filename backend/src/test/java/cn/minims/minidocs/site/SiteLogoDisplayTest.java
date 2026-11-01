@@ -2,6 +2,7 @@ package cn.minims.minidocs.site;
 
 import cn.minims.minidocs.common.exception.BizException;
 import cn.minims.minidocs.common.util.JsonUtil;
+import cn.minims.minidocs.common.web.AppPaths;
 import cn.minims.minidocs.config.properties.MiniDocsProperties;
 import cn.minims.minidocs.doc.support.ImageValidator;
 import cn.minims.minidocs.reader.service.AssetService;
@@ -9,6 +10,7 @@ import cn.minims.minidocs.site.dto.SiteDtos.SiteConfigVO;
 import cn.minims.minidocs.site.entity.SiteConfig;
 import cn.minims.minidocs.site.mapper.SiteConfigMapper;
 import cn.minims.minidocs.site.service.impl.SiteConfigServiceImpl;
+import cn.minims.minidocs.site.support.MailSettingsReader;
 import cn.minims.minidocs.site.support.SiteBaseUrlResolver;
 import cn.minims.minidocs.theme.dto.ThemeDtos.ThemePackVO;
 import cn.minims.minidocs.theme.service.ThemeService;
@@ -55,8 +57,11 @@ class SiteLogoDisplayTest {
             return 1;
         });
         themes = mock(ThemeService.class);
-        service = new SiteConfigServiceImpl(mapper, mock(MiniDocsProperties.class), mock(ImageValidator.class),
-                mock(AssetService.class), mock(SiteBaseUrlResolver.class), themes);
+        MiniDocsProperties properties = mock(MiniDocsProperties.class);
+        when(properties.getJwtSecret()).thenReturn("unit-test-secret");
+        service = new SiteConfigServiceImpl(mapper, properties, mock(ImageValidator.class),
+                mock(AssetService.class), mock(SiteBaseUrlResolver.class), themes,
+                new MailSettingsReader(mapper, properties));
     }
 
     @Test
@@ -131,6 +136,24 @@ class SiteLogoDisplayTest {
         SiteConfigVO vo = service.get();
         assertThat(vo.logoWidth()).isNull();
         assertThat(vo.logoHeight()).isNull();
+    }
+
+    @Test
+    @DisplayName("图标与 Logo 分开下发：标签页图标不挤占横版 Logo 的位置")
+    void iconAndLogoAreSeparate() {
+        Map<String, Object> config = new LinkedHashMap<>();
+        config.put(SiteConfig.KEY_LOGO, "brand.png");
+        config.put(SiteConfig.KEY_ICON, "mark.png");
+        SiteConfig entity = new SiteConfig();
+        entity.setId(SiteConfig.SINGLETON_ID);
+        entity.setConfig(JsonUtil.toJson(config));
+        row.set(entity);
+
+        SiteConfigVO vo = service.get();
+        assertThat(vo.logo()).isEqualTo("brand.png");
+        assertThat(vo.logoSrc()).isEqualTo(AppPaths.of("/api/site-logos/brand.png"));
+        assertThat(vo.icon()).isEqualTo("mark.png");
+        assertThat(vo.iconSrc()).isEqualTo(AppPaths.of("/api/site-icons/mark.png"));
     }
 
     @Test

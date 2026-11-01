@@ -4,7 +4,7 @@ import type {
   AdminUserVO, AuditVO, DiscoverOrgVO, DocContentVO, DocNode, GitStatusVO, GitSyncVO, ImportResult,
   KbConfigVO, KbDisplay, KbRosterVO, KbVO, LockVO,
   LoginResponse, MeVO, OrgMemberVO, OrgVO, PageResult, PathChangeVO, JoinRequestVO, RenderVO,
-  ShareVO, SiteConfig, StatsVO, UserVO
+  ShareVO, SiteConfig, SiteMailVO, StatsVO, UserVO
 } from '@/shared/api/types'
 import type { ThemePack } from '@/shared/readerTheme'
 
@@ -25,8 +25,31 @@ export const authApi = {
    *
    * <p>同样关掉全局提示：注册失败（用户名已占用等）由注册页自己呈现，那边要展示得更具体。</p>
    */
-  register: (data: { username: string; password: string; displayName?: string; email?: string }) =>
+  register: (data: { username: string; password: string; displayName?: string; email?: string; emailCode?: string }) =>
     request<UserVO>({ url: '/auth/register', method: 'post', data, silentError: true }),
+  /**
+   * 获取注册邮箱验证码。站点开启邮箱验证时注册页才会用到。
+   *
+   * <p>同步发信：失败必须当场让填表的人看到原因，所以关掉全局提示，由注册页自己弹。</p>
+   */
+  sendRegisterCode: (email: string) =>
+    request<{ cooldownSeconds: number; validMinutes: number }>({
+      url: '/auth/register/code', method: 'post', data: { email }, silentError: true
+    }),
+  /**
+   * 用邮件链接里的 token 完成验证。
+   *
+   * <p>POST 而不是 GET 打开：邮件安全扫描会预取链接里的地址，GET 一次就等於把链接用掉，
+   * 用户点开时只会收到「链接无效」。后端只认 POST body，这里跟着走。</p>
+   */
+  verifyEmail: (token: string) =>
+    request<{ email?: string }>({ url: '/auth/verify-email', method: 'post', data: { token } }),
+  /** 公开重发：按用户名或邮箱找回账号。返回值恒为一句不区分账号是否存在的话，别指望它报错来判身份。 */
+  resendVerification: (account: string) =>
+    request<void>({ url: '/auth/resend-verification', method: 'post', data: { account } }),
+  /** 登录后补验证：收件地址只取当前登录账号自己填的那个，不接受前端传地址。 */
+  resendOwnVerification: () =>
+    request<void>({ url: '/auth/verification/resend', method: 'post' }),
   me: () => request<UserVO>({ url: '/auth/me' }),
   updateAccount: (data: { username?: string; displayName?: string; email?: string }) =>
     request<UserVO>({ url: '/auth/account', method: 'put', data }),
@@ -313,7 +336,7 @@ export const settingsApi = {
 
 /* ------------------------------------------------------------------ 站点配置 */
 /**
- * 站点品牌（名称 / 副标题 / Logo）。
+ * 站点品牌（名称 / 副标题 / Logo / 图标）。
  *
  * <p>读走公开的 {@code /portal/site}，写走 {@code /platform/site} —— 门槛是平台管理员，
  * 与组织角色无关：站点是全部署一份的东西，不能由某个组织的管理员改掉。</p>
@@ -330,7 +353,33 @@ export const siteApi = {
       headers: { 'Content-Type': 'multipart/form-data' }
     })
   },
-  removeLogo: () => request<SiteConfig>({ url: '/platform/site/logo', method: 'delete' })
+  removeLogo: () => request<SiteConfig>({ url: '/platform/site/logo', method: 'delete' }),
+  uploadIcon: (file: File) => {
+    const form = new FormData()
+    form.append('file', file)
+    return request<SiteConfig>({
+      url: '/platform/site/icon', method: 'post', data: form,
+      headers: { 'Content-Type': 'multipart/form-data' }
+    })
+  },
+  removeIcon: () => request<SiteConfig>({ url: '/platform/site/icon', method: 'delete' }),
+  /**
+   * 邮件配置：读脱敏视图、存补丁、发测试信。
+   *
+   * <p>单独一条通道（{@code /platform/site/mail}）而不是并进品牌配置：公开接口也要读站点信息，
+   * 混在一起等于把「这台机器的发件凭据存在不在」交给一个无关的公开响应。
+   * 保存返回的仍是脱敏视图 —— 归一化后的主机、端口、以及这次存完到底生不生效。</p>
+   *
+   * <p>patch 语义与 {@link update} 一致：不带键 = 不动，带空串 = 清除。口令要额外说明：
+   * 空串是「保持原口令」（因为回显里根本没有口令可保留），显式清除要发
+   * {@code smtpPasswordClear: true}。</p>
+   */
+  getMail: () => request<SiteMailVO>({ url: '/platform/site/mail' }),
+  updateMail: (patch: Record<string, unknown>) =>
+    request<SiteMailVO>({ url: '/platform/site/mail', method: 'put', data: patch }),
+  /** 测试发信：用**已存**的参数真发一封，同步返回；失败原因由后端带着 SMTP 的原文弹出。 */
+  testMail: (to: string) =>
+    request<void>({ url: '/platform/site/mail/test', method: 'post', data: { to } })
 }
 
 /* ------------------------------------------------------------------ 阅读主题 */

@@ -8,8 +8,9 @@ import { rememberPageTitle } from '@/shared/stores/site'
  * 单 SPA 路由表（规范 §3.4）。
  *
  * <p>阅读端占 {@code /}、{@code /kb/**}、{@code /share/**}；管理端占 {@code /console/{org}/**}，
- * 以及三类不带组织的路径：登录注册（{@code /login}、{@code /register}）、账号与组织发现
- * （{@code /account}、{@code /discover}）、平台治理（{@code /platform/users}）。
+ * 以及三类不带组织的路径：登录注册（{@code /login}、{@code /register}）、邮件验证落地页
+ * （{@code /verify-email}）、账号与组织发现（{@code /account}、{@code /discover}）、
+ * 平台治理（{@code /platform/users}）。
  * 地址里的组织段是组织上下文的唯一来源，因此组织内页面一律带 {@code /console/{org}}
  * （{@code /console} 只是落地中转，解析完立刻改写成 {@code /console/{org}/kbs}）。</p>
  *
@@ -62,6 +63,16 @@ const router = createRouter({
       name: 'share',
       component: () => import('@/user/views/ShareView.vue'),
       meta: { title: '分享阅读' }
+    },
+    /**
+     * 验证邮件的落地页：不带 {@code meta.admin}，因为它由收件人在零登录态下点开，
+     * 且只需一条 POST 与三行文案 —— 为此加载 Element Plus 不划算（规范 §3.4 的同一套边界）。
+     */
+    {
+      path: '/verify-email',
+      name: 'verify-email',
+      component: () => import('@/user/views/VerifyEmailView.vue'),
+      meta: { title: '邮箱验证' }
     },
     /* ------------------------------------------------------------- 管理端 */
     {

@@ -47,4 +47,13 @@ public class SiteController {
         AssetService.Asset asset = siteConfigService.loadLogo(fileName);
         return assetService.respond(asset, ifNoneMatch);
     }
+
+    /** 站点图标与 Logo 同一条公开读取口径，只是 URL 前缀不同。 */
+    @Operation(summary = "读取站点图标")
+    @GetMapping("/api/site-icons/{fileName}")
+    public ResponseEntity<Resource> icon(@PathVariable String fileName,
+                                         @RequestHeader(value = "If-None-Match", required = false) String ifNoneMatch) {
+        AssetService.Asset asset = siteConfigService.loadIcon(fileName);
+        return assetService.respond(asset, ifNoneMatch);
+    }
 }

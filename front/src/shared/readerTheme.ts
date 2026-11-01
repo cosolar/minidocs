@@ -38,11 +38,17 @@ export interface ThemePack {
   builtin?: boolean
 }
 
-/** 内置默认主题：令牌为空，样式仍由 variables.css 提供，不另存一份色值。 */
+/**
+ * 兜底主题：default 包被卸载、或主题列表还没回来时用它。
+ *
+ * <p>令牌为空，样式仍由 variables.css 提供，不另存一份色值。它只做「选中项已不存在」
+ * 的落点，不强行塞进可选列表 —— 否则管理员卸载 default 之后，读者面板里还会冒出一张
+ * 谁也删不掉的「澄澈」卡片。</p>
+ */
 export const DEFAULT_THEME: ThemePack = {
   id: 'default',
   name: '澄澈',
-  description: 'MiniDocs 默认主题：雾蓝底、蓝青强调，明亮与暗黑都按长文阅读调过对比度。',
+  description: 'MiniDocs 默认主题：中性纸面配青绿强调，明亮与暗黑都按长文阅读调过对比度。',
   author: 'MiniDocs',
   version: '1.0.0',
   license: 'MIT',
@@ -70,7 +76,7 @@ const RESERVED_TOKENS = new Set([
 
 const MAX_TOKEN_VALUE = 240
 
-/** 已安装主题（含默认那套），面板与后台主题卡片都读它。 */
+/** 已安装主题；首屏先用兜底主题占位，列表回来后被服务端结果整份替换。 */
 export const themePacks = ref<ThemePack[]>([DEFAULT_THEME])
 export const currentThemeId = ref<string>(DEFAULT_THEME.id)
 
@@ -122,7 +128,7 @@ function normalizePack(raw: unknown): ThemePack | null {
     license: typeof item.license === 'string' ? item.license.trim().slice(0, 30) : null,
     light,
     dark,
-    // default 永远内置：即便后端是旧版、列表里没带它，前端也要保证它不可卸载
+    // 内置标记由服务端按 .seed 标记下发；default 是保留 id，永远按内置展示
     builtin: item.builtin === true || id === DEFAULT_THEME.id
   }
 }
@@ -135,21 +141,18 @@ function sortPacks(packs: ThemePack[]): ThemePack[] {
 }
 
 /**
- * 合并默认主题 + 去重 + 排序。默认永远排第一。
- *
- * <p>default 现在也是一份 JSON 包（含全套令牌），服务端列表里会带着它；旧后端 / 离线时
- * 列表没有 default，这里补回零令牌的兜底版（样式由 variables.css 提供）。</p>
+ * 去重 + 排序。列表就是服务端装了什么，前端不再额外注入 default：
+ * 它和其它内置主题一样可卸载，卸载后就该从读者的主题选择里消失。
  */
 function mergePacks(raw: unknown): ThemePack[] {
-  const byId = new Map<string, ThemePack>([[DEFAULT_THEME.id, DEFAULT_THEME]])
+  const byId = new Map<string, ThemePack>()
   if (Array.isArray(raw)) {
     for (const entry of raw) {
       const pack = normalizePack(entry)
       if (pack) byId.set(pack.id, pack)
     }
   }
-  const rest = [...byId.values()].filter((pack) => pack.id !== DEFAULT_THEME.id)
-  return [byId.get(DEFAULT_THEME.id)!, ...sortPacks(rest)]
+  return sortPacks([...byId.values()])
 }
 
 export function readerThemeById(id: string | null | undefined): ThemePack {
@@ -192,7 +195,8 @@ function readCache(): ThemePack[] | null {
 
 function writeCache(packs: ThemePack[]) {
   try {
-    localStorage.setItem(CACHE_KEY, JSON.stringify(packs.filter((pack) => pack.id !== DEFAULT_THEME.id)))
+    // 整份缓存，default 也存：离线时读者面板里仍能看到已安装的主题
+    localStorage.setItem(CACHE_KEY, JSON.stringify(packs))
   } catch {
     /* 存不下就算了，列表下次再拉 */
   }

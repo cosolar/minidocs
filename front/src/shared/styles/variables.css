@@ -95,7 +95,7 @@
    * 用法固定成对：--md-ink-* 给文字与描边，底色一律用 color-mix(ink N%, transparent) 现算，
    * 不另立 soft 变量 —— 同一个色相只维护一个值，改色相时底色自动跟着走。
    */
-  --md-ink-blue: #1d4ed8;
+  --md-ink-blue: #1d6e74;
   --md-ink-teal: #0f766e;
   --md-ink-violet: #6d28d9;
   --md-ink-amber: #a16207;
@@ -170,7 +170,7 @@
   /* 正文语义色的暗色档：深底上要的是「亮而不刺」。
      直接沿用亮色档会全部糊进背景（#1d4ed8 压在 #0f1117 上对比度不到 2:1），
      所以整组换成高明度低饱和的同色相，底色仍由 color-mix 现算，不用改。 */
-  --md-ink-blue: #93b4ff;
+  --md-ink-blue: #5eead4;
   --md-ink-teal: #5eead4;
   --md-ink-violet: #c4b5fd;
   --md-ink-amber: #fcd34d;

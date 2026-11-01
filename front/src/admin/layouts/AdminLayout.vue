@@ -3,12 +3,11 @@ import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import MdIcon from '@/admin/components/MdIcon.vue'
-import { tenantApi } from '@/admin/api'
+import { authApi, tenantApi } from '@/admin/api'
 import { useAuthStore } from '@/admin/stores/auth'
 import { useOrgStore } from '@/admin/stores/org'
 import { useSettingsStore } from '@/shared/stores/settings'
 import { useSiteStore } from '@/shared/stores/site'
-import { DEFAULT_LOGO } from '@/shared/brand'
 import { appHref } from '@/shared/appBase'
 
 const route = useRoute()
@@ -19,6 +18,8 @@ const settings = useSettingsStore()
 const site = useSiteStore()
 
 const collapsed = ref(false)
+/** 组织菜单展开时翻转箭头，和菜单的开启动作对上 */
+const orgMenuOpen = ref(false)
 
 /**
  * 移动端（≤1024px，与 admin.css 的媒体查询同断点）把侧边导航改成抽屉。
@@ -44,33 +45,51 @@ function onGlobalKeydown(event: KeyboardEvent) {
   if (event.key === 'Escape') mobileNavOpen.value = false
 }
 
+/** 跟随系统档位下，系统明暗变化时按钮图标要跟着翻 */
+function syncSystemDark(event: MediaQueryList | MediaQueryListEvent) {
+  systemDark.value = event.matches
+}
+
 /**
  * 当前地址是否带组织段。
  *
- * <p>整条侧边导航由它决定，而不是由「页面看起来像什么」决定：不带组织的管理页
- * （账号设置 / 发现组织 / 平台用户管理）如果渲染出「知识库管理」这类链接，点进去就是
- * {@code /console//kbs} 的空组织地址。{@code orgStore.org} 在没有组织段时保留上一次的值
- * （见 {@code enterAdmin}），所以判断只能用 route.params，不能用 store。</p>
+ * <p>组织内的链接必须带组织段；不带组织的管理页（账号设置 / 发现组织 / 平台用户管理）
+ * 不能拼出 {@code /console//kbs} 这样的空地址。{@code orgStore.org} 在没有组织段时会被
+ * 守卫清空，所以判断只能用 route.params，不能用 store。</p>
  */
 const currentOrg = computed(() => (route.params.org as string) || '')
 const inOrg = computed(() => currentOrg.value !== '')
+
 /**
- * 当前组织里我能做的动作：后端在 {@code /api/me} 的每个组织条目上带下来（规范 §4.2）。
+ * 侧栏「组织」组指向哪个组织。
  *
- * <p>导航项这一处与页面里的判定差一条：{@code org.current} 为空表示组织清单还没到，或这个
- * slug 根本不在我的清单里，那时宁可少给一个入口，也不要给一个点进去 403 的按钮 —— 页面内
- * 的判定读的是详情出参，那里空向量才是「后端没算」。</p>
+ * <p>个人区（/account 等）没有组织段，但菜单不能跟着换一套 —— 否则从组织里点「账号设置」，
+ * 左边整列入口突然消失，人会觉得走错了地方。这里回落到 {@code /api/me} 的
+ * {@code lastTenantSlug}（仍在我名下时）或第一个组织，仅用于生成导航链接；API 层的组织
+ * 上下文仍由守卫清空，个人页请求不会因此打到某个组织上。</p>
+ */
+const contextOrg = computed(() => currentOrg.value || org.entry)
+const contextTenant = computed(
+  () => org.tenants.find((tenant) => tenant.slug === contextOrg.value) ?? null
+)
+
+/**
+ * 组织里我能做的动作：后端在 {@code /api/me} 的每个组织条目上带下来（规范 §4.2）。
+ * 个人区读的是回落组织的动作集，菜单因此与组织内保持同一份。
+ *
+ * <p>导航项这一处与页面里的判定差一条：拿不到动作集时宁可少给一个入口，也不要给一个
+ * 点进去 403 的按钮 —— 页面内的判定读的是详情出参，那里空向量才是「后端没算」。</p>
  */
 function orgCan(action: KbActionName): boolean {
-  const granted = org.current?.myPermissions
+  const granted = contextTenant.value?.myPermissions
   return !!granted && granted.includes(action)
 }
 
 /**
- * 侧边导航按「组织 / 个人」分组，两组在任何管理页都在。
+ * 侧边导航固定为「组织 / 个人 / 站点」三组，切到账号设置这类个人页也不换。
  *
- * <p>之前是「进了组织只剩组织项，出了组织只剩个人项」，切到 /account 时整条导航换掉，
- * 人会觉得走错了地方。分组之后，位置变化只体现在高亮上。</p>
+ * <p>个人区没有组织段，组织组按 {@link contextOrg} 回落到上次所在组织；没有可用组织时
+ * 这一组不出现。顶栏则把组织切换器收掉 —— 那里显示「未选择组织」只会像出了错。</p>
  *
  * <p>「审计日志」这一项仍然按组织的动作向量决定给不给（规范 §4.2）：它不是「看起来像管理员」
  * 就该出现的东西，点进去 404 比少一个入口难看得多。</p>
@@ -78,7 +97,7 @@ function orgCan(action: KbActionName): boolean {
 const navGroups = computed(() => {
   const personal = [
     { name: 'account', label: '账号设置', icon: 'user', path: '/account', tone: 'indigo' },
-  { name: 'discover', label: '发现组织', icon: 'globe', path: '/discover', tone: 'sky' }
+    { name: 'discover', label: '发现组织', icon: 'globe', path: '/discover', tone: 'sky' }
   ]
   if (auth.isPlatformAdmin) {
     personal.push({
@@ -94,15 +113,16 @@ const navGroups = computed(() => {
         name: 'platform-site', label: '站点设置', icon: 'settings', path: '/platform/site', tone: 'orange'
       }]
     : []
-  if (!inOrg.value) {
-    const groups = [
+  const portalItem = { name: 'portal', label: '打开门户', icon: 'external', path: '/', tone: 'green' }
+  const slug = contextOrg.value
+  if (!slug) {
+    // 一个组织都没有时才缺这一组；此时也没有可回到的工作区
+    return [
       { title: '个人', items: personal },
-      { title: '工作区', items: [{ name: 'entry', label: '返回工作区', icon: 'home', path: '/console', tone: 'blue' }] }
+      { title: '站点', items: [portalItem, ...siteItems] }
     ]
-    if (siteItems.length) groups.push({ title: '站点', items: siteItems })
-    return groups
   }
-  const at = (path: string) => `/console/${encodeURIComponent(currentOrg.value)}/${path}`
+  const at = (path: string) => `/console/${encodeURIComponent(slug)}/${path}`
   const orgItems = [
     { name: 'overview', label: '系统概览', icon: 'grid', path: at('overview'), tone: 'blue' },
     { name: 'kbs', label: '知识库管理', icon: 'books', path: at('kbs'), tone: 'teal' },
@@ -117,10 +137,7 @@ const navGroups = computed(() => {
   return [
     { title: '组织', items: orgItems },
     { title: '个人', items: personal },
-    {
-      title: '站点',
-      items: [{ name: 'portal', label: '打开门户', icon: 'external', path: '/', tone: 'green' }, ...siteItems]
-    }
+    { title: '站点', items: [portalItem, ...siteItems] }
   ]
 })
 
@@ -129,11 +146,22 @@ const activeName = computed(() => {
   return (route.name as string) || 'overview'
 })
 
-const orgLabel = computed(() => org.current?.name || currentOrg.value || '未选择组织')
+/** 顶栏只在组织内渲染切换器，所以这里不需要「未选择组织」这种兜底文案 */
+const orgLabel = computed(() => org.current?.name || currentOrg.value)
 
 const currentTitle = computed(() => (route.meta.title as string) || '管理后台')
 const themeMode = computed(() => settings.value.themeMode)
-const isDark = computed(() => document.documentElement.getAttribute('data-theme') === 'dark')
+/**
+ * 系统偏好只在 themeMode 为 system 时参与图标判定。
+ *
+ * <p>不能直接读 document.documentElement 的 data-theme：那个 computed 没有响应式依赖，
+ * 只会求值一次，切换后图标不跟着变。</p>
+ */
+const systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)')
+const systemDark = ref(systemPrefersDark.matches)
+const isDark = computed(() =>
+  themeMode.value === 'system' ? systemDark.value : themeMode.value === 'dark'
+)
 
 /**
  * 切换组织：整条地址换掉，落点由路由守卫统一记（{@code rememberLast}）。
@@ -161,11 +189,11 @@ async function onSearch() {
   router.push({ name: 'kbs', params: { org: currentOrg.value }, query: value ? { keyword: value } : {} })
 }
 
-async function cycleTheme() {
-  const order: Array<'light' | 'dark' | 'system'> = ['light', 'dark', 'system']
-  const next = order[(order.indexOf(themeMode.value) + 1) % order.length]
+/** 顶栏只切明暗两档；「跟随系统」是账号设置里的偏好，不从这颗按钮进入 */
+async function toggleTheme() {
+  const next: 'light' | 'dark' = isDark.value ? 'light' : 'dark'
   await settings.patch({ themeMode: next })
-  ElMessage.success(next === 'system' ? '主题：跟随系统' : next === 'dark' ? '主题：深色' : '主题：浅色')
+  ElMessage.success(next === 'dark' ? '主题：深色' : '主题：浅色')
 }
 
 async function toggleSidebar() {
@@ -225,9 +253,36 @@ async function onCommand(command: string) {
   }
 }
 
+/* ------------------------------------------------------------- 补验证邮箱 */
+/*
+ * 「没验证过却能进来」是真实状态，不是矛盾：平台管理员被登录闸门豁免，开关关掉时原本被卡住的人
+ * 也会进来。这里提醒一次、可以关掉，不拦任何已有功能 —— 补验证是便利项，不是第二道门。
+ *
+ * <p>收件地址只由后端从登录态取，前端传不了别人的邮箱，所以这个按钮借不走一台发信机。</p>
+ */
+const verifyVisible = ref(false)
+const verifySending = ref(false)
+
+async function sendOwnVerification() {
+  verifySending.value = true
+  try {
+    await authApi.resendOwnVerification()
+    ElMessage.success('验证邮件已发送。没有收到请检查邮箱是否填写正确，以及邮件是否在垃圾邮件箱里')
+    verifyVisible.value = false
+  } finally {
+    verifySending.value = false
+  }
+}
+
+function goAccount() {
+  verifyVisible.value = false
+  router.push('/account')
+}
+
 onMounted(async () => {
   settings.applyToDom()
   mobileMq.addEventListener('change', syncMobile)
+  systemPrefersDark.addEventListener('change', syncSystemDark)
   document.addEventListener('keydown', onGlobalKeydown)
   if (!auth.user) {
     try {
@@ -239,10 +294,14 @@ onMounted(async () => {
   /* 组织清单只为渲染顶栏；失败不影响当前页，守卫已经放行说明成员门是过的 */
   void org.load().catch(() => undefined)
   if (!settings.value.showDocTree) collapsed.value = true
+  if (auth.user?.emailVerified === false) {
+    verifyVisible.value = true
+  }
 })
 
 onBeforeUnmount(() => {
   mobileMq.removeEventListener('change', syncMobile)
+  systemPrefersDark.removeEventListener('change', syncSystemDark)
   document.removeEventListener('keydown', onGlobalKeydown)
 })
 
@@ -257,7 +316,7 @@ watch(() => route.fullPath, () => {
     <aside class="md-sidebar" :class="{ 'is-collapsed': navCollapsed, 'is-mobile-open': mobileNavOpen }">
       <router-link class="md-sidebar__brand" to="/console">
         <span class="md-sidebar__logo is-image" :style="site.logoStyle" aria-hidden="true">
-          <img :src="site.value.logoSrc || DEFAULT_LOGO" alt="" />
+          <img :src="site.brandSrc" alt="" />
         </span>
         <span v-if="!navCollapsed && !site.logoOnly" class="md-sidebar__title">
           {{ site.value.name }}<small>管理后台</small>
@@ -321,35 +380,45 @@ watch(() => route.fullPath, () => {
         >
           <MdIcon :name="isMobile ? 'menu' : 'panel-left'" :size="17" />
         </button>
-        <el-dropdown trigger="click" @command="onOrgCommand">
-          <span class="md-header__org" :title="`当前组织：${orgLabel}`">
-            <MdIcon name="building" :size="15" />
-            <span class="md-header__org-name">{{ orgLabel }}</span>
-            <MdIcon class="md-header__org-caret" name="chevron-down" :size="13" />
-          </span>
-          <template #dropdown>
-            <el-dropdown-menu>
-              <el-dropdown-item
-                v-for="tenant in org.tenants"
-                :key="tenant.slug"
-                :command="tenant.slug"
-                :disabled="tenant.slug === currentOrg"
+        <div class="md-header__context" :class="{ 'is-solo': !inOrg }">
+          <!-- 个人区（账号设置等）没有组织上下文，整个切换器收掉，不留一个空的「未选择组织」 -->
+          <template v-if="inOrg">
+            <el-dropdown trigger="click" @command="onOrgCommand" @visible-change="orgMenuOpen = $event">
+              <span
+                class="md-header__org"
+                :class="{ 'is-open': orgMenuOpen }"
+                :title="`当前组织：${orgLabel}`"
               >
-                <span class="md-ad-switch__name">{{ tenant.name }}</span>
-                <span class="md-ad-chip" :class="`md-ad-chip--${tenant.role.toLowerCase()}`">{{ tenant.role }}</span>
-              </el-dropdown-item>
-              <el-dropdown-item command="new-org" divided>
-                <MdIcon name="plus" :size="14" />新建组织
-              </el-dropdown-item>
-              <el-dropdown-item command="__discover">
-                <MdIcon name="globe" :size="14" />发现其他组织…
-              </el-dropdown-item>
-            </el-dropdown-menu>
+                <span class="md-header__org-mark"><MdIcon name="building" :size="14" /></span>
+                <span class="md-header__org-name">{{ orgLabel }}</span>
+                <MdIcon class="md-header__org-caret" name="chevron-down" :size="13" />
+              </span>
+              <template #dropdown>
+                <el-dropdown-menu>
+                  <el-dropdown-item
+                    v-for="tenant in org.tenants"
+                    :key="tenant.slug"
+                    :command="tenant.slug"
+                    :disabled="tenant.slug === currentOrg"
+                  >
+                    <span class="md-ad-switch__name">{{ tenant.name }}</span>
+                    <span class="md-ad-chip" :class="`md-ad-chip--${tenant.role.toLowerCase()}`">{{ tenant.role }}</span>
+                  </el-dropdown-item>
+                  <el-dropdown-item command="new-org" divided>
+                    <MdIcon name="plus" :size="14" />新建组织
+                  </el-dropdown-item>
+                  <el-dropdown-item command="__discover">
+                    <MdIcon name="globe" :size="14" />发现其他组织…
+                  </el-dropdown-item>
+                </el-dropdown-menu>
+              </template>
+            </el-dropdown>
+            <span class="md-header__divider" aria-hidden="true" />
           </template>
-        </el-dropdown>
-        <span class="md-header__title">{{ currentTitle }}</span>
+          <span class="md-header__title">{{ currentTitle }}</span>
+        </div>
         <div class="md-header__spacer" />
-        <button type="button" class="md-header__icon-btn" :title="isDark ? '切到浅色' : '切到深色'" @click="cycleTheme">
+        <button type="button" class="md-header__icon-btn" :title="isDark ? '切到浅色' : '切到深色'" @click="toggleTheme">
           <MdIcon :name="isDark ? 'sun' : 'moon'" :size="17" />
         </button>
         <el-dropdown @command="onCommand">
@@ -411,6 +480,28 @@ watch(() => route.fullPath, () => {
         </el-button>
         <el-button type="primary" :loading="creating" @click="submitCreate">
           <MdIcon name="check" :size="14" />创建
+        </el-button>
+      </template>
+    </el-dialog>
+
+    <el-dialog v-model="verifyVisible" title="补验证邮箱" width="440px">
+      <p v-if="auth.user?.email" class="md-verify-tip">
+        这个账号的邮箱 <strong>{{ auth.user.email }}</strong> 还没有验证过。
+        站点开启邮箱验证后，未验证的账号无法登录（平台管理员除外），建议现在补一封验证邮件。
+      </p>
+      <p v-else class="md-verify-tip">
+        这个账号还没有填写邮箱。站点开启邮箱验证后，没填邮箱的账号无法登录（平台管理员除外），
+        建议先到账号设置补一个能收信的地址。
+      </p>
+      <template #footer>
+        <el-button @click="verifyVisible = false">
+          稍后再说
+        </el-button>
+        <el-button v-if="auth.user?.email" type="primary" :loading="verifySending" @click="sendOwnVerification">
+          <MdIcon name="mail" :size="14" />发送验证邮件
+        </el-button>
+        <el-button v-else type="primary" @click="goAccount">
+          <MdIcon name="user" :size="14" />去填邮箱
         </el-button>
       </template>
     </el-dialog>

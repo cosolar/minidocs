@@ -41,7 +41,16 @@ export const shareApi = {
 /** 登录态（Cookie 桥接，浏览器直连即可） */
 export const authApi = {
   me: () => request<UserVO>({ url: '/auth/me' }),
-  logout: () => request<void>({ url: '/auth/logout', method: 'post' })
+  logout: () => request<void>({ url: '/auth/logout', method: 'post' }),
+  /**
+   * 用邮件链接里的 token 完成验证。
+   *
+   * <p>POST 而不是 GET：邮件安全扫描会预取链接里的地址，GET 一次等于把链接用掉，
+   * 用户点开时只会收到「链接无效」。验证页是阅读侧的冷启动落地页，所以这一份留在用户侧通道，
+   * 不牵连 Element Plus（规范 §3.4）。</p>
+   */
+  verifyEmail: (token: string) =>
+    request<{ email?: string }>({ url: '/auth/verify-email', method: 'post', data: { token } })
 }
 
 export const searchApi = {

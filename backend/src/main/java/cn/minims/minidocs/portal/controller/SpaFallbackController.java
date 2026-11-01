@@ -33,12 +33,16 @@ public class SpaFallbackController {
      *
      * <p>{@code /platform} 是平台管理员页面（规范 §3.4），跟组织无关，所以不带 {@code /console} 前缀；
      * {@code /account}、{@code /discover} 同理是「此刻还没有组织段」的个人页与发现页。</p>
+     *
+     * <p>{@code /verify-email} 是验证邮件里那条链接的落地页，必须列在这里：链接由后端拼出、
+     * 收件人从零会话状态点开，回退漏掉它就是一个 404，而 404 在用户眼里等于「这套东西坏了」。</p>
      */
     @GetMapping({
             "/",
             "/kb", "/kb/**",
             "/share", "/share/**",
             "/login", "/register",
+            "/verify-email",
             "/account", "/discover",
             "/console", "/console/**",
             "/platform", "/platform/**"})

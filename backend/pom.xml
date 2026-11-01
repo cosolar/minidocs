@@ -13,7 +13,7 @@
 
     <groupId>cn.minims</groupId>
     <artifactId>minidocs</artifactId>
-    <version>1.2.1</version>
+    <version>1.2.2</version>
     <name>minidocs</name>
     <description>MiniDocs 极简智库平台</description>
     <url>https://github.com/cosolar/minidocs</url>
@@ -137,6 +137,12 @@
         <dependency>
             <groupId>com.github.ben-manes.caffeine</groupId>
             <artifactId>caffeine</artifactId>
+        </dependency>
+
+        <!-- 邮件发送：注册验证与测试发信。SMTP 参数来自站点设置，不用 starter 的自动配置 -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-mail</artifactId>
         </dependency>
 
         <!-- 云端知识库：纯 Java 的 Git 客户端，免装系统 git -->

@@ -693,7 +693,8 @@ watch(org, () => {
               <span class="md-kb-card__name" :title="kb.name">{{ kb.name }}</span>
               <MdIcon v-if="kb.favored" name="star" :size="13" class="md-kb-card__fav" title="已收藏" />
             </div>
-            <!-- 来源、可见范围、发布状态、标签同属「这库是什么」的元信息，合成一行小章；标题行只留名字 -->
+            <!-- 来源、可见范围、发布状态是「这库是什么」的状态章，合成一行；标签是内容主题，
+                 单独放到描述下面一行，免得状态和主题混在一排互相抢戏 -->
             <div class="md-kb-card__chips">
               <span
                 v-if="kb.sourceType === 'git'"
@@ -708,9 +709,11 @@ watch(org, () => {
                 :class="publishStatusChipClass(kb.shareStatus)"
                 :title="publishStatusHint(kb.shareStatus)"
               >{{ publishStatusLabel(kb.shareStatus) }}</span>
-              <span v-for="tag in kb.tags" :key="tag" class="md-ad-chip md-ad-chip--tag">{{ tag }}</span>
             </div>
             <p class="md-kb-card__desc">{{ kb.description || '暂无描述' }}</p>
+            <div v-if="kb.tags.length" class="md-kb-card__tags">
+              <span v-for="tag in kb.tags" :key="tag" class="md-ad-chip md-ad-chip--tag">{{ tag }}</span>
+            </div>
             <div class="md-kb-card__meta">
               <span>{{ kb.docCount }} 篇</span>
               <span :title="maintainScopeHint(kb.maintainScope)">可写：{{ maintainScopeLabel(kb.maintainScope) }}</span>

@@ -10,14 +10,14 @@
 # 这里走「前端打进 jar、后端兼作静态服务器」的单体形态，部署只要一个容器。
 #
 # 构建（默认 linux/amd64）：
-#   docker build -t <用户名>/minidocs:1.2.1 .
+#   docker build -t <用户名>/minidocs:1.2.2 .
 #
 # 运行：
 #   docker run -d --name minidocs -p 9098:9098 \
 #     -e ADMIN_PASS='换成强密码' \
 #     -e JWT_SECRET="$(openssl rand -base64 48 | tr -dc 'A-Za-z0-9' | head -c 48)" \
 #     -v minidocs-data:/data \
-#     <用户名>/minidocs:1.2.1
+#     <用户名>/minidocs:1.2.2
 # =============================================================================
 
 ARG NODE_VERSION=20-alpine

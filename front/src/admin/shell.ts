@@ -66,5 +66,15 @@ export async function enterAdmin(
     // 平台治理页：组织内角色再高也不是平台管理员，这里回工作区而不是给一个空壳页面
     return org ? { name: 'kbs', params: { org } } : { name: 'entry' }
   }
+  /*
+   * 组织清单在首帧之前备好：个人区的侧栏按 lastTenantSlug 回落到上次组织，
+   * 组织区的「审计日志」则要读每个条目上的动作集。晚一步加载会让导航先渲染一套、
+   * 再跳成另一套。失败不影响当前页 —— 成员门已经过了，这里只服务导航。
+   */
+  try {
+    await store.load()
+  } catch {
+    /* 导航少一组入口，页面本身照常 */
+  }
   return true
 }

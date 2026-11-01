@@ -14,7 +14,7 @@ name: minidocs
 
 services:
   app:
-    image: ${IMAGE_TAG:-minidocs:1.2.1}
+    image: ${IMAGE_TAG:-minidocs:1.2.2}
     container_name: minidocs-app
     restart: unless-stopped
     environment:
@@ -51,7 +51,7 @@ services:
     networks: [minidocs, onepanel]
 
   web:
-    image: ${WEB_IMAGE_TAG:-minidocs-web:1.2.1}
+    image: ${WEB_IMAGE_TAG:-minidocs-web:1.2.2}
     container_name: minidocs-web
     restart: unless-stopped
     depends_on: [app]

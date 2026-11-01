@@ -2,6 +2,8 @@ package cn.minims.minidocs.site.service.impl;
 
 import cn.minims.minidocs.common.api.ErrorCode;
 import cn.minims.minidocs.common.exception.BizException;
+import cn.minims.minidocs.common.util.CryptoUtil;
+import cn.minims.minidocs.common.util.EmailUtil;
 import cn.minims.minidocs.common.util.FileNameUtil;
 import cn.minims.minidocs.common.util.JsonUtil;
 import cn.minims.minidocs.common.util.TimeUtil;
@@ -10,9 +12,12 @@ import cn.minims.minidocs.config.properties.MiniDocsProperties;
 import cn.minims.minidocs.doc.support.ImageValidator;
 import cn.minims.minidocs.reader.service.AssetService;
 import cn.minims.minidocs.site.dto.SiteDtos.SiteConfigVO;
+import cn.minims.minidocs.site.dto.SiteDtos.SiteMailVO;
 import cn.minims.minidocs.site.entity.SiteConfig;
 import cn.minims.minidocs.site.mapper.SiteConfigMapper;
 import cn.minims.minidocs.site.service.SiteConfigService;
+import cn.minims.minidocs.site.support.MailSettings;
+import cn.minims.minidocs.site.support.MailSettingsReader;
 import cn.minims.minidocs.site.support.SiteBaseUrlResolver;
 import cn.minims.minidocs.site.support.SiteBaseUrls;
 import cn.minims.minidocs.theme.service.ThemeService;
@@ -25,7 +30,9 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -53,12 +60,27 @@ public class SiteConfigServiceImpl implements SiteConfigService {
     private static final int LOGO_SIZE_MIN = 16;
     private static final int LOGO_SIZE_MAX = 512;
 
+    /** 邮件字段的长度上限：与库里 VARCHAR 口径一致，超长直接拒，不截断（截断后的地址是个能发出去但收不到的地址） */
+    private static final int SMTP_HOST_MAX = 255;
+    private static final int SMTP_USER_MAX = 320;
+    private static final int SMTP_PASSWORD_MAX = 512;
+    private static final int SMTP_FROM_MAX = 320;
+
+    /** patch 里的一次性指令键：显式清除已存的 SMTP 口令（不是站点配置的组成部分，故不入 SiteConfig 常量） */
+    private static final String PATCH_SMTP_PASSWORD_CLEAR = "smtpPasswordClear";
+
+    /** 用户名与口令只填一半。报错要说清两条出路，否则人只会去改主机名。 */
+    private static final String CREDENTIAL_INCOMPLETE =
+            "填了 SMTP 用户名就要填口令（多数服务商要求先认证，缺口令会回 503 need EHLO and AUTH first）；"
+                    + "不需要认证的中继请把用户名也清空";
+
     private final SiteConfigMapper siteConfigMapper;
     private final MiniDocsProperties properties;
     private final ImageValidator imageValidator;
     private final AssetService assetService;
     private final SiteBaseUrlResolver siteBaseUrlResolver;
     private final ThemeService themeService;
+    private final MailSettingsReader mailSettingsReader;
 
     @Override
     public SiteConfigVO get() {
@@ -85,30 +107,93 @@ public class SiteConfigServiceImpl implements SiteConfigService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public SiteConfigVO saveLogo(MultipartFile file) {
-        String extension = imageValidator.validate(file, properties.getCoverMaxSize());
-        String fileName = FileNameUtil.buildImageName(extension);
-        write(properties.siteDir().resolve(fileName), file, extension);
-        Map<String, Object> config = readConfig();
-        // 先落新图再删旧图：中途失败最坏是留个孤儿文件，不会把站点 Logo 弄没
-        deleteLogoFile(text(config.get(SiteConfig.KEY_LOGO)), fileName);
-        config.put(SiteConfig.KEY_LOGO, fileName);
-        save(config);
-        return toVO(config);
+        return saveImage(file, SiteConfig.KEY_LOGO, "Logo");
     }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
     public SiteConfigVO removeLogo() {
-        Map<String, Object> config = readConfig();
-        deleteLogoFile(text(config.get(SiteConfig.KEY_LOGO)), null);
-        config.remove(SiteConfig.KEY_LOGO);
-        save(config);
-        return toVO(config);
+        return removeImage(SiteConfig.KEY_LOGO);
     }
 
     @Override
     public AssetService.Asset loadLogo(String fileName) {
         return assetService.load(properties.siteDir(), fileName);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public SiteConfigVO saveIcon(MultipartFile file) {
+        return saveImage(file, SiteConfig.KEY_ICON, "站点图标");
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public SiteConfigVO removeIcon() {
+        return removeImage(SiteConfig.KEY_ICON);
+    }
+
+    @Override
+    public AssetService.Asset loadIcon(String fileName) {
+        return assetService.load(properties.siteDir(), fileName);
+    }
+
+    @Override
+    public SiteMailVO getMail() {
+        return toMailVO(mailSettingsReader.load());
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public SiteMailVO updateMail(Map<String, Object> patch) {
+        Map<String, Object> config = readConfig();
+        if (patch != null) {
+            applySmtpHost(config, patch);
+            applySmtpPort(config, patch);
+            applySmtpSecurity(config, patch);
+            applySmtpText(config, patch, SiteConfig.KEY_SMTP_USERNAME, SMTP_USER_MAX, "SMTP 用户名");
+            applySmtpFrom(config, patch);
+            applySmtpPassword(config, patch);
+            applyEmailVerifyEnabled(config, patch);
+        }
+        // 放在所有字段落完之后：patch 可以同时改开关与参数，只看 patch 会把「一次填齐并开启」误判成非法
+        requireCompleteCredential(config);
+        requireTransportWhenVerifyEnabled(config);
+        save(config);
+        return toMailVO(config);
+    }
+
+    /**
+     * 允许保存「用户名 + 口令」或「都不填」，不允许只填一半。
+     *
+     * <p>半截凭据在开关关着的时候不出声，等开启验证才发现每个注册的人都收不到信 ——
+     * 而服务器那边只会回一句 503，读起来像主机填错了。</p>
+     */
+    private void requireCompleteCredential(Map<String, Object> config) {
+        MailSettings settings = mailSettingsReader.read(config);
+        if (settings.credentialIncomplete() && !settings.credentialUnusable()) {
+            throw BizException.param(CREDENTIAL_INCOMPLETE);
+        }
+    }
+
+    /** Logo 与站点图标同一套落盘流程：先落新图再删旧图，中途失败最坏是留个孤儿文件。 */
+    private SiteConfigVO saveImage(MultipartFile file, String key, String label) {
+        String extension = imageValidator.validate(file, properties.getCoverMaxSize());
+        String fileName = FileNameUtil.buildImageName(extension);
+        write(properties.siteDir().resolve(fileName), file, extension, label);
+        Map<String, Object> config = readConfig();
+        deleteImageFile(text(config.get(key)), fileName);
+        config.put(key, fileName);
+        save(config);
+        return toVO(config);
+    }
+
+    private SiteConfigVO removeImage(String key) {
+        Map<String, Object> config = readConfig();
+        deleteImageFile(text(config.get(key)), null);
+        config.remove(key);
+        save(config);
+        return toVO(config);
     }
 
     /** 只认「patch 里显式带了这一项」：没带就不动，空串则清除。 */
@@ -216,6 +301,184 @@ public class SiteConfigServiceImpl implements SiteConfigService {
         config.put(SiteConfig.KEY_READER_THEME, value);
     }
 
+    /**
+     * SMTP 主机：去空白、拒带协议前缀与端口。
+     *
+     * <p>管理员最常见的两种贴法是 {@code https://smtp.qq.com} 和 {@code smtp.qq.com:465}。
+     * 前者连不上、后者会把端口带进主机名里，两边报错都指向协议或 DNS，不像「你填的内容格式不对」。
+     * 所以在写入时就明确拒绝，并把该怎么填写进报错里。</p>
+     */
+    private void applySmtpHost(Map<String, Object> config, Map<String, Object> patch) {
+        String value = patchText(config, patch, SiteConfig.KEY_SMTP_HOST, SMTP_HOST_MAX, "SMTP 主机");
+        if (value == null) {
+            return;
+        }
+        if (value.contains("://") || value.contains(":")) {
+            throw BizException.param("SMTP 主机只填域名，不要带 https:// 前缀或端口；端口请单独填");
+        }
+        config.put(SiteConfig.KEY_SMTP_HOST, value);
+    }
+
+    private void applySmtpPort(Map<String, Object> config, Map<String, Object> patch) {
+        if (!patch.containsKey(SiteConfig.KEY_SMTP_PORT)) {
+            return;
+        }
+        Object raw = patch.get(SiteConfig.KEY_SMTP_PORT);
+        String value = raw == null ? "" : String.valueOf(raw).trim();
+        if (value.isEmpty()) {
+            config.remove(SiteConfig.KEY_SMTP_PORT);
+            return;
+        }
+        int port;
+        try {
+            port = Integer.parseInt(value);
+        } catch (NumberFormatException e) {
+            throw BizException.param("SMTP 端口必须是整数，例如 465 或 587");
+        }
+        if (port < 1 || port > 65535) {
+            throw BizException.param("SMTP 端口需在 1–65535 之间");
+        }
+        config.put(SiteConfig.KEY_SMTP_PORT, port);
+    }
+
+    /** 连接保护方式：只认 ssl / starttls / none；空串 = 不指定，由端口推断（见 {@link MailSettings#effectiveSecurity()}）。 */
+    private void applySmtpSecurity(Map<String, Object> config, Map<String, Object> patch) {
+        if (!patch.containsKey(SiteConfig.KEY_SMTP_SECURITY)) {
+            return;
+        }
+        Object raw = patch.get(SiteConfig.KEY_SMTP_SECURITY);
+        String value = raw == null ? "" : String.valueOf(raw).trim().toLowerCase();
+        if (value.isEmpty()) {
+            config.remove(SiteConfig.KEY_SMTP_SECURITY);
+            return;
+        }
+        if (!MailSettings.isKnownSecurity(value)) {
+            throw BizException.param("SMTP 加密方式只能是 ssl、starttls 或 none");
+        }
+        config.put(SiteConfig.KEY_SMTP_SECURITY, value);
+    }
+
+    /** 只判长度与空白的文本项（用户名这类）；主机要额外拒协议前缀，另走 {@link #applySmtpHost}。 */
+    private void applySmtpText(Map<String, Object> config, Map<String, Object> patch,
+                               String key, int maxLength, String label) {
+        String value = patchText(config, patch, key, maxLength, label);
+        if (value != null) {
+            config.put(key, value);
+        }
+    }
+
+    /** 发件地址：形状校验走 {@link EmailUtil}，与「测试发信」的收件地址同一套规则。 */
+    private void applySmtpFrom(Map<String, Object> config, Map<String, Object> patch) {
+        String value = patchText(config, patch, SiteConfig.KEY_SMTP_FROM, SMTP_FROM_MAX, "发件地址");
+        if (value == null) {
+            return;
+        }
+        if (!EmailUtil.isLikely(value)) {
+            throw BizException.param("发件地址格式不正确，例如 no-reply@example.com");
+        }
+        config.put(SiteConfig.KEY_SMTP_FROM, value);
+    }
+
+    /**
+     * SMTP 口令：落 AES-GCM 密文，且<b>留空 = 保持库里原值</b>。
+     *
+     * <p>表单不回显口令（见 {@link SiteMailVO}），保存时这一项必然常为空，
+     * 若按「空串即清除」实现，改一次主机名就会把口令抹掉，而界面看着一切正常。
+     * 清除只能显式发起，靠 {@code smtpPasswordClear} 这个一次性指令键。</p>
+     */
+    private void applySmtpPassword(Map<String, Object> config, Map<String, Object> patch) {
+        if (Boolean.parseBoolean(String.valueOf(patch.get(PATCH_SMTP_PASSWORD_CLEAR)))) {
+            config.remove(SiteConfig.KEY_SMTP_PASSWORD);
+            return;
+        }
+        if (!patch.containsKey(SiteConfig.KEY_SMTP_PASSWORD)) {
+            return;
+        }
+        Object raw = patch.get(SiteConfig.KEY_SMTP_PASSWORD);
+        String value = raw == null ? "" : String.valueOf(raw).trim();
+        if (value.isEmpty()) {
+            return;
+        }
+        if (value.length() > SMTP_PASSWORD_MAX) {
+            throw BizException.param("SMTP 口令不能超过 " + SMTP_PASSWORD_MAX + " 个字符");
+        }
+        config.put(SiteConfig.KEY_SMTP_PASSWORD, CryptoUtil.encrypt(value, properties.getJwtSecret()));
+    }
+
+    /** 开关本身：与 {@code logoOnly} 同一口径 —— false 与清除等价，默认值不占 JSON 一个键。 */
+    private void applyEmailVerifyEnabled(Map<String, Object> config, Map<String, Object> patch) {
+        if (!patch.containsKey(SiteConfig.KEY_EMAIL_VERIFY_ENABLED)) {
+            return;
+        }
+        Object raw = patch.get(SiteConfig.KEY_EMAIL_VERIFY_ENABLED);
+        String value = raw == null ? "" : String.valueOf(raw).trim();
+        if (value.isEmpty() || "false".equalsIgnoreCase(value)) {
+            config.remove(SiteConfig.KEY_EMAIL_VERIFY_ENABLED);
+            return;
+        }
+        if (!"true".equalsIgnoreCase(value)) {
+            throw BizException.param("邮箱验证开关的取值只能是 true 或 false");
+        }
+        config.put(SiteConfig.KEY_EMAIL_VERIFY_ENABLED, true);
+    }
+
+    /**
+     * 开关打开的前提：主机、端口、发件地址齐备且口令可用。
+     *
+     * <p>存一个「开着但发不出信」的开关，后面每个注册者都会卡在收不到的那封邮件上 ——
+     * 邮箱没验证、登不进来，也退不回未验证放行的状态。那比保存时报错难受得多。</p>
+     *
+     * <p>读的是<b>合并后的整份配置</b>而不是 patch：参数和开关常常在一次请求里一起提交。</p>
+     */
+    private void requireTransportWhenVerifyEnabled(Map<String, Object> config) {
+        MailSettings settings = mailSettingsReader.read(config);
+        if (!settings.verifyEnabled() || settings.transportReady()) {
+            return;
+        }
+        if (settings.credentialUnusable()) {
+            throw BizException.param("已存的 SMTP 口令解不开（加密密钥可能已变更），请重新填写口令");
+        }
+        if (settings.credentialIncomplete()) {
+            throw BizException.param(CREDENTIAL_INCOMPLETE);
+        }
+        List<String> missing = new ArrayList<>();
+        if (settings.host() == null) {
+            missing.add("SMTP 主机");
+        }
+        if (settings.port() == null) {
+            missing.add("SMTP 端口");
+        }
+        if (settings.from() == null) {
+            missing.add("发件地址");
+        }
+        throw BizException.param("开启邮箱验证前需要先填齐：" + String.join("、", missing));
+    }
+
+    /**
+     * 取 patch 里的文本项并落到 config：缺键不动，空串清除。
+     *
+     * @return 归一化后待写入的值；返回 null 表示本项已处理完（未提供，或已清除）
+     */
+    private String patchText(Map<String, Object> config, Map<String, Object> patch,
+                             String key, int maxLength, String label) {
+        if (!patch.containsKey(key)) {
+            return null;
+        }
+        Object raw = patch.get(key);
+        String value = raw == null ? "" : String.valueOf(raw).trim();
+        if (value.length() > maxLength) {
+            throw BizException.param(label + "不能超过 " + maxLength + " 个字符");
+        }
+        if (value.isEmpty()) {
+            config.remove(key);
+            return null;
+        }
+        if (value.contains(" ")) {
+            throw BizException.param(label + "不能包含空格");
+        }
+        return value;
+    }
+
     private Map<String, Object> readConfig() {
         SiteConfig entity = siteConfigMapper.selectById(SiteConfig.SINGLETON_ID);
         return entity == null ? new LinkedHashMap<>() : JsonUtil.toMap(entity.getConfig());
@@ -245,16 +508,41 @@ public class SiteConfigServiceImpl implements SiteConfigService {
         String subtitle = text(config.get(SiteConfig.KEY_SUBTITLE));
         String logo = text(config.get(SiteConfig.KEY_LOGO));
         String logoSrc = logo == null ? null : AppPaths.of(SiteConfigVO.LOGO_PREFIX + logo);
+        String icon = text(config.get(SiteConfig.KEY_ICON));
+        String iconSrc = icon == null ? null : AppPaths.of(SiteConfigVO.ICON_PREFIX + icon);
         return new SiteConfigVO(
                 name == null ? DEFAULT_NAME : name,
                 subtitle == null ? DEFAULT_SUBTITLE : subtitle,
                 logo,
                 logoSrc,
+                icon,
+                iconSrc,
                 text(config.get(SiteConfig.KEY_BASE_URL)),
                 logoSize(config.get(SiteConfig.KEY_LOGO_WIDTH)),
                 logoSize(config.get(SiteConfig.KEY_LOGO_HEIGHT)),
                 Boolean.parseBoolean(text(config.get(SiteConfig.KEY_LOGO_ONLY))),
-                text(config.get(SiteConfig.KEY_READER_THEME)));
+                text(config.get(SiteConfig.KEY_READER_THEME)),
+                // 与注册/登录闸门同一个判断，且复用这次已经读出来的配置：不另查一次库，
+                // 也不允许前端拿到一个和后端行为不一致的布尔
+                mailSettingsReader.read(config).verificationRequired());
+    }
+
+    /** 邮件配置的脱敏视图：口令只以「有没有存过」回显，明文与密文都不出服务端。 */
+    private SiteMailVO toMailVO(Map<String, Object> config) {
+        MailSettings settings = mailSettingsReader.read(config);
+        boolean passwordSet = settings.password() != null || settings.credentialUnusable();
+        return new SiteMailVO(
+                settings.host(),
+                settings.port(),
+                settings.security(),
+                settings.host() == null ? null : settings.effectiveSecurity(),
+                settings.username(),
+                settings.from(),
+                passwordSet,
+                settings.credentialUnusable(),
+                settings.transportReady(),
+                settings.verifyEnabled(),
+                settings.verificationRequired());
     }
 
     /**
@@ -283,7 +571,7 @@ public class SiteConfigServiceImpl implements SiteConfigService {
         return value.isEmpty() ? null : value;
     }
 
-    private void write(Path target, MultipartFile file, String extension) {
+    private void write(Path target, MultipartFile file, String extension, String label) {
         try {
             Files.createDirectories(target.getParent());
             byte[] content = file.getBytes();
@@ -292,19 +580,19 @@ public class SiteConfigServiceImpl implements SiteConfigService {
             }
             Files.write(target, content);
         } catch (IOException e) {
-            throw BizException.of(ErrorCode.SERVER_ERROR, "Logo 保存失败");
+            throw BizException.of(ErrorCode.SERVER_ERROR, label + "保存失败");
         }
     }
 
-    /** 删掉站点目录下的旧 Logo（保留 {@code keep}）；失败只记日志，不影响换图这件事本身。 */
-    private void deleteLogoFile(String stale, String keep) {
+    /** 删掉站点目录下的旧图（保留 {@code keep}）；失败只记日志，不影响换图这件事本身。 */
+    private void deleteImageFile(String stale, String keep) {
         if (stale == null || stale.equals(keep)) {
             return;
         }
         try {
             Files.deleteIfExists(properties.siteDir().resolve(stale));
         } catch (IOException e) {
-            log.warn("清理旧站点 Logo 失败 fileName={}", stale, e);
+            log.warn("清理旧站点图片失败 fileName={}", stale, e);
         }
     }
 }
