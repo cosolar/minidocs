@@ -36,13 +36,25 @@ public final class TenantDtos {
             Boolean discoverable) {
     }
 
-    /** 改组织：一次表单全量提交，字段为 null 表示不改。 */
+    /**
+     * 改组织：一次表单全量提交，字段为 null 表示不改。
+     *
+     * <p>{@code slug} 只对个人组织生效，团队组织传了就报错 —— 团队标识已经在邀请与分享里
+     * 发出去了，改名会让这些地址失去意义。个人组织改名时旧值会留成别名。</p>
+     */
     public record UpdateOrgRequest(
             @Size(max = 64, message = "组织名称不能超过 64") String name,
             @Size(max = 255, message = "简介不能超过 255") String description,
             String logoUrl,
             @Pattern(regexp = "request|invite_only", message = "加入方式只能是 request / invite_only") String joinPolicy,
-            Boolean discoverable) {
+            Boolean discoverable,
+            @Size(max = 48, message = "组织标识不能超过 48") String slug) {
+
+        /** 不改 slug 的旧调用形状（服务层测试与内部更新仍按五字段构造）。 */
+        public UpdateOrgRequest(String name, String description, String logoUrl, String joinPolicy,
+                                Boolean discoverable) {
+            this(name, description, logoUrl, joinPolicy, discoverable, null);
+        }
     }
 
     public record AddMemberRequest(

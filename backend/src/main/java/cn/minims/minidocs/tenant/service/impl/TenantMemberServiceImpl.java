@@ -315,6 +315,7 @@ public class TenantMemberServiceImpl implements TenantMemberService {
             memberMapper.deleteById(row.getId());
             if (tenant != null && tenant.isPersonal() && !hasAnyKb(tenant.getId())) {
                 // 个人组织只有这一个成员，库也已经在删号流程里清干净了 —— 组织行留着就是纯孤儿
+                tenantService.deleteSlugAliases(tenant.getId());
                 tenantService.removeById(tenant.getId());
             }
         }

@@ -36,7 +36,7 @@ const savingProfile = ref(false)
 const adding = ref(false)
 const reviewing = ref(0)
 
-const profile = reactive({ name: '', description: '', logoUrl: '', joinPolicy: 'request', discoverable: false })
+const profile = reactive({ name: '', slug: '', description: '', logoUrl: '', joinPolicy: 'request', discoverable: false })
 const newMember = reactive({ username: '', role: 'MEMBER' as 'ADMIN' | 'MEMBER' })
 
 /** 治理类入口一律看向量：谁能改资料、谁能任免管理员，后端说得很清楚，这里不猜。 */
@@ -68,6 +68,7 @@ async function load() {
     detail.value = info
     members.value = list
     profile.name = info.name
+    profile.slug = info.slug
     profile.description = info.description || ''
     profile.logoUrl = info.logoUrl || ''
     profile.joinPolicy = info.joinPolicy
@@ -82,15 +83,33 @@ async function load() {
 async function saveProfile() {
   savingProfile.value = true
   try {
-    // 全量提交：后端把 null 当成「不改」，而「清空简介」正是要把值写成空，所以空串显式送出去
-    detail.value = await orgApi.update({
+    const oldSlug = detail.value?.slug
+    /*
+     * 全量提交：后端把 null 当成「不改」，而「清空简介」正是要把值写成空，所以空串显式送出去。
+     * slug 只有个人组织可改；团队组织这份表单不带它，免得后端按「越界修改」拒绝整次保存。
+     */
+    const payload: Record<string, unknown> = {
       name: profile.name,
       description: profile.description,
       logoUrl: profile.logoUrl,
       joinPolicy: profile.joinPolicy,
       discoverable: profile.discoverable
-    })
-    ElMessage.success('组织资料已更新')
+    }
+    if (isPersonal.value) {
+      payload.slug = profile.slug.trim()
+    }
+    detail.value = await orgApi.update(payload)
+    profile.slug = detail.value.slug
+    if (oldSlug && detail.value.slug !== oldSlug) {
+      // 地址里的组织段就是上下文本身：先换仓库，再把当前页搬到新地址
+      await org.load(true)
+      org.enter(detail.value.slug)
+      void org.rememberLast(detail.value.slug)
+      await router.replace(`/console/${encodeURIComponent(detail.value.slug)}/settings`)
+      ElMessage.success('组织标识已更新，旧链接会继续可用')
+    } else {
+      ElMessage.success('组织资料已更新')
+    }
   } finally {
     savingProfile.value = false
   }
@@ -184,19 +203,32 @@ onMounted(load)
     <AdminPageHeader
       eyebrow="组织管理"
       title="组织设置"
-      description="维护组织资料、成员与入组申请；组织标识创建后不可修改。"
+      description="维护组织资料、成员与入组申请。"
     />
 
     <div class="md-card-panel">
       <div class="md-panel-head">
         <div class="md-panel-head__text">
-          <h2>组织资料<HelpTip v-if="detail" :width="360">标识（slug）{{ detail.slug }} 不参与改名：它是链接与磁盘目录的一部分，换掉等于把所有外链作废。</HelpTip></h2>
+          <h2>组织资料<HelpTip v-if="detail" :width="360">
+            个人组织可以自定义标识（slug）；旧标识会自动保留为别名，已发出的链接继续可用。
+            团队组织的标识创建后不可修改 —— 它已经写进邀请与分享地址里了。
+          </HelpTip></h2>
           <p class="md-panel-desc">这些信息会出现在组织列表、邀请与知识库归属中。</p>
         </div>
         <span v-if="detail" class="md-ad-chip">{{ detail.myRole }}</span>
       </div>
       <div class="md-panel-body">
         <el-form label-position="top" class="md-form-grid md-form-max" :disabled="!canEditProfile">
+          <el-form-item v-if="isPersonal" class="md-form-span-2">
+            <template #label>
+              组织标识
+              <HelpTip text="会出现在管理地址与阅读链接里。只能使用字母、数字、中文、- 或 _；不能与任何现有或历史标识重复。保存后旧地址会自动跳转到新地址。" />
+            </template>
+            <el-input v-model="profile.slug" maxlength="48" placeholder="例如 cosolar">
+              <template #prepend>/console/</template>
+            </el-input>
+            <p class="md-copy-hint">保存后管理地址变为 /console/{{ profile.slug.trim() || '…' }}。</p>
+          </el-form-item>
           <el-form-item label="组织名称">
             <el-input v-model="profile.name" maxlength="64" show-word-limit />
           </el-form-item>

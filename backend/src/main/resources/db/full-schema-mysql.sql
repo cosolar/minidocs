@@ -146,6 +146,15 @@ CREATE TABLE IF NOT EXISTS tenant (
     KEY idx_tenant_type (type, status)
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci;
 
+-- 组织改名后的历史标识：slug 全局唯一，新组织不能占用别人的旧名
+CREATE TABLE IF NOT EXISTS tenant_slug_alias (
+    slug       VARCHAR(64) NOT NULL,
+    tenant_id  BIGINT      NOT NULL,
+    created_at DATETIME    NOT NULL,
+    PRIMARY KEY (slug),
+    KEY idx_tenant_slug_alias_tenant (tenant_id)
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci;
+
 CREATE TABLE IF NOT EXISTS tenant_member (
     id          BIGINT      NOT NULL AUTO_INCREMENT,
     tenant_id   BIGINT      NOT NULL,

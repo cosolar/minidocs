@@ -145,7 +145,7 @@ class MailServiceTest {
     @Test
     @DisplayName("正文转义站点名与昵称：一封验证邮件里的可点内容，攻击面比普通页面大")
     void bodiesEscapeUserControlledText() {
-        String body = MailBodies.verification("Mini<script>", null, null, null,
+        String body = MailBodies.verification("Mini<script>", null, null,
                 "<img src=//evil/x>",
                 "https://kb.example.test/api/auth/verify-email?token=abc", 24);
 
@@ -156,7 +156,7 @@ class MailServiceTest {
     @Test
     @DisplayName("测试邮件里带上发件地址与发送时间：光说「成功」不够，管理员要核对的是发出去的那个地址")
     void testBodyCarriesFromAndTime() {
-        String body = MailBodies.test("测试站点", null, "kb.example.test",
+        String body = MailBodies.test("测试站点", null,
                 "https://kb.example.test/logo-mark.png", "bot@example.test", new java.util.Date(0));
 
         assertThat(body).contains("bot@example.test").contains("1970-01-01")

@@ -279,7 +279,8 @@ export const shareApi = {
  * 挪到脱离 {@code /console/{org}} 的地方去。</p>
  */
 export const orgApi = {
-  detail: () => request<OrgVO>({ url: orgPath() }),
+  /** 组织详情；路由守卫用旧别名探测规范 slug 时静默失败，避免和页面自己的 404 提示重复。 */
+  detail: (silentError = false) => request<OrgVO>({ url: orgPath(), silentError }),
   update: (data: Record<string, unknown>) => request<OrgVO>({ url: orgPath(), method: 'put', data }),
   remove: () => request<void>({ url: orgPath(), method: 'delete' }),
   members: () => request<OrgMemberVO[]>({ url: `${orgPath()}/members` }),

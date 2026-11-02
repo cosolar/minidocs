@@ -140,7 +140,8 @@ public class PortalApiController {
         }
         ReadView view = readerService.build(kb, ReaderService.ReadRequest.portal(org, slug, path));
         view.setLoggedIn(user != null);
-        view.setOrgSlug(org);
+        // 用库所属组织的规范 slug：从旧别名地址打开时，页面里的「进入工作区」与分享链接也不能继续带旧值
+        view.setOrgSlug(target.orgSlug());
         view.setCanManage(accessService.can(kb, user, KbAction.DOC_WRITE));
         return ApiResponse.ok(PortalReadVO.ok(view));
     }
@@ -235,17 +236,20 @@ public class PortalApiController {
         }
         KnowledgeBase kb = knowledgeBaseService.requireBySlug(tenant.getId(), slug);
         if (user != null && accessService.canRead(kb, user)) {
-            return new PortalTarget(kb, false, true);
+            return new PortalTarget(kb, false, true, tenant.getSlug());
         }
         Share published = publicationSupport.find(kb.getId());
         if (published == null) {
             throw BizException.notFound("知识库不存在或未公开");
         }
-        return new PortalTarget(kb, !shareAccessSupport.isVerified(published, request), false);
+        return new PortalTarget(kb, !shareAccessSupport.isVerified(published, request), false, tenant.getSlug());
     }
 
-    /** 门户访问判定结果：{@code needPassword=true} 时只回库名不带正文；{@code byOwnRead=true} 表示由本人读权放行。 */
-    private record PortalTarget(KnowledgeBase kb, boolean needPassword, boolean byOwnRead) {
+    /**
+     * 门户访问判定结果：{@code needPassword=true} 时只回库名不带正文；
+     * {@code byOwnRead=true} 表示由本人读权放行；{@code orgSlug} 是组织的规范标识（不是请求里的旧别名）。
+     */
+    private record PortalTarget(KnowledgeBase kb, boolean needPassword, boolean byOwnRead, String orgSlug) {
     }
 
     /** 门户首页聚合响应。 */

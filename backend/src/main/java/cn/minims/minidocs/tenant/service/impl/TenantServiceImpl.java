@@ -17,8 +17,10 @@ import cn.minims.minidocs.tenant.dto.TenantDtos.TenantBrief;
 import cn.minims.minidocs.tenant.dto.TenantDtos.UpdateOrgRequest;
 import cn.minims.minidocs.tenant.entity.Tenant;
 import cn.minims.minidocs.tenant.entity.TenantMember;
+import cn.minims.minidocs.tenant.entity.TenantSlugAlias;
 import cn.minims.minidocs.tenant.mapper.TenantMapper;
 import cn.minims.minidocs.tenant.mapper.TenantMemberMapper;
+import cn.minims.minidocs.tenant.mapper.TenantSlugAliasMapper;
 import cn.minims.minidocs.tenant.service.TenantService;
 import cn.minims.minidocs.user.entity.User;
 import cn.minims.minidocs.user.service.UserService;
@@ -28,6 +30,7 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.spring.service.impl.ServiceImpl;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -45,6 +48,7 @@ public class TenantServiceImpl extends ServiceImpl<TenantMapper, Tenant> impleme
     private static final int MAX_SLUG_LENGTH = 48;
 
     private final TenantMemberMapper memberMapper;
+    private final TenantSlugAliasMapper aliasMapper;
     private final KnowledgeBaseMapper kbMapper;
     private final UserService userService;
     private final AccessService accessService;
@@ -85,9 +89,16 @@ public class TenantServiceImpl extends ServiceImpl<TenantMapper, Tenant> impleme
         if (slug == null || slug.isBlank()) {
             return null;
         }
-        return getOne(Wrappers.<Tenant>lambdaQuery()
-                .eq(Tenant::getSlug, slug)
+        String key = slug.trim().toLowerCase(Locale.ROOT);
+        Tenant tenant = getOne(Wrappers.<Tenant>lambdaQuery()
+                .eq(Tenant::getSlug, key)
                 .last("LIMIT 1"), false);
+        if (tenant != null) {
+            return tenant;
+        }
+        // 旧 slug 留着别名：个人组织改过名后，阅读页与收藏夹里的地址仍要能解析回同一个组织
+        TenantSlugAlias alias = aliasMapper.selectById(key);
+        return alias == null ? null : getById(alias.getTenantId());
     }
 
     @Override
@@ -175,6 +186,19 @@ public class TenantServiceImpl extends ServiceImpl<TenantMapper, Tenant> impleme
     @Transactional(rollbackFor = Exception.class)
     public OrgVO update(String slug, UpdateOrgRequest request, LoginUser actor) {
         Tenant tenant = accessService.requireTenant(requireBySlug(slug), KbAction.TENANT_RENAME, actor);
+        String previousSlug = tenant.getSlug();
+        boolean renamed = false;
+        if (request.slug() != null) {
+            // 团队标识一旦发出去就是邀请与分享的一部分，只放开个人组织；个人空间换名字是常见诉求
+            if (!tenant.isPersonal()) {
+                throw BizException.param("团队组织的标识创建后不可修改");
+            }
+            String wanted = resolvePersonalSlug(request.slug(), tenant);
+            if (!wanted.equals(tenant.getSlug())) {
+                tenant.setSlug(wanted);
+                renamed = true;
+            }
+        }
         if (request.name() != null && !request.name().isBlank()) {
             tenant.setName(request.name().trim());
         }
@@ -190,7 +214,20 @@ public class TenantServiceImpl extends ServiceImpl<TenantMapper, Tenant> impleme
         if (request.discoverable() != null) {
             tenant.setDiscoverable(!tenant.isPersonal() && request.discoverable());
         }
-        persistMeta(tenant);
+        try {
+            persistMeta(tenant);
+        } catch (DuplicateKeyException e) {
+            // 预检查之后仍可能被别人抢先；唯一索引是最后一道门，翻译成同一句可读的提示
+            throw BizException.exists("该组织标识已被占用");
+        }
+        if (renamed) {
+            // 新名字如果本来就是自己的旧别名，那行别名就多余了（否则同一标识既是当前名又是别名）
+            aliasMapper.delete(Wrappers.<TenantSlugAlias>lambdaQuery()
+                    .eq(TenantSlugAlias::getSlug, tenant.getSlug())
+                    .eq(TenantSlugAlias::getTenantId, tenant.getId()));
+            rememberSlug(tenant.getId(), previousSlug);
+            log.info("个人组织改名 id={} {} -> {}", tenant.getId(), previousSlug, tenant.getSlug());
+        }
         AccessService.OrgRole role = accessService.roleOf(tenant, actor);
         return OrgVO.of(tenant, roleString(role), accessService.permissionsOfTenant(role),
                 countMembers(tenant.getId()), countVisibleKbs(tenant.getId(), actor));
@@ -206,6 +243,7 @@ public class TenantServiceImpl extends ServiceImpl<TenantMapper, Tenant> impleme
     private void persistMeta(Tenant tenant) {
         update(Wrappers.<Tenant>lambdaUpdate()
                 .eq(Tenant::getId, tenant.getId())
+                .set(Tenant::getSlug, tenant.getSlug())
                 .set(Tenant::getName, tenant.getName())
                 .set(Tenant::getDescription, tenant.getDescription())
                 .set(Tenant::getLogoUrl, tenant.getLogoUrl())
@@ -229,6 +267,7 @@ public class TenantServiceImpl extends ServiceImpl<TenantMapper, Tenant> impleme
                     "组织下仍有 " + remaining + " 个知识库，请先迁移或删除");
         }
         removeById(tenant.getId());
+        deleteSlugAliases(tenant.getId());
         memberMapper.delete(Wrappers.<TenantMember>lambdaQuery()
                 .eq(TenantMember::getTenantId, tenant.getId()));
         log.info("已删除组织 id={} slug={} by={}", tenant.getId(), tenant.getSlug(), actor.username());
@@ -327,6 +366,60 @@ public class TenantServiceImpl extends ServiceImpl<TenantMapper, Tenant> impleme
         return slug;
     }
 
+    /**
+     * 个人组织自定义标识的校验。
+     *
+     * <p>与团队创建同一套字符与保留字规则，但不套 {@code u-} 前缀：个人空间本来就不需要靠前缀
+     * 与团队区分。校验失败一律报错、不静默清洗 —— slug 会进阅读链接，改写等于给用户一条打不开的地址。</p>
+     */
+    private String resolvePersonalSlug(String requested, Tenant tenant) {
+        String slug = requested.trim().toLowerCase(Locale.ROOT);
+        if (slug.isEmpty()) {
+            throw BizException.param("组织标识不能为空");
+        }
+        if (slug.length() > MAX_SLUG_LENGTH) {
+            throw BizException.param("组织标识不能超过 " + MAX_SLUG_LENGTH + " 个字符");
+        }
+        if (!slug.equals(SlugUtil.slugify(slug))) {
+            throw BizException.param("组织标识只能由字母、数字、中文、- 或 _ 组成，且不能以它们以外字符开头结尾");
+        }
+        if (!SlugUtil.isAvailableOrgSlug(slug, null)) {
+            throw BizException.param("该组织标识不可用：属保留字");
+        }
+        if (!slug.equals(tenant.getSlug())) {
+            Tenant existing = findBySlug(slug);
+            // 改回自己用过的旧名是合法操作：别名解析出来的还是同一个组织
+            if (existing != null && !existing.getId().equals(tenant.getId())) {
+                throw BizException.exists("该组织标识已被占用");
+            }
+        }
+        return slug;
+    }
+
+    /** 旧 slug 留成别名，供阅读页与收藏夹继续解析；同一租户重复改回旧名时忽略重复键。 */
+    private void rememberSlug(Long tenantId, String slug) {
+        if (slug == null || slug.isBlank()) {
+            return;
+        }
+        TenantSlugAlias alias = new TenantSlugAlias();
+        alias.setSlug(slug.trim().toLowerCase(Locale.ROOT));
+        alias.setTenantId(tenantId);
+        alias.setCreatedAt(TimeUtil.now());
+        try {
+            aliasMapper.insert(alias);
+        } catch (DuplicateKeyException ignored) {
+            // 别名已存在，旧地址仍然解析得回同一个组织，不必让这次保存失败
+        }
+    }
+
+    @Override
+    public void deleteSlugAliases(Long tenantId) {
+        if (tenantId != null) {
+            aliasMapper.delete(Wrappers.<TenantSlugAlias>lambdaQuery()
+                    .eq(TenantSlugAlias::getTenantId, tenantId));
+        }
+    }
+
     private String uniqueSlug(String base) {
         String candidate = base;
         int index = 2;
@@ -345,7 +438,7 @@ public class TenantServiceImpl extends ServiceImpl<TenantMapper, Tenant> impleme
                 + SlugUtil.slugify(username == null ? "user" : username.toLowerCase(Locale.ROOT));
         String candidate = base;
         int index = 2;
-        while (count(Wrappers.<Tenant>lambdaQuery().eq(Tenant::getSlug, candidate)) > 0) {
+        while (findBySlug(candidate) != null) {
             candidate = SlugUtil.withSuffix(base, index++);
         }
         return candidate;

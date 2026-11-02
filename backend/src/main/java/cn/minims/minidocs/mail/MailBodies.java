@@ -27,21 +27,20 @@ final class MailBodies {
      * 注册验证码邮件。
      *
      * <p>版式对齐站点品牌页：顶部品牌色细线、小号字距标签、大标题、浅色验证码框、
-     * 安全提示，底部是 Logo + 站点名 + 域名。整封邮件只用表格与内联样式 ——
+     * 安全提示，底部是横版 Logo 与副标题。整封邮件只用表格与内联样式 ——
      * 邮件客户端不认站点的 CSS 变量，也不保证支持 flex/grid。</p>
      *
      * <p>验证码只在正文里出现：不写进链接、不落库原文、不进日志，抄到的人也只在
      * {@code validMinutes} 内、且只有一次机会用它。</p>
      *
-     * @param siteName     站点名，同时作为 Logo 的 alt 文字（图片被拦时仍读得出是谁发的）
+     * @param siteName     站点名，用于眉标与 Logo 的 alt 文字（图片被拦时仍读得出是谁发的）
      * @param subtitle     站点副标题，可空
-     * @param siteHost     站点域名，可空；有才渲染那一行小字
      * @param email        收码邮箱，正文里高亮出来，让人确认验的是哪个地址
      * @param code         6 位数字
      * @param validMinutes 有效期，写进正文免得用户翻出一封旧邮件来试
-     * @param logoUrl      Logo 绝对地址，可空；空则只显示站点名
+     * @param logoUrl      Logo 绝对地址，可空；空则页脚只留副标题
      */
-    static String registerCode(String siteName, String subtitle, String siteHost, String email,
+    static String registerCode(String siteName, String subtitle, String email,
                                String code, int validMinutes, String logoUrl) {
         String brand = escape(siteName);
         String content = """
@@ -62,7 +61,7 @@ final class MailBodies {
                   如果这不是你本人的操作，请忽略本邮件，账号不会被创建。
                 </p>
                 """.formatted(BRAND, escape(email), brand, BRAND, escape(code), validMinutes, brand);
-        return brandShell(siteName, subtitle, siteHost, logoUrl, "账号验证", content);
+        return brandShell(siteName, subtitle, logoUrl, "账号验证", content);
     }
 
     /**
@@ -72,7 +71,7 @@ final class MailBodies {
      * @param link        点开即完成验证的绝对地址（含站点基址与令牌）
      * @param validHours  令牌有效期，写进正文，免得用户翻出一封三个月前的邮件来点
      */
-    static String verification(String siteName, String subtitle, String siteHost, String logoUrl,
+    static String verification(String siteName, String subtitle, String logoUrl,
                                String displayName, String link, int validHours) {
         String greeting = displayName == null || displayName.isBlank()
                 ? "你好"
@@ -92,14 +91,14 @@ final class MailBodies {
                   按钮打不开时，把下面这行整段复制到浏览器地址栏：<br>%s
                 </p>
                 """.formatted(greeting, escape(siteName), validHours, button(link), escape(link));
-        return brandShell(siteName, subtitle, siteHost, logoUrl, "账号验证", content);
+        return brandShell(siteName, subtitle, logoUrl, "账号验证", content);
     }
 
     /**
      * 站点设置里「测试发信」按钮产生的邮件：与正式邮件同一套版式，
      * 管理员收到的预览就是用户将看到的样子（只是正文换成测试说明）。
      */
-    static String test(String siteName, String subtitle, String siteHost, String logoUrl,
+    static String test(String siteName, String subtitle, String logoUrl,
                        String from, Date sentAt) {
         String time = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(sentAt);
         String content = """
@@ -114,16 +113,16 @@ final class MailBodies {
                   没收到请先翻垃圾邮件目录，再回设置页看这次发送的报错。
                 </p>
                 """.formatted(escape(siteName), BRAND, escape(from), escape(time));
-        return brandShell(siteName, subtitle, siteHost, logoUrl, "邮件配置", content);
+        return brandShell(siteName, subtitle, logoUrl, "邮件配置", content);
     }
 
     /**
      * 三封邮件共用的品牌外壳：顶部色线、眉标、正文、分隔线、Logo 页脚。
      *
-     * <p>横版 Logo 单独占一行并居中，站点名与域名排在它下面；Logo 用绝对地址且给 alt，
-     * 被客户端拦截图片时，下方的站点名仍然读得出来。</p>
+     * <p>横版 Logo 单独占一行并居中，副标题排在它下面；Logo 用绝对地址且给 alt，
+     * 被客户端拦截图片时仍能读出站点名。页脚不再重复站点名与域名 —— 眉标和正文里已经说清了。</p>
      */
-    private static String brandShell(String siteName, String subtitle, String siteHost, String logoUrl,
+    private static String brandShell(String siteName, String subtitle, String logoUrl,
                                      String eyebrowSuffix, String content) {
         String brand = escape(siteName);
         String eyebrow = escape(siteName == null ? "" : siteName.toUpperCase(Locale.ROOT))
@@ -131,11 +130,7 @@ final class MailBodies {
         String subtitleLine = subtitle == null || subtitle.isBlank() ? "" : """
                 <p style="margin:14px 0 0;font-size:12.5px;line-height:1.7;color:#8a9792">%s</p>
                 """.formatted(escape(subtitle));
-        String hostLine = siteHost == null || siteHost.isBlank() ? "" : """
-                <div style="margin-top:2px;font-size:11px;color:#9aa7a2;line-height:1.2">%s</div>
-                """.formatted(escape(siteHost));
-        // 横版 Logo 独占一行：邮件客户端对 flex 与并排表格的支持参差，竖排最稳，
-        // 也不会让站点名挤在图片右边显得像图注。
+        // 横版 Logo 独占一行：邮件客户端对 flex 与并排表格的支持参差，竖排最稳
         String logoBlock = logoUrl == null || logoUrl.isBlank() ? "" : """
                 <div style="margin:0 0 13px;line-height:0">\
                 <img src="%s" height="52" alt="%s" style="display:inline-block;height:52px;width:auto;\
@@ -152,13 +147,12 @@ final class MailBodies {
                 <tr><td style="padding:0 36px 26px">%s</td></tr>
                 <tr><td style="padding:0 36px"><div style="height:1px;background:#eef2f0"></div></td></tr>
                 <tr><td style="padding:24px 36px 30px;text-align:center">
-                %s
-                  <div style="font-size:15px;font-weight:700;color:#1f2d28;line-height:1.2">%s</div>%s%s
+                %s%s
                   <p style="margin:4px 0 0;font-size:12px;line-height:1.7;color:#a3aea9">本邮件由系统自动发出，请勿直接回复。</p>
                 </td></tr>
                 </table>
                 </body></html>
-                """.formatted(BRAND, eyebrow, content, logoBlock, brand, hostLine, subtitleLine);
+                """.formatted(BRAND, eyebrow, content, logoBlock, subtitleLine);
     }
 
     private static String button(String link) {

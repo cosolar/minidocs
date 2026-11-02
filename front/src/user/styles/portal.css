@@ -709,12 +709,12 @@
   gap: 8px;
   min-width: 0;
 }
-/* 标题前的小色块跟着封面走，一排卡片之间能靠颜色快速认库 */
 /*
- * 卡片身份位：库名首字 + 与封面同源的浅色底。
+ * 卡片身份位：与页脚能力条同一颗圆形书本标识。
  *
- * 底色直接用封面的天空色（--cover-a），字色把 --cover-b 往墨绿里压到 28%：
- * 13px 粗体在浅底上有 5:1 以上对比，又不至于深到和黑块一个观感。
+ * 圆底取品牌主色的 12% 压在卡片面上，图形直接用主色，页内短线的白色细节由图标本身带；
+ * 封面仍按色板区分，标识不再跟着封面变色 —— 一排卡片扫过去，先认出「这是知识库」，
+ * 再看是哪一本。
  */
 .md-card__mark {
   flex-shrink: 0;
@@ -722,14 +722,11 @@
   height: 28px;
   display: grid;
   place-items: center;
-  border-radius: 9px;
-  font-size: 13px;
-  font-weight: 700;
-  line-height: 1;
+  border-radius: 50%;
   user-select: none;
-  color: color-mix(in srgb, var(--cover-b, #6bb6a6) 28%, #0b2b25);
-  background: var(--cover-a, #d3ece5);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--cover-b, #6bb6a6) 30%, transparent);
+  color: var(--md-primary);
+  background: color-mix(in srgb, var(--md-primary) 12%, var(--md-surface));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--md-primary) 8%, transparent);
 }
 
 .md-card__title {

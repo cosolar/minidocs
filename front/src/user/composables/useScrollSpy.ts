@@ -19,11 +19,17 @@ export function useScrollSpy(ids: Ref<string[]>, offset = 100) {
   let scrollers: HTMLElement[] = []
 
   const update = () => {
+    /*
+     * 判定线要相对「滚动容器顶部」而不是视口顶部：阅读页的正文列从顶栏下方开始
+     * （容器 top 约 108px），标题滚到列顶时仍在视口 108px 处。若继续拿视口 100px 当线，
+     * 点击目录跳到某节后，高亮会停留在上一节 —— 看起来像「点 1.5 定位到了 1.4」。
+     */
+    const origin = scrollEl()?.getBoundingClientRect().top ?? 0
     let current = ''
     for (const id of ids.value) {
       const el = document.getElementById(id)
       if (!el) continue
-      if (el.getBoundingClientRect().top - offset <= 0) {
+      if (el.getBoundingClientRect().top - origin - offset <= 0) {
         current = id
       } else {
         break

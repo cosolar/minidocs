@@ -6,7 +6,7 @@ import 'element-plus/dist/index.css'
 import '@/admin/styles/admin.css'
 
 import { registerSettingsGateway } from '@/shared/stores/settings'
-import { settingsApi } from '@/admin/api'
+import { orgApi, settingsApi } from '@/admin/api'
 import { useAuthStore } from '@/admin/stores/auth'
 import { useOrgStore } from '@/admin/stores/org'
 
@@ -75,6 +75,28 @@ export async function enterAdmin(
     await store.load()
   } catch {
     /* 导航少一组入口，页面本身照常 */
+  }
+  /*
+   * 个人组织改名后，旧地址仍要能打开：后端会把别名解析回同一个组织，但地址栏与侧栏菜单
+   * 应该回到规范 slug。只在当前段不在「我的组织」清单里时才问一次详情 —— 正常进入不产生额外请求。
+   */
+  if (org && store.loaded && !store.tenants.some((tenant) => tenant.slug === org)) {
+    try {
+      const canonical = (await orgApi.detail(true)).slug
+      if (canonical && canonical !== org && typeof to.name === 'string') {
+        store.enter(canonical)
+        void store.rememberLast(canonical)
+        return {
+          name: to.name,
+          params: { ...to.params, org: canonical },
+          query: to.query,
+          hash: to.hash,
+          replace: true
+        }
+      }
+    } catch {
+      /* 非成员或组织不存在：保留原地址，由目标页面给出 404/403 */
+    }
   }
   return true
 }

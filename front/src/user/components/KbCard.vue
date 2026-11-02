@@ -38,13 +38,11 @@ const coverFailed = ref(false)
 watch(() => props.kb.coverSrc, () => (coverFailed.value = false))
 const showCover = computed(() => !!props.kb.coverSrc && !coverFailed.value)
 /**
- * 卡片身份位：取库名第一个字（中文取词首、英文取首字母），底色调自封面同一套色板。
+ * 卡片身份位：统一的折角文档标识，底色跟着封面同一套色板。
  *
- * <p>这里原本是一枚深色渐变方块 + 通用「书」图标：26px 上只剩一团黑，
- * 而且每张卡片一模一样，看整屏全是同一枚记号。首字让每个库有自己的身份，
- * 浅底也不会和上方的水彩封面抢。</p>
+ * <p>不再取库名首字：一排卡片各是一个字，反而认不出它们是同一类对象；
+ * 固定图形配不同浅底，既保留同屏区分，又让知识库有稳定的视觉记号。</p>
  */
-const initial = computed(() => Array.from((props.kb.name || '').trim())[0] || '?')
 
 /**
  * 徽标按「分享是否加密」两态：共享 = 分享未加密，加密 = 分享已加密（需口令）。
@@ -260,7 +258,7 @@ onBeforeUnmount(() => {
 
     <div class="md-card__body">
       <div class="md-card__head">
-        <span class="md-card__mark" aria-hidden="true">{{ initial }}</span>
+        <span class="md-card__mark" aria-hidden="true"><Icon name="bookOpen" :size="17" /></span>
         <h3 ref="titleRef" class="md-card__title" :title="titleCut ? kb.name : undefined">
           <router-link :to="link">{{ kb.name }}</router-link>
         </h3>

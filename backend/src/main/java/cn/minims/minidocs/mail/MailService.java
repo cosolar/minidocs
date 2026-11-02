@@ -20,7 +20,6 @@ import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
 
 import java.io.UnsupportedEncodingException;
-import java.net.URI;
 import java.time.Duration;
 import java.util.Date;
 import java.util.Properties;
@@ -110,7 +109,7 @@ public class MailService {
         requireReady(settings);
         Brand brand = brand(baseUrl);
         send(settings, address, "【" + brand.name() + "】邮件配置测试",
-                MailBodies.test(brand.name(), brand.subtitle(), brand.host(), brand.logoUrl(),
+                MailBodies.test(brand.name(), brand.subtitle(), brand.logoUrl(),
                         settings.from(), new Date()));
     }
 
@@ -126,7 +125,7 @@ public class MailService {
         requireReady(settings);
         Brand brand = brand(baseUrl);
         send(settings, to, "验证你的邮箱 - " + brand.name(),
-                MailBodies.verification(brand.name(), brand.subtitle(), brand.host(), brand.logoUrl(),
+                MailBodies.verification(brand.name(), brand.subtitle(), brand.logoUrl(),
                         displayName, link, validHours));
     }
 
@@ -144,12 +143,12 @@ public class MailService {
         requireReady(settings);
         Brand brand = brand(baseUrl);
         send(settings, to, "注册验证码 - " + brand.name(),
-                MailBodies.registerCode(brand.name(), brand.subtitle(), brand.host(), to, code,
+                MailBodies.registerCode(brand.name(), brand.subtitle(), to, code,
                         validMinutes, brand.logoUrl()));
     }
 
-    /** 邮件里要用的品牌信息：站点名、副标题、域名与 Logo 绝对地址。 */
-    private record Brand(String name, String subtitle, String host, String logoUrl) {
+    /** 邮件里要用的品牌信息：站点名、副标题与 Logo 绝对地址。 */
+    private record Brand(String name, String subtitle, String logoUrl) {
     }
 
     /**
@@ -163,8 +162,7 @@ public class MailService {
         String logoSrc = site.logoSrc() == null || site.logoSrc().isBlank()
                 ? AppPaths.of("/brand-lockup.png")
                 : site.logoSrc();
-        return new Brand(site.name(), site.subtitle(), hostOf(baseUrl),
-                absoluteUrl(baseUrl, logoSrc));
+        return new Brand(site.name(), site.subtitle(), absoluteUrl(baseUrl, logoSrc));
     }
 
     /**
@@ -190,23 +188,6 @@ public class MailService {
             p = p.substring(prefix.length());
         }
         return base + p;
-    }
-
-    /** 页脚那行域名：从站点基址里取 host，取不到就不渲染。 */
-    private static String hostOf(String baseUrl) {
-        if (baseUrl == null || baseUrl.isBlank()) {
-            return null;
-        }
-        String base = baseUrl.trim();
-        if (!base.contains("://")) {
-            base = "https://" + base;
-        }
-        try {
-            String host = URI.create(base).getHost();
-            return host == null || host.isBlank() ? null : host;
-        } catch (IllegalArgumentException e) {
-            return null;
-        }
     }
 
     /** 齐备性判定：交给 {@link MailSettings#transportReady()}，报错只说人能改的那几项。 */

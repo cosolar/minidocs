@@ -46,8 +46,11 @@ public interface TenantService extends IService<Tenant> {
     /** 我参与的组织（含个人组织），供顶栏切换器渲染。 */
     List<TenantBrief> myTenants(LoginUser actor);
 
-    /** 改名称 / 简介 / 加入方式 / 是否可被发现（OWNER）。 */
+    /** 改名称 / 简介 / 加入方式 / 是否可被发现（OWNER）；个人组织可同时改 slug。 */
     OrgVO update(String slug, UpdateOrgRequest request, LoginUser actor);
+
+    /** 删掉指向该组织的全部历史 slug（组织删除、清号时调用）。 */
+    void deleteSlugAliases(Long tenantId);
 
     /**
      * 删除组织（OWNER）。个人组织禁止（I3）；组织内还有知识库时拒绝 ——

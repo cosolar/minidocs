@@ -222,6 +222,63 @@ class OrgFlowTest extends MiniDocsTestBase {
             assertThat(memberMapper.selectList(Wrappers.<TenantMember>lambdaQuery()
                     .eq(TenantMember::getTenantId, org.getId()))).isEmpty();
         }
+
+        @Test
+        @DisplayName("个人组织可自定义标识，旧标识留成别名继续解析")
+        void personalSlugCanBeRenamed() {
+            Tenant personal = tenantService.ensurePersonalTenant(alice.id());
+            assertThat(personal.getSlug()).isEqualTo("u-alice");
+
+            OrgVO renamed = tenantService.update("u-alice",
+                    new UpdateOrgRequest(null, null, null, null, null, " Alice-Home "), alice);
+
+            assertThat(renamed.slug()).isEqualTo("alice-home");
+            assertThat(tenantService.requireBySlug("alice-home").getId()).isEqualTo(personal.getId());
+            assertThat(tenantService.requireBySlug("u-alice").getId())
+                    .as("旧地址仍解析回同一个组织").isEqualTo(personal.getId());
+            assertThat(tenantService.requireBySlug("u-alice").getSlug())
+                    .as("解析结果带回规范标识").isEqualTo("alice-home");
+
+            // 改回自己用过的旧名是允许的；旧名重新成为当前标识，最后一个名字退成别名
+            tenantService.update("alice-home",
+                    new UpdateOrgRequest(null, null, null, null, null, "u-alice"), alice);
+            assertThat(tenantService.requireBySlug("u-alice").getSlug()).isEqualTo("u-alice");
+            assertThat(tenantService.requireBySlug("alice-home").getId()).isEqualTo(personal.getId());
+        }
+
+        @Test
+        @DisplayName("个人组织标识同样全局唯一：重名、保留字、非法字符都拒绝")
+        void personalSlugValidation() {
+            tenantService.ensurePersonalTenant(alice.id());
+            tenantService.ensurePersonalTenant(bob.id());
+
+            assertBizError(ErrorCode.ALREADY_EXISTS,
+                    () -> tenantService.update("u-bob",
+                            new UpdateOrgRequest(null, null, null, null, null, "acme"), bob));
+            assertBizError(ErrorCode.PARAM_INVALID,
+                    () -> tenantService.update("u-bob",
+                            new UpdateOrgRequest(null, null, null, null, null, "admin"), bob));
+            assertBizError(ErrorCode.PARAM_INVALID,
+                    () -> tenantService.update("u-bob",
+                            new UpdateOrgRequest(null, null, null, null, null, "a b"), bob));
+        }
+
+        @Test
+        @DisplayName("团队组织标识保持不可改；历史别名也不能被新组织占用")
+        void teamSlugLockedAndAliasReserved() {
+            assertBizError(ErrorCode.PARAM_INVALID,
+                    () -> tenantService.update("acme",
+                            new UpdateOrgRequest(null, null, null, null, null, "acme-2"), alice));
+
+            tenantService.ensurePersonalTenant(alice.id());
+            tenantService.update("u-alice",
+                    new UpdateOrgRequest(null, null, null, null, null, "alice-home"), alice);
+            tenantService.update("alice-home",
+                    new UpdateOrgRequest(null, null, null, null, null, "alice-room"), alice);
+
+            assertBizError(ErrorCode.ALREADY_EXISTS,
+                    () -> tenantService.createTeam(new CreateOrgRequest("旧名", "alice-home", null, null, null), bob));
+        }
     }
 
     // ---------------------------------------------------------------- 成员治理
