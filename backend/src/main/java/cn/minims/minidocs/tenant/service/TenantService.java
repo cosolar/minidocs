@@ -56,5 +56,5 @@ public interface TenantService extends IService<Tenant> {
     void delete(String slug, LoginUser actor);
 
     /** 组织发现列表：TEAM + 可被发现 + 活跃，只出公开字段。 */
-    PageResult<DiscoverVO> discover(long page, long size);
+    PageResult<DiscoverVO> discover(long page, long size, String keyword);
 }

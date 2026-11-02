@@ -9,6 +9,7 @@ import { can } from '@/shared/api/caps'
 import type { KbActionName, KbRosterVO, KbVO, OrgMemberVO } from '@/shared/api/types'
 import ShareDialog from '@/admin/components/ShareDialog.vue'
 import KbRowActions from '@/admin/components/KbRowActions.vue'
+import AdminPageHeader from '@/admin/components/AdminPageHeader.vue'
 import MdIcon from '@/admin/components/MdIcon.vue'
 import HelpTip from '@/shared/components/HelpTip.vue'
 import { useIsMobile } from '@/admin/composables/useIsMobile'
@@ -31,10 +32,10 @@ const settings = useSettingsStore()
 const org = computed(() => String(route.params.org || ''))
 
 /**
- * 窄屏一律走网格（卡片）视图：列表视图那套表格把「操作」列固定在右侧，手机上会盖掉
- * 大半个屏幕。网格本来就存在，只是把它变成移动端的唯一读法，顺带藏掉视图切换。
+ * 窄屏一律走网格（卡片）视图：列表表格的固定操作列需要约 1126px 的内容宽度，
+ * 再窄就会盖住「篇数 / 更新」两列。1440 及以下用卡片，视图切换也一并藏掉。
  */
-const isMobile = useIsMobile()
+const isCompact = useIsMobile('(max-width: 1440px)')
 
 const loading = ref(false)
 const list = ref<KbVO[]>([])
@@ -125,6 +126,15 @@ const grantCandidates = computed(() => {
 })
 
 const viewMode = computed(() => settings.value.kbView)
+const hasFilter = computed(() => Boolean(query.keyword.trim() || query.visibility || query.favored))
+
+function clearFilters() {
+  query.keyword = ''
+  query.visibility = ''
+  query.favored = false
+  query.page = 1
+  void load()
+}
 
 async function load() {
   loading.value = true
@@ -466,6 +476,10 @@ function openUrl(url?: string) {
   if (url) window.open(url, '_blank')
 }
 
+function hideBrokenImage(event: Event) {
+  ;(event.target as HTMLImageElement).style.display = 'none'
+}
+
 /* ------------------------------------------------------------------ 标签编辑器 */
 function resetTagEditor() {
   tagDraft.value = ''
@@ -559,8 +573,20 @@ watch(org, () => {
 </script>
 
 <template>
-  <div class="md-card-panel">
-    <div class="md-panel-head">
+  <div class="md-page">
+    <AdminPageHeader
+      eyebrow="组织管理"
+      title="知识库管理"
+      description="集中管理组织内的知识库：建库、调整可见范围、维护名单，以及把内容发布到门户。"
+    >
+      <template #actions>
+        <el-button type="primary" @click="openCreate">
+          <MdIcon name="plus" :size="14" />新建知识库
+        </el-button>
+      </template>
+    </AdminPageHeader>
+
+    <div class="md-toolbar">
       <el-input v-model="query.keyword" placeholder="搜索名称 / 描述 / 标签" clearable style="width: 240px" />
       <el-select v-model="query.visibility" placeholder="全部可见范围" clearable style="width: 160px" @change="load">
         <el-option label="所有登录用户" value="public" />
@@ -573,9 +599,10 @@ watch(org, () => {
         <el-option label="名称" value="name" />
       </el-select>
       <el-checkbox v-model="query.favored" @change="load">仅看收藏</el-checkbox>
-      <span class="md-spacer" />
+      <span class="md-toolbar__spacer" />
+      <span class="md-toolbar__hint">共 {{ total }} 个知识库</span>
       <el-radio-group
-        v-if="!isMobile"
+        v-if="!isCompact"
         :model-value="viewMode"
         size="small"
         @change="(value) => setView(value as 'grid' | 'list')"
@@ -583,13 +610,25 @@ watch(org, () => {
         <el-radio-button value="grid">网格</el-radio-button>
         <el-radio-button value="list">列表</el-radio-button>
       </el-radio-group>
-      <el-button type="primary" @click="openCreate">
-        <MdIcon name="plus" :size="14" />新建知识库
-      </el-button>
     </div>
 
+    <section class="md-card-panel" :class="{ 'md-table-card': viewMode === 'list' && !isCompact }">
     <div class="md-panel-body" v-loading="loading">
-      <el-empty v-if="!loading && list.length === 0" description="暂无知识库" />
+      <div v-if="!loading && list.length === 0" class="md-empty">
+        <span class="md-empty__icon"><MdIcon name="books" :size="22" /></span>
+        <div class="md-empty__title">{{ hasFilter ? '没有匹配的知识库' : '还没有知识库' }}</div>
+        <p class="md-empty__desc">
+          {{ hasFilter
+            ? '换个关键字，或清除可见范围 / 收藏筛选后再试。'
+            : '建一个本地目录，或绑定线上 Git 仓库；内容与权限都会在这里集中管理。' }}
+        </p>
+        <el-button v-if="hasFilter" @click="clearFilters">
+          <MdIcon name="close" :size="14" />清除筛选
+        </el-button>
+        <el-button v-else type="primary" @click="openCreate">
+          <MdIcon name="plus" :size="14" />新建知识库
+        </el-button>
+      </div>
 
       <!--
         列表：一行一个库，把「谁能读 / 谁能改 / 多少篇」并排成列，扫一眼就能比对。
@@ -601,18 +640,16 @@ watch(org, () => {
         而「操作」列是 fixed="right" 的浮层——它会正好盖住「更新」那一格，
         日期看着像被截成了「2026-」。
 
-        「操作」列要放下「进入/分享/编辑/权限/更多」五个动作且不折行：实测每个链接式按钮
-        50px、间距 8px，一行需 5×50 + 4×8 = 282px，加上单元格左右各 12px 的内边距，
-        列宽下限是 306px（原来给 236px，只有 212px 可用，必然折成两行）。
-        这 76px 只能从「操作」自己身上出——「可见性/可写/篇数/更新」都已贴着文案宽度
-        （「全组织可写」五个字、日期串 16 个字符），再收就会折行或截断。
+        「操作」列用紧凑链接式按钮：进入 / 分享 / 编辑 / 权限 + 图标式「更多」，
+        288px 足够一行排完；再加文字标签就会折行，也会把「更新」挤成半截日期。
       -->
-      <el-table v-else-if="viewMode === 'list' && !isMobile" :data="list" style="width: 100%">
+      <el-table v-else-if="viewMode === 'list' && !isCompact" :data="list" style="width: 100%">
         <el-table-column label="名称" min-width="190">
           <template #default="{ row }">
             <div class="md-kb-cell__name">
-              <span class="md-kb-cell__thumb" :class="{ 'has-cover': row.coverSrc }">
-                <img v-if="row.coverSrc" :src="row.coverSrc" alt="" loading="lazy">
+              <span class="md-kb-cell__thumb">
+                <MdIcon name="books" :size="15" />
+                <img v-if="row.coverSrc" :src="row.coverSrc" alt="" loading="lazy" @error="hideBrokenImage">
               </span>
               <span class="md-kb-cell__text">
                 <strong>
@@ -625,7 +662,7 @@ watch(org, () => {
             </div>
           </template>
         </el-table-column>
-        <el-table-column label="可见范围" width="104">
+        <el-table-column label="可见范围" width="124">
           <template #default="{ row }">
             <span
               class="md-ad-chip"
@@ -666,7 +703,7 @@ watch(org, () => {
         <el-table-column label="更新" width="140">
           <template #default="{ row }">{{ row.updatedText }}</template>
         </el-table-column>
-        <el-table-column label="操作" width="312" fixed="right">
+        <el-table-column label="操作" width="288" fixed="right">
           <template #default="{ row }">
             <KbRowActions
               :kb="row"
@@ -684,9 +721,10 @@ watch(org, () => {
       </el-table>
 
       <div v-else class="md-kb-grid">
-        <div v-for="kb in list" :key="kb.id" class="md-kb-card">
+        <article v-for="kb in list" :key="kb.id" class="md-kb-card">
           <div class="md-kb-card__cover">
-            <img v-if="kb.coverSrc" :src="kb.coverSrc" :alt="kb.name" loading="lazy" />
+            <MdIcon name="books" :size="28" class="md-kb-card__cover-icon" />
+            <img v-if="kb.coverSrc" :src="kb.coverSrc" alt="" loading="lazy" @error="hideBrokenImage" />
           </div>
           <div class="md-kb-card__body">
             <div class="md-kb-card__title">
@@ -715,9 +753,11 @@ watch(org, () => {
               <span v-for="tag in kb.tags" :key="tag" class="md-ad-chip md-ad-chip--tag">{{ tag }}</span>
             </div>
             <div class="md-kb-card__meta">
-              <span>{{ kb.docCount }} 篇</span>
-              <span :title="maintainScopeHint(kb.maintainScope)">可写：{{ maintainScopeLabel(kb.maintainScope) }}</span>
-              <span>{{ kb.updatedText }}</span>
+              <span><MdIcon name="file" :size="12" />{{ kb.docCount }} 篇</span>
+              <span :title="maintainScopeHint(kb.maintainScope)">
+                <MdIcon name="key" :size="12" />可写：{{ maintainScopeLabel(kb.maintainScope) }}
+              </span>
+              <span><MdIcon name="clock" :size="12" />{{ kb.updatedText }}</span>
             </div>
           </div>
           <div class="md-kb-card__actions">
@@ -732,10 +772,16 @@ watch(org, () => {
               @remove="remove(kb)"
             />
           </div>
-        </div>
+        </article>
+
+        <button type="button" class="md-kb-create" @click="openCreate">
+          <span class="md-kb-create__icon"><MdIcon name="plus" :size="20" /></span>
+          <strong>新建知识库</strong>
+          <small>本地目录或云端 Git 仓库</small>
+        </button>
       </div>
 
-      <div style="display: flex; justify-content: flex-end; margin-top: 16px">
+      <div class="md-table-foot">
         <el-pagination
           v-model:current-page="query.page"
           v-model:page-size="query.size"
@@ -747,6 +793,7 @@ watch(org, () => {
         />
       </div>
     </div>
+    </section>
 
     <!-- 新建 / 编辑 -->
     <!--

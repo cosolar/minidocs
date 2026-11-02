@@ -2,12 +2,12 @@
 
 /*
  * 主标题落点的毛笔字：Ma Shan Zheng 完整 CJK 字体有好几 MB，
- * 这里只打包了「灵」「感」两个字形（约 1.9KB）的 WOFF2 子集，
+ * 这里只打包了「知」「识」「灵」「感」四个字形（约 2.7KB）的 WOFF2 子集，
  * 许可证随构建产物放在 public/OFL-MaShanZheng.txt。
  */
 @font-face {
   font-family: 'MD Brush';
-  src: url('../assets/fonts/mashanzheng-lingan.woff2') format('woff2');
+  src: url('../assets/fonts/mashanzheng-hero.woff2') format('woff2');
   font-weight: 400;
   font-style: normal;
   font-display: swap;
@@ -99,7 +99,7 @@
 }
 /*
  * 落点用毛笔字：比正文标题再大一点、微微下沉，笔画自然越过字身线，
- * 整句仍是深色主张，只有「灵感」换成实心青绿。
+ * 整句仍是深色主张，「知识」「灵感」两处换成同一套毛笔字与实心青绿。
  */
 .md-hero__title-mark {
   display: inline-block;
@@ -710,16 +710,26 @@
   min-width: 0;
 }
 /* 标题前的小色块跟着封面走，一排卡片之间能靠颜色快速认库 */
+/*
+ * 卡片身份位：库名首字 + 与封面同源的浅色底。
+ *
+ * 底色直接用封面的天空色（--cover-a），字色把 --cover-b 往墨绿里压到 28%：
+ * 13px 粗体在浅底上有 5:1 以上对比，又不至于深到和黑块一个观感。
+ */
 .md-card__mark {
   flex-shrink: 0;
-  width: 26px;
-  height: 26px;
+  width: 28px;
+  height: 28px;
   display: grid;
   place-items: center;
-  border-radius: 8px;
-  background: linear-gradient(140deg, color-mix(in srgb, var(--cover-b, #6bb6a6) 58%, #0b3b34), color-mix(in srgb, var(--cover-b, #6bb6a6) 34%, #0b3b34));
-  color: #fff;
-  box-shadow: 0 3px 8px -2px color-mix(in srgb, var(--cover-b, #6bb6a6) 55%, transparent);
+  border-radius: 9px;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1;
+  user-select: none;
+  color: color-mix(in srgb, var(--cover-b, #6bb6a6) 28%, #0b2b25);
+  background: var(--cover-a, #d3ece5);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--cover-b, #6bb6a6) 30%, transparent);
 }
 
 .md-card__title {

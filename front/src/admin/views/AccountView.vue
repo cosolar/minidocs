@@ -6,12 +6,14 @@
  * 人，不属于组织，放在组织下面会让人误以为「换个组织设置不同」，而且从阅读页顶栏点进来时
  * 并没有一个自然的 org 可填。组织自己的资料与成员治理在 {@code OrgSettingsView}。</p>
  */
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { authApi, avatarApi } from '@/admin/api'
+import AdminPageHeader from '@/admin/components/AdminPageHeader.vue'
 import MdIcon from '@/admin/components/MdIcon.vue'
 import HelpTip from '@/shared/components/HelpTip.vue'
 import { appBackendHref, appHref } from '@/shared/appBase'
+import { toApiErrorInfo } from '@/shared/api/http'
 import { useAuthStore } from '@/admin/stores/auth'
 import { useSettingsStore } from '@/shared/stores/settings'
 
@@ -23,6 +25,9 @@ const password = reactive({ oldPassword: '', newPassword: '', confirm: '' })
 const accountSaving = ref(false)
 const passwordSaving = ref(false)
 const verifySending = ref(false)
+/** 后端同一账号 60 秒只发一次；按钮同步倒计时，别让人靠反复点击去试出这条规则 */
+const verifyCooldown = ref(0)
+let verifyTimer: ReturnType<typeof setInterval> | undefined
 
 /**
  * 邮箱这一栏现在要不要催人去验证。
@@ -32,15 +37,36 @@ const verifySending = ref(false)
  */
 const emailUnverified = computed(() => auth.user?.emailVerified === false)
 
+function startVerifyCooldown() {
+  verifyCooldown.value = 60
+  if (verifyTimer) clearInterval(verifyTimer)
+  verifyTimer = setInterval(() => {
+    verifyCooldown.value -= 1
+    if (verifyCooldown.value <= 0) {
+      clearInterval(verifyTimer)
+      verifyTimer = undefined
+    }
+  }, 1000)
+}
+
 async function sendOwnVerification() {
+  if (verifyCooldown.value > 0) return
   verifySending.value = true
   try {
     await authApi.resendOwnVerification()
-    ElMessage.success('验证邮件已发送。没有收到请检查邮箱是否填写正确，以及邮件是否在垃圾邮件箱里')
+    startVerifyCooldown()
+    ElMessage.success('验证邮件已发送，60 秒后可重新发送；没收到请检查垃圾邮件箱')
+  } catch (error) {
+    // 后端已经发过一封时，把剩余的等待时间显式摆在按钮上
+    if (toApiErrorInfo(error).code === 42903) startVerifyCooldown()
   } finally {
     verifySending.value = false
   }
 }
+
+onBeforeUnmount(() => {
+  if (verifyTimer) clearInterval(verifyTimer)
+})
 
 /* ------------------------------------------------------------------ 头像 */
 const AVATAR_MAX_SIZE = 2 * 1024 * 1024
@@ -152,152 +178,196 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div style="display: grid; gap: 16px">
-    <div class="md-card-panel">
-      <div class="md-panel-head"><h2>头像<HelpTip text="支持 PNG / JPG / GIF / WebP / SVG，不超过 2MB；建议使用正方形图片。" /></h2></div>
+  <div class="md-page">
+    <AdminPageHeader
+      eyebrow="个人"
+      title="账号设置"
+      description="管理个人资料、登录密码与阅读偏好；偏好保存在服务端，换设备登录后自动同步。"
+    />
+
+    <section class="md-card-panel">
       <div class="md-panel-body">
-        <div class="md-avatar-field">
-          <span class="md-avatar-field__preview">
-            <img v-if="auth.avatarSrc" :src="auth.avatarSrc" :alt="auth.nickname" />
+        <div class="md-account-hero">
+          <span class="md-account-hero__avatar">
+            <img v-if="auth.avatarSrc" :src="auth.avatarSrc" alt="" />
             <template v-else>{{ (auth.nickname || 'U').slice(0, 1) }}</template>
           </span>
-          <div class="md-avatar-field__side">
-            <div class="md-avatar-field__actions">
-              <el-button type="primary" :loading="avatarUploading" @click="pickAvatar">
-                <MdIcon name="upload" :size="14" />上传头像
-              </el-button>
-              <el-button :disabled="!auth.avatarSrc" :loading="avatarRemoving" @click="removeAvatar">
-                <MdIcon name="trash" :size="14" />移除
-              </el-button>
+          <div class="md-account-hero__main">
+            <div class="md-account-hero__name">{{ auth.nickname || '未设置显示名' }}</div>
+            <div class="md-account-hero__meta">
+              <span>@{{ auth.user?.username }}</span>
+              <span class="md-account-hero__dot" />
+              <span>{{ auth.isPlatformAdmin ? '平台管理员' : '普通用户' }}</span>
+              <span v-if="emailUnverified" class="md-ad-chip md-ad-chip--owner">邮箱未验证</span>
             </div>
+          </div>
+          <div class="md-account-hero__actions">
+            <HelpTip text="支持 PNG / JPG / GIF / WebP / SVG，不超过 2MB；建议使用正方形图片。" />
+            <el-button type="primary" :loading="avatarUploading" @click="pickAvatar">
+              <MdIcon name="upload" :size="14" />上传头像
+            </el-button>
+            <el-button :disabled="!auth.avatarSrc" :loading="avatarRemoving" @click="removeAvatar">
+              <MdIcon name="trash" :size="14" />移除
+            </el-button>
           </div>
         </div>
         <input ref="avatarInput" type="file" accept="image/*" hidden @change="onAvatarChange" />
       </div>
-    </div>
+    </section>
 
-    <div class="md-card-panel">
-      <div class="md-panel-head"><h2>账号资料</h2></div>
-      <div class="md-panel-body">
-        <el-form label-position="top" style="max-width: 520px">
-          <el-form-item label="用户名（3-32 位，字母 / 数字 / 下划线，全局唯一）">
-            <el-input v-model="account.username" maxlength="32" />
-          </el-form-item>
-          <el-form-item label="显示名">
-            <el-input v-model="account.displayName" maxlength="64" />
-          </el-form-item>
-          <el-form-item>
-            <template #label>邮箱<HelpTip :width="360">
-              站点开启注册邮箱验证后，改邮箱会让「已验证」作废 —— 验证过的是旧地址，新地址要重新点一次链接。
-              没开启验证时改完即时生效，不发邮件。
-            </HelpTip></template>
-            <div class="md-account-email">
-              <el-input v-model="account.email" maxlength="128" autocomplete="email" placeholder="alice@example.com" />
-              <span v-if="emailUnverified" class="md-account-email__note">
-                <el-tag type="warning" size="small" effect="light">未验证</el-tag>
-                <el-button link type="primary" :loading="verifySending" @click="sendOwnVerification">
-                  <MdIcon name="mail" :size="13" />发送验证邮件
-                </el-button>
-              </span>
+    <div class="md-settings-grid">
+      <div class="md-settings-stack">
+        <section class="md-card-panel">
+          <div class="md-panel-head">
+            <div class="md-panel-head__text">
+              <h2>账号资料</h2>
+              <p class="md-panel-desc">用户名全局唯一；邮箱在开启验证的站点上改动后需要重新验证。</p>
             </div>
-          </el-form-item>
-          <el-form-item>
-            <el-button type="primary" :loading="accountSaving" @click="saveAccount">
-              <MdIcon name="save" :size="14" />保存资料
-            </el-button>
-          </el-form-item>
-        </el-form>
-      </div>
-    </div>
+          </div>
+          <div class="md-panel-body">
+            <el-form label-position="top" class="md-form-grid">
+              <el-form-item>
+                <template #label>用户名<HelpTip :width="320">
+                  3-32 位，字母 / 数字 / 下划线，全局唯一。
+                </HelpTip></template>
+                <el-input v-model="account.username" maxlength="32" />
+              </el-form-item>
+              <el-form-item label="显示名">
+                <el-input v-model="account.displayName" maxlength="64" />
+              </el-form-item>
+              <el-form-item class="md-form-span-2">
+                <template #label>邮箱<HelpTip :width="360">
+                  站点开启注册邮箱验证后，改邮箱会让「已验证」作废 —— 验证过的是旧地址，新地址要重新点一次链接。
+                  没开启验证时改完即时生效，不发邮件。
+                </HelpTip></template>
+                <div class="md-account-email">
+                  <el-input v-model="account.email" maxlength="128" autocomplete="email" placeholder="alice@example.com" />
+                  <span v-if="emailUnverified" class="md-account-email__note">
+                    <el-tag type="warning" size="small" effect="light">未验证</el-tag>
+                    <el-button link type="primary" :loading="verifySending" :disabled="verifyCooldown > 0" @click="sendOwnVerification">
+                      <MdIcon name="mail" :size="13" />{{ verifyCooldown > 0 ? `${verifyCooldown} 秒后可重试` : '发送验证邮件' }}
+                    </el-button>
+                  </span>
+                </div>
+              </el-form-item>
+              <div class="md-form-footer md-form-span-2">
+                <el-button type="primary" :loading="accountSaving" @click="saveAccount">
+                  <MdIcon name="save" :size="14" />保存资料
+                </el-button>
+              </div>
+            </el-form>
+          </div>
+        </section>
 
-    <div class="md-card-panel">
-      <div class="md-panel-head"><h2>修改密码</h2></div>
-      <div class="md-panel-body">
-        <el-form label-position="top" style="max-width: 520px">
-          <el-form-item label="原密码">
-            <el-input v-model="password.oldPassword" type="password" show-password />
-          </el-form-item>
-          <el-form-item label="新密码（6-64 位）">
-            <el-input v-model="password.newPassword" type="password" show-password />
-          </el-form-item>
-          <el-form-item label="确认新密码">
-            <el-input v-model="password.confirm" type="password" show-password />
-          </el-form-item>
-          <el-form-item>
-            <el-button type="primary" :loading="passwordSaving" @click="savePassword">
-              <MdIcon name="key" :size="14" />修改密码
-            </el-button>
-          </el-form-item>
-        </el-form>
+        <section class="md-card-panel">
+          <div class="md-panel-head">
+            <div class="md-panel-head__text">
+              <h2>外观与偏好</h2>
+              <p class="md-panel-desc">修改后立即保存，无需再点按钮。</p>
+            </div>
+            <span class="md-spacer" />
+            <HelpTip text="偏好保存在服务端（user_settings），换设备登录后自动同步。" />
+          </div>
+          <div class="md-panel-body">
+            <el-form label-position="top" class="md-form-grid">
+              <el-form-item label="主题模式">
+                <el-radio-group :model-value="settings.value.themeMode" @change="(value) => patch({ themeMode: value })">
+                  <el-radio-button value="light">浅色</el-radio-button>
+                  <el-radio-button value="dark">深色</el-radio-button>
+                  <el-radio-button value="system">跟随系统</el-radio-button>
+                </el-radio-group>
+              </el-form-item>
+              <el-form-item label="代码块主题">
+                <el-select
+                  :model-value="settings.value.codeTheme"
+                  style="width: 100%"
+                  @change="(value) => patch({ codeTheme: value })"
+                >
+                  <el-option v-for="theme in codeThemes" :key="theme.value" :label="theme.label" :value="theme.value" />
+                </el-select>
+              </el-form-item>
+              <el-form-item label="阅读区最大宽度" class="md-form-span-2">
+                <el-slider
+                  :model-value="settings.value.contentWidth"
+                  :min="720"
+                  :max="1400"
+                  :step="20"
+                  show-input
+                  style="max-width: 460px"
+                  @change="(value) => patch({ contentWidth: value })"
+                />
+              </el-form-item>
+              <el-form-item label="知识库列表默认视图">
+                <el-radio-group :model-value="settings.value.kbView" @change="(value) => patch({ kbView: value })">
+                  <el-radio-button value="grid">网格</el-radio-button>
+                  <el-radio-button value="list">列表</el-radio-button>
+                </el-radio-group>
+              </el-form-item>
+              <el-form-item label="阅读页默认视图">
+                <el-radio-group :model-value="settings.value.defaultView" @change="(value) => patch({ defaultView: value })">
+                  <el-radio-button value="read">阅读</el-radio-button>
+                  <el-radio-button value="outline">大纲优先</el-radio-button>
+                </el-radio-group>
+              </el-form-item>
+              <el-form-item label="侧边栏默认展开" class="md-form-span-2">
+                <el-switch
+                  :model-value="settings.value.showDocTree"
+                  @change="(value) => patch({ showDocTree: value })"
+                />
+              </el-form-item>
+            </el-form>
+          </div>
+        </section>
       </div>
-    </div>
 
-    <div class="md-card-panel">
-      <div class="md-panel-head"><h2>外观与偏好<HelpTip text="偏好保存在服务端（user_settings），换设备登录后自动同步。" /></h2></div>
-      <div class="md-panel-body">
-        <el-form label-position="top" style="max-width: 620px">
-          <el-form-item label="主题模式">
-            <el-radio-group :model-value="settings.value.themeMode" @change="(value) => patch({ themeMode: value })">
-              <el-radio-button value="light">浅色</el-radio-button>
-              <el-radio-button value="dark">深色</el-radio-button>
-              <el-radio-button value="system">跟随系统</el-radio-button>
-            </el-radio-group>
-          </el-form-item>
-          <el-form-item label="代码块主题">
-            <el-select
-              :model-value="settings.value.codeTheme"
-              style="width: 220px"
-              @change="(value) => patch({ codeTheme: value })"
-            >
-              <el-option v-for="theme in codeThemes" :key="theme.value" :label="theme.label" :value="theme.value" />
-            </el-select>
-          </el-form-item>
-          <el-form-item label="阅读区最大宽度">
-            <el-slider
-              :model-value="settings.value.contentWidth"
-              :min="720"
-              :max="1400"
-              :step="20"
-              show-input
-              style="max-width: 460px"
-              @change="(value) => patch({ contentWidth: value })"
-            />
-          </el-form-item>
-          <el-form-item label="知识库列表默认视图">
-            <el-radio-group :model-value="settings.value.kbView" @change="(value) => patch({ kbView: value })">
-              <el-radio-button value="grid">网格</el-radio-button>
-              <el-radio-button value="list">列表</el-radio-button>
-            </el-radio-group>
-          </el-form-item>
-          <el-form-item label="侧边栏默认展开">
-            <el-switch
-              :model-value="settings.value.showDocTree"
-              @change="(value) => patch({ showDocTree: value })"
-            />
-          </el-form-item>
-          <el-form-item label="阅读页默认视图">
-            <el-radio-group :model-value="settings.value.defaultView" @change="(value) => patch({ defaultView: value })">
-              <el-radio-button value="read">阅读</el-radio-button>
-              <el-radio-button value="outline">大纲优先</el-radio-button>
-            </el-radio-group>
-          </el-form-item>
-        </el-form>
-      </div>
-    </div>
+      <div class="md-settings-stack">
+        <section class="md-card-panel">
+          <div class="md-panel-head">
+            <div class="md-panel-head__text">
+              <h2>修改密码</h2>
+              <p class="md-panel-desc">改完后请用新密码重新登录其他设备。</p>
+            </div>
+          </div>
+          <div class="md-panel-body">
+            <el-form label-position="top">
+              <el-form-item label="原密码">
+                <el-input v-model="password.oldPassword" type="password" show-password />
+              </el-form-item>
+              <el-form-item>
+                <template #label>新密码<HelpTip :width="300">6-64 位。</HelpTip></template>
+                <el-input v-model="password.newPassword" type="password" show-password />
+              </el-form-item>
+              <el-form-item label="确认新密码">
+                <el-input v-model="password.confirm" type="password" show-password />
+              </el-form-item>
+              <div class="md-form-footer">
+                <el-button type="primary" :loading="passwordSaving" @click="savePassword">
+                  <MdIcon name="key" :size="14" />修改密码
+                </el-button>
+              </div>
+            </el-form>
+          </div>
+        </section>
 
-    <div class="md-card-panel">
-      <div class="md-panel-head"><h2>关于</h2></div>
-      <div class="md-panel-body">
-        <el-descriptions :column="1" border>
-          <el-descriptions-item label="版本">MiniDocs 1.2.2</el-descriptions-item>
-          <el-descriptions-item label="接口文档">
-            <!-- swagger 由后端伺服，要带 context-path；页面基址是根，两者不是同一段 -->
-            <a :href="appBackendHref('/swagger-ui.html')" target="_blank" style="color: var(--md-primary)">/swagger-ui.html</a>
-          </el-descriptions-item>
-          <el-descriptions-item label="门户首页">
-            <a :href="appHref('/')" target="_blank" style="color: var(--md-primary)">/</a>
-          </el-descriptions-item>
-        </el-descriptions>
+        <section class="md-card-panel">
+          <div class="md-panel-head">
+            <div class="md-panel-head__text"><h2>关于</h2><p class="md-panel-desc">当前部署的版本与入口。</p></div>
+          </div>
+          <div class="md-panel-body">
+            <div class="md-profile__rows">
+              <div class="md-profile__row"><span>版本</span><span>MiniDocs 1.2.3</span></div>
+              <div class="md-profile__row">
+                <span>接口文档</span>
+                <!-- swagger 由后端伺服，要带 context-path；页面基址是根，两者不是同一段 -->
+                <span><a :href="appBackendHref('/swagger-ui.html')" target="_blank" class="md-text-link">/swagger-ui.html</a></span>
+              </div>
+              <div class="md-profile__row">
+                <span>门户首页</span>
+                <span><a :href="appHref('/')" target="_blank" class="md-text-link">打开门户</a></span>
+              </div>
+            </div>
+          </div>
+        </section>
       </div>
     </div>
   </div>

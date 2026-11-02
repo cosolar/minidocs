@@ -16,6 +16,7 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { siteApi, themeApi } from '@/admin/api'
+import AdminPageHeader from '@/admin/components/AdminPageHeader.vue'
 import MdIcon from '@/admin/components/MdIcon.vue'
 import HelpTip from '@/shared/components/HelpTip.vue'
 import { useSiteStore } from '@/shared/stores/site'
@@ -465,10 +466,19 @@ onMounted(() => {
 </script>
 
 <template>
-  <div v-loading="loading" style="display: grid; gap: 16px">
+  <div v-loading="loading" class="md-page">
+    <AdminPageHeader
+      eyebrow="站点"
+      title="站点设置"
+      description="配置全站品牌、分享链接、邮件服务与阅读主题；所有修改对全部署生效。"
+    />
+
     <div class="md-card-panel">
       <div class="md-panel-head">
-        <h2>站点品牌</h2>
+        <div class="md-panel-head__text">
+          <h2>站点品牌</h2>
+          <p class="md-panel-desc">站点图标用于浏览器标签页；横版 Logo 用于顶栏、侧栏、登录页与页脚。</p>
+        </div>
         <span class="md-ad-chip">全部署生效</span>
       </div>
       <div class="md-panel-body">
@@ -583,7 +593,10 @@ onMounted(() => {
 
     <div class="md-card-panel">
       <div class="md-panel-head">
-        <h2>分享链接</h2>
+        <div class="md-panel-head__text">
+          <h2>分享链接</h2>
+          <p class="md-panel-desc">站点基址决定新建分享链接的域名与路径前缀。</p>
+        </div>
         <span class="md-ad-chip">全部署生效</span>
       </div>
       <div class="md-panel-body">
@@ -611,10 +624,13 @@ onMounted(() => {
 
     <div v-loading="mailLoading" class="md-card-panel">
       <div class="md-panel-head">
-        <h2>邮件与邮箱验证<HelpTip :width="400">
-          填好 SMTP 参数后，这台部署就能把注册验证码发出去。
-          口令加密存库、保存后不再回显；不配 SMTP 也可以，只是没法开启邮箱验证。
-        </HelpTip></h2>
+        <div class="md-panel-head__text">
+          <h2>邮件与邮箱验证<HelpTip :width="400">
+            填好 SMTP 参数后，这台部署就能把注册验证码发出去。
+            口令加密存库、保存后不再回显；不配 SMTP 也可以，只是没法开启邮箱验证。
+          </HelpTip></h2>
+          <p class="md-panel-desc">注册验证码依赖这里的发件服务器；保存后可以发一封测试信确认。</p>
+        </div>
         <span class="md-ad-chip">全部署生效</span>
       </div>
       <div class="md-panel-body">
@@ -742,7 +758,10 @@ onMounted(() => {
 
     <div v-loading="themesLoading" class="md-card-panel">
       <div class="md-panel-head">
-        <h2>阅读主题<HelpTip :width="380" text="读者在阅读页 / 分享页的「阅读设置」里挑主题；每套主题自带明亮与暗黑两档，与现有的外观切换相互独立。装好的主题会出现在所有读者的面板里，刷新即生效。点击卡片可把它设为新访客的默认主题：没自己选过主题的访客第一次打开就套用它；读过一次并自己选过的人，仍以读者自己的选择为准。" /></h2>
+        <div class="md-panel-head__text">
+          <h2>阅读主题<HelpTip :width="380" text="读者在阅读页 / 分享页的「阅读设置」里挑主题；每套主题自带明亮与暗黑两档，与现有的外观切换相互独立。装好的主题会出现在所有读者的面板里，刷新即生效。点击卡片可把它设为新访客的默认主题：没自己选过主题的访客第一次打开就套用它；读过一次并自己选过的人，仍以读者自己的选择为准。" /></h2>
+          <p class="md-panel-desc">点击主题卡片可设为新访客的默认主题；读者自己选过的偏好不会被覆盖。</p>
+        </div>
         <span class="md-ad-chip">读者可选</span>
       </div>
       <div class="md-panel-body">

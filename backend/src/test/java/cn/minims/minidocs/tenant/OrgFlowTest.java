@@ -152,7 +152,7 @@ class OrgFlowTest extends MiniDocsTestBase {
 
             assertThat(vo.myRole()).isEqualTo(TenantMember.ROLE_OWNER);
             assertThat(vo.memberCount()).isEqualTo(1);
-            assertThat(tenantService.discover(1, 20).list()).extracting("slug").contains("blue");
+            assertThat(tenantService.discover(1, 20, null).list()).extracting("slug").contains("blue");
         }
 
         @Test
@@ -190,9 +190,11 @@ class OrgFlowTest extends MiniDocsTestBase {
             tenantService.update(Wrappers.<Tenant>lambdaUpdate().eq(Tenant::getId, frozen.getId())
                     .set(Tenant::getStatus, Tenant.STATUS_DISABLED));
 
-            assertThat(tenantService.discover(1, 20).list()).extracting("slug").containsExactly("acme");
-            assertThat(tenantService.discover(1, 20).list()).extracting("slug")
+            assertThat(tenantService.discover(1, 20, null).list()).extracting("slug").containsExactly("acme");
+            assertThat(tenantService.discover(1, 20, null).list()).extracting("slug")
                     .doesNotContain(personal.getSlug(), hidden.getSlug(), frozen.getSlug());
+            assertThat(tenantService.discover(1, 20, "acm").list()).extracting("slug").containsExactly("acme");
+            assertThat(tenantService.discover(1, 20, "missing").list()).isEmpty();
         }
 
         @Test

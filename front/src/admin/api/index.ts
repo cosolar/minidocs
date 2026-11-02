@@ -305,7 +305,11 @@ export const orgApi = {
  */
 export const tenantApi = {
   create: (data: Record<string, unknown>) => request<OrgVO>({ url: '/tenants', method: 'post', data }),
-  discover: (keyword?: string) => request<DiscoverOrgVO[]>({ url: '/tenants/discover', params: { keyword } }),
+  discover: (keyword?: string) =>
+    request<PageResult<DiscoverOrgVO>>({
+      url: '/tenants/discover',
+      params: { keyword, page: 1, size: 50 }
+    }),
   applyJoin: (slug: string, message?: string) =>
     request<void>({ url: `/console/${encodeURIComponent(slug)}/join-request`, method: 'post', data: { message } })
 }

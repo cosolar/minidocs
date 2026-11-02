@@ -9,6 +9,8 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { orgApi } from '@/admin/api'
+import AdminPageHeader from '@/admin/components/AdminPageHeader.vue'
+import MdIcon from '@/admin/components/MdIcon.vue'
 import { useIsMobile } from '@/admin/composables/useIsMobile'
 import type { AuditVO, OrgMemberVO } from '@/shared/api/types'
 
@@ -146,10 +148,14 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="md-card-panel">
-    <div class="md-panel-head">
-      <h2>操作审计</h2>
-      <span class="md-spacer" />
+  <div class="md-page">
+    <AdminPageHeader
+      eyebrow="组织管理"
+      title="审计日志"
+      description="记录组织内的重要操作，保留 180 天；筛选条件会同步到地址栏，方便把同一批记录发给同事。"
+    />
+
+    <div class="md-toolbar">
       <el-select
         :model-value="query.action"
         style="width: 190px"
@@ -175,69 +181,89 @@ onMounted(async () => {
         range-separator="至"
         start-placeholder="开始日期"
         end-placeholder="结束日期"
-        style="width: 240px"
+        style="width: 260px"
         @change="applyFilters"
       />
-      <span class="md-ad-sub">共 {{ total }} 条 · 保留 180 天</span>
+      <span class="md-toolbar__spacer" />
+      <span class="md-toolbar__hint">共 {{ total }} 条</span>
     </div>
-    <div v-loading="loading" class="md-panel-body">
-      <p v-if="failed" class="md-copy-hint">读取失败：要么这个组织不属于你，要么你在这里的角色看不到审计。</p>
-      <div v-else-if="isMobile" class="md-ad-cards">
-        <el-empty v-if="!rows.length" description="暂无记录" />
-        <div v-for="row in rows" :key="row.id" class="md-ad-item">
-          <div class="md-ad-item__head">
-            <div class="md-ad-item__title">
-              <strong>{{ row.action }}</strong>
-              <small>{{ row.createdText }}</small>
-            </div>
-            <span class="md-ad-chip">{{ row.actor || '—' }}</span>
-          </div>
-          <div class="md-ad-item__meta">
-            <span v-if="row.kbName">{{ row.kbName }}<template v-if="row.docPath"> / {{ row.docPath }}</template></span>
-            <span v-else-if="row.docPath">{{ row.docPath }}</span>
-            <span v-else>—</span>
-          </div>
-          <div v-if="detailEntries(row.detail).length" class="md-ad-item__chips">
-            <span v-for="entry in detailEntries(row.detail)" :key="entry[0]" class="md-ad-detail">
-              {{ entry[0] }}={{ entry[1] }}
-            </span>
-          </div>
+
+    <section class="md-card-panel md-table-card">
+      <div class="md-panel-head">
+        <div class="md-panel-head__text">
+          <h2>操作记录</h2>
+          <p class="md-panel-desc">超级管理员的越权访问会以 bypass=SUPER_ADMIN 标在详情里。</p>
         </div>
       </div>
-      <el-table v-else :data="rows" style="width: 100%">
-        <el-table-column prop="createdText" label="时间" width="150" />
-        <el-table-column label="操作者" width="140">
-          <template #default="{ row }">{{ row.actor || '—' }}</template>
-        </el-table-column>
-        <el-table-column label="动作" width="190">
-          <template #default="{ row }"><span class="md-ad-chip">{{ row.action }}</span></template>
-        </el-table-column>
-        <el-table-column label="对象" min-width="220">
-          <template #default="{ row }">
-            <span v-if="row.kbName">{{ row.kbName }}</span>
-            <span v-if="row.docPath" class="md-ad-sub"> / {{ row.docPath }}</span>
-            <span v-if="!row.kbName && !row.docPath" class="md-ad-sub">—</span>
+      <div v-loading="loading" class="md-panel-body">
+        <p v-if="failed" class="md-copy-hint">读取失败：要么这个组织不属于你，要么你在这里的角色看不到审计。</p>
+        <div v-else-if="isMobile" class="md-ad-cards">
+          <div v-if="!rows.length" class="md-empty">
+            <span class="md-empty__icon"><MdIcon name="clock" :size="22" /></span>
+            <div class="md-empty__title">暂无记录</div>
+          </div>
+          <div v-for="row in rows" :key="row.id" class="md-ad-item">
+            <div class="md-ad-item__head">
+              <div class="md-ad-item__title">
+                <strong>{{ row.action }}</strong>
+                <small>{{ row.createdText }}</small>
+              </div>
+              <span class="md-ad-chip">{{ row.actor || '—' }}</span>
+            </div>
+            <div class="md-ad-item__meta">
+              <span v-if="row.kbName">{{ row.kbName }}<template v-if="row.docPath"> / {{ row.docPath }}</template></span>
+              <span v-else-if="row.docPath">{{ row.docPath }}</span>
+              <span v-else>—</span>
+            </div>
+            <div v-if="detailEntries(row.detail).length" class="md-ad-item__chips">
+              <span v-for="entry in detailEntries(row.detail)" :key="entry[0]" class="md-ad-detail">
+                {{ entry[0] }}={{ entry[1] }}
+              </span>
+            </div>
+          </div>
+        </div>
+        <el-table v-else :data="rows" style="width: 100%">
+          <template #empty>
+            <div class="md-empty">
+              <span class="md-empty__icon"><MdIcon name="clock" :size="22" /></span>
+              <div class="md-empty__title">暂无记录</div>
+              <p class="md-empty__desc">当前筛选条件下没有匹配的审计记录。</p>
+            </div>
           </template>
-        </el-table-column>
-        <el-table-column label="详情" min-width="240">
-          <template #default="{ row }">
-            <span v-for="entry in detailEntries(row.detail)" :key="entry[0]" class="md-ad-detail">
-              {{ entry[0] }}={{ entry[1] }}
-            </span>
-          </template>
-        </el-table-column>
-      </el-table>
-      <div class="md-ad-pager">
-        <el-pagination
-          v-model:current-page="query.page"
-          v-model:page-size="query.size"
-          :total="total"
-          :page-sizes="[20, 50, 100]"
-          layout="total, sizes, prev, pager, next"
-          @current-change="reload"
-          @size-change="applyFilters"
-        />
+          <el-table-column prop="createdText" label="时间" width="160" />
+          <el-table-column label="操作者" width="140">
+            <template #default="{ row }">{{ row.actor || '—' }}</template>
+          </el-table-column>
+          <el-table-column label="动作" width="200">
+            <template #default="{ row }"><span class="md-ad-chip">{{ row.action }}</span></template>
+          </el-table-column>
+          <el-table-column label="对象" min-width="220">
+            <template #default="{ row }">
+              <span v-if="row.kbName">{{ row.kbName }}</span>
+              <span v-if="row.docPath" class="md-ad-sub"> / {{ row.docPath }}</span>
+              <span v-if="!row.kbName && !row.docPath" class="md-ad-sub">—</span>
+            </template>
+          </el-table-column>
+          <el-table-column label="详情" min-width="240">
+            <template #default="{ row }">
+              <span v-for="entry in detailEntries(row.detail)" :key="entry[0]" class="md-ad-detail">
+                {{ entry[0] }}={{ entry[1] }}
+              </span>
+            </template>
+          </el-table-column>
+        </el-table>
+        <div class="md-table-foot">
+          <el-pagination
+            v-model:current-page="query.page"
+            v-model:page-size="query.size"
+            :total="total"
+            :page-sizes="[20, 50, 100]"
+            layout="total, sizes, prev, pager, next"
+            @current-change="reload"
+            @size-change="applyFilters"
+          />
+        </div>
       </div>
-    </div>
+    </section>
   </div>
 </template>

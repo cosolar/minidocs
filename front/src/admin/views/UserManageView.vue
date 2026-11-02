@@ -2,6 +2,7 @@
 import { onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { userApi } from '@/admin/api'
+import AdminPageHeader from '@/admin/components/AdminPageHeader.vue'
 import MdIcon from '@/admin/components/MdIcon.vue'
 import HelpTip from '@/shared/components/HelpTip.vue'
 import { useIsMobile } from '@/admin/composables/useIsMobile'
@@ -110,33 +111,51 @@ onMounted(load)
 </script>
 
 <template>
-  <div class="md-card-panel">
-    <div class="md-panel-head">
+  <div class="md-page">
+    <AdminPageHeader
+      eyebrow="站点"
+      title="平台用户管理"
+      description="管理全站账号、角色与启停状态；删除用户会连带删除其知识库与分享。"
+    />
+
+    <div class="md-toolbar">
       <el-input
         v-model="query.keyword"
         placeholder="搜索用户名 / 邮箱 / 显示名"
         clearable
-        style="width: 240px"
+        style="width: 280px"
         @keyup.enter="load"
         @clear="load"
       />
-      <el-select v-model="query.status" placeholder="全部状态" clearable style="width: 140px" @change="load">
+      <el-select v-model="query.status" placeholder="全部状态" clearable style="width: 150px" @change="load">
         <el-option label="正常" value="active" />
         <el-option label="待审核" value="pending" />
         <el-option label="已拒绝" value="rejected" />
         <el-option label="已禁用" value="disabled" />
       </el-select>
-      <el-button @click="load">
+      <el-button type="primary" @click="load">
         <MdIcon name="search" :size="14" />查询
       </el-button>
-      <span class="md-spacer" />
+      <span class="md-toolbar__spacer" />
+      <span class="md-toolbar__hint">共 {{ total }} 位用户</span>
       <HelpTip text="自主注册由部署配置 minidocs.register-enabled 控制：官方单镜像默认关闭，dev 配置默认开启；改动要重启后端才生效。" />
     </div>
 
-    <div class="md-panel-body">
+    <section class="md-card-panel md-table-card">
+      <div class="md-panel-head">
+        <div class="md-panel-head__text">
+          <h2>账号列表</h2>
+          <p class="md-panel-desc">平台管理员不参与组织内权限判定，但可以在此重置密码或停用账号。</p>
+        </div>
+      </div>
+      <div class="md-panel-body">
       <!-- 窄屏：表格那 330px 的固定操作列会把正文挤没，改成一卡一人 -->
       <div v-if="isMobile" v-loading="loading" class="md-ad-cards">
-        <el-empty v-if="!loading && !list.length" description="暂无用户" />
+        <div v-if="!loading && !list.length" class="md-empty">
+          <span class="md-empty__icon"><MdIcon name="users" :size="22" /></span>
+          <div class="md-empty__title">暂无用户</div>
+          <p class="md-empty__desc">调整筛选条件，或等待新用户注册。</p>
+        </div>
         <div v-for="row in list" :key="row.id" class="md-ad-item">
           <div class="md-ad-item__head">
             <div class="md-ad-item__title">
@@ -144,9 +163,9 @@ onMounted(load)
               <small>{{ row.displayName || '—' }}</small>
             </div>
             <div class="md-ad-item__chips">
-              <el-tag size="small" :type="row.role === 'ADMIN' ? 'danger' : 'info'">
+              <span :class="['md-ad-chip', row.role === 'ADMIN' ? 'md-ad-chip--admin' : 'md-ad-chip--member']">
                 {{ row.role === 'ADMIN' ? '管理员' : '用户' }}
-              </el-tag>
+              </span>
               <el-tag size="small" :type="statusTag(row.status)">{{ statusText(row.status) }}</el-tag>
             </div>
           </div>
@@ -195,21 +214,25 @@ onMounted(load)
       </div>
 
       <el-table v-else :data="list" v-loading="loading" style="width: 100%">
-        <el-table-column prop="id" label="ID" width="70" />
-        <el-table-column label="用户" min-width="160">
+        <el-table-column label="用户" min-width="200">
           <template #default="{ row }">
-            <div><strong>{{ row.username }}</strong></div>
-            <div class="md-copy-hint">{{ row.displayName || '—' }}</div>
+            <div class="md-user-cell">
+              <span class="md-user-cell__avatar">{{ (row.displayName || row.username).slice(0, 1) }}</span>
+              <div class="md-user-cell__text">
+                <strong>{{ row.username }}</strong>
+                <small>{{ row.displayName || '未设置显示名' }}</small>
+              </div>
+            </div>
           </template>
         </el-table-column>
-        <el-table-column prop="email" label="邮箱" min-width="180">
+        <el-table-column prop="email" label="邮箱" min-width="190">
           <template #default="{ row }">{{ row.email || '—' }}</template>
         </el-table-column>
         <el-table-column label="角色" width="100" align="center">
           <template #default="{ row }">
-            <el-tag size="small" :type="row.role === 'ADMIN' ? 'danger' : 'info'">
+            <span :class="['md-ad-chip', row.role === 'ADMIN' ? 'md-ad-chip--admin' : 'md-ad-chip--member']">
               {{ row.role === 'ADMIN' ? '管理员' : '用户' }}
-            </el-tag>
+            </span>
           </template>
         </el-table-column>
         <el-table-column label="状态" width="100" align="center">
@@ -223,46 +246,48 @@ onMounted(load)
             <span class="md-copy-hint">{{ (row.createdAt || '').replace('T', ' ').slice(0, 16) }}</span>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="330" fixed="right">
+        <el-table-column label="操作" width="280" fixed="right" align="right">
           <template #default="{ row }">
-            <el-button size="small" @click="openEdit(row)">
-              <MdIcon name="edit" :size="14" />编辑
-            </el-button>
-            <el-button v-if="row.status === 'pending'" size="small" type="success" @click="changeStatus(row, 'approve')">
-              <MdIcon name="check" :size="14" />通过
-            </el-button>
-            <el-button v-if="row.status === 'pending'" size="small" @click="changeStatus(row, 'reject')">
-              <MdIcon name="ban" :size="14" />拒绝
-            </el-button>
-            <el-button v-if="row.status === 'active' && row.role !== 'ADMIN'" size="small" @click="changeStatus(row, 'disable')">
-              <MdIcon name="lock" :size="14" />禁用
-            </el-button>
-            <el-button v-if="row.status === 'disabled'" size="small" type="success" @click="changeStatus(row, 'enable')">
-              <MdIcon name="check" :size="14" />启用
-            </el-button>
-            <el-dropdown>
-              <el-button size="small">
-                <MdIcon name="more" :size="14" />更多
+            <div class="md-row-actions">
+              <el-button link type="primary" size="small" @click="openEdit(row)">
+                <MdIcon name="edit" :size="14" />编辑
               </el-button>
-              <template #dropdown>
-                <el-dropdown-menu>
-                  <el-dropdown-item @click="openReset(row)">
-                    <MdIcon name="key" :size="14" />重置密码
-                  </el-dropdown-item>
-                  <el-dropdown-item @click="changeStatus(row, 'pending')">
-                    <MdIcon name="refresh" :size="14" />置回待审核
-                  </el-dropdown-item>
-                  <el-dropdown-item divided @click="remove(row)">
-                    <MdIcon name="trash" :size="14" />删除用户
-                  </el-dropdown-item>
-                </el-dropdown-menu>
-              </template>
-            </el-dropdown>
+              <el-button v-if="row.status === 'pending'" link type="success" size="small" @click="changeStatus(row, 'approve')">
+                <MdIcon name="check" :size="14" />通过
+              </el-button>
+              <el-button v-if="row.status === 'pending'" link size="small" @click="changeStatus(row, 'reject')">
+                <MdIcon name="ban" :size="14" />拒绝
+              </el-button>
+              <el-button v-if="row.status === 'active' && row.role !== 'ADMIN'" link type="danger" size="small" @click="changeStatus(row, 'disable')">
+                <MdIcon name="lock" :size="14" />禁用
+              </el-button>
+              <el-button v-if="row.status === 'disabled'" link type="success" size="small" @click="changeStatus(row, 'enable')">
+                <MdIcon name="check" :size="14" />启用
+              </el-button>
+              <el-dropdown>
+                <el-button link size="small">
+                  <MdIcon name="more" :size="14" />更多
+                </el-button>
+                <template #dropdown>
+                  <el-dropdown-menu>
+                    <el-dropdown-item @click="openReset(row)">
+                      <MdIcon name="key" :size="14" />重置密码
+                    </el-dropdown-item>
+                    <el-dropdown-item @click="changeStatus(row, 'pending')">
+                      <MdIcon name="refresh" :size="14" />置回待审核
+                    </el-dropdown-item>
+                    <el-dropdown-item divided @click="remove(row)">
+                      <MdIcon name="trash" :size="14" />删除用户
+                    </el-dropdown-item>
+                  </el-dropdown-menu>
+                </template>
+              </el-dropdown>
+            </div>
           </template>
         </el-table-column>
       </el-table>
 
-      <div style="display: flex; justify-content: flex-end; margin-top: 16px">
+      <div class="md-table-foot">
         <el-pagination
           v-model:current-page="query.page"
           v-model:page-size="query.size"
@@ -274,6 +299,7 @@ onMounted(load)
         />
       </div>
     </div>
+    </section>
 
     <el-dialog v-model="editVisible" title="编辑用户" width="480px">
       <el-form label-position="top">

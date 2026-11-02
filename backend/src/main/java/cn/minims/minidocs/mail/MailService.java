@@ -155,13 +155,13 @@ public class MailService {
     /**
      * 读一次站点配置，把邮件里要用的品牌信息一次取齐。
      *
-     * <p>Logo 先看管理员上传的那张，没有就退回内置的 {@code /logo-mark.png}；
+     * <p>Logo 先看管理员上传的那张，没有就退回内置的横版标志 {@code /brand-lockup.png}；
      * 两者都拼成绝对地址，邮件客户端才加载得到。</p>
      */
     private Brand brand(String baseUrl) {
         SiteConfigVO site = siteConfigService.get();
         String logoSrc = site.logoSrc() == null || site.logoSrc().isBlank()
-                ? AppPaths.of("/logo-mark.png")
+                ? AppPaths.of("/brand-lockup.png")
                 : site.logoSrc();
         return new Brand(site.name(), site.subtitle(), hostOf(baseUrl),
                 absoluteUrl(baseUrl, logoSrc));

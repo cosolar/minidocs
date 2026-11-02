@@ -290,11 +290,11 @@ public class EmailVerificationService {
 
     private void acquireResendQuota(String account, String ip) {
         if (!rateLimiter.tryAcquire(RESEND_KEY_ACCOUNT + account, RESEND_LIMIT_ACCOUNT, RESEND_WINDOW)) {
-            throw BizException.of(ErrorCode.RESEND_TOO_FREQUENT, "验证邮件刚刚发过，请稍后再试");
+            throw BizException.of(ErrorCode.RESEND_TOO_FREQUENT, "验证邮件刚刚发过，请 60 秒后再试");
         }
         if (ip != null && !ip.isBlank()
                 && !rateLimiter.tryAcquire(RESEND_KEY_IP + ip, RESEND_LIMIT_IP, RESEND_WINDOW)) {
-            throw BizException.of(ErrorCode.RESEND_TOO_FREQUENT, "当前网络发送验证邮件过于频繁，请稍后再试");
+            throw BizException.of(ErrorCode.RESEND_TOO_FREQUENT, "当前网络发送验证邮件过于频繁，请 60 秒后再试");
         }
     }
 

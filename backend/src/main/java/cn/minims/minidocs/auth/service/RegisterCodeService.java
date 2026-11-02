@@ -153,11 +153,11 @@ public class RegisterCodeService {
 
     private void acquireSendQuota(String email, String ip) {
         if (!rateLimiter.tryAcquire(SEND_KEY_EMAIL + email, SEND_LIMIT_EMAIL, SEND_WINDOW)) {
-            throw BizException.of(ErrorCode.RESEND_TOO_FREQUENT, "验证码刚刚发过，请稍后再试");
+            throw BizException.of(ErrorCode.RESEND_TOO_FREQUENT, "验证码刚刚发过，请 60 秒后再试");
         }
         if (ip != null && !ip.isBlank()
                 && !rateLimiter.tryAcquire(SEND_KEY_IP + ip, SEND_LIMIT_IP, SEND_WINDOW)) {
-            throw BizException.of(ErrorCode.RESEND_TOO_FREQUENT, "当前网络获取验证码过于频繁，请稍后再试");
+            throw BizException.of(ErrorCode.RESEND_TOO_FREQUENT, "当前网络获取验证码过于频繁，请 60 秒后再试");
         }
     }
 

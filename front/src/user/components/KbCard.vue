@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import Icon from '@/user/components/Icon.vue'
 import { useSessionStore } from '@/user/stores/session'
 import { portalKbUrl } from '@/shared/portal'
@@ -38,6 +38,15 @@ const coverFailed = ref(false)
 watch(() => props.kb.coverSrc, () => (coverFailed.value = false))
 const showCover = computed(() => !!props.kb.coverSrc && !coverFailed.value)
 /**
+ * 卡片身份位：取库名第一个字（中文取词首、英文取首字母），底色调自封面同一套色板。
+ *
+ * <p>这里原本是一枚深色渐变方块 + 通用「书」图标：26px 上只剩一团黑，
+ * 而且每张卡片一模一样，看整屏全是同一枚记号。首字让每个库有自己的身份，
+ * 浅底也不会和上方的水彩封面抢。</p>
+ */
+const initial = computed(() => Array.from((props.kb.name || '').trim())[0] || '?')
+
+/**
  * 徽标按「分享是否加密」两态：共享 = 分享未加密，加密 = 分享已加密（需口令）。
  *
  * <p>门户只出已发布的库，所以这里读 {@code shareStatus} 而不是 {@code visibility} ——
@@ -62,6 +71,54 @@ const manageUrl = computed(() => appHref(props.kb.tenantSlug
 const orgLabel = computed(() => props.kb.tenantName || props.kb.tenantSlug || '未归属组织')
 /** 标题下只留「谁 · 哪个组织」的归属信息；创建时间收进悬停提示，底栏放最近更新 */
 const ownerLabel = computed(() => props.kb.ownerName || '未知用户')
+
+/* --------------------------------------------------- 截断提示 */
+/*
+ * 标题一行、描述一行（列表视图两行）都是 CSS 截断，被截掉的那半句只有悬停才看得到。
+ * 但没被截断的卡片不该也弹一句重复的话 —— 所以量一次，真的溢出才挂 title。
+ *
+ * <p>量的是 <a> 与 <p> 自己：<h3> 没有 overflow，它的 scrollWidth 只会等于截断后的宽度，
+ * 量它永远「没溢出」。卡片宽度会随「网格 / 列表」切换而变，交给 ResizeObserver 重算。</p>
+ */
+const cardRef = ref<HTMLElement | null>(null)
+const titleRef = ref<HTMLElement | null>(null)
+const descRef = ref<HTMLElement | null>(null)
+const titleCut = ref(false)
+const descCut = ref(false)
+
+/**
+ * 这段文字是否被容器截掉了。
+ *
+ * <p>不用 {@code scrollWidth / scrollHeight}：{@code -webkit-line-clamp} 是「裁剪」而不是
+ * 「可滚动溢出」，单行省略时 scrollWidth 常常等于 clientWidth，量不出来。改成取文本自身的
+ * 排版矩形（Range），它反映的是文字实际占了多少，与看不看得见无关。</p>
+ */
+function overflowing(el: HTMLElement | null | undefined) {
+  if (!el) {
+    return false
+  }
+  const range = document.createRange()
+  range.selectNodeContents(el)
+  const rect = range.getBoundingClientRect()
+  return rect.width > el.clientWidth + 1 || rect.height > el.clientHeight + 1
+}
+
+function measureClamp() {
+  titleCut.value = overflowing(titleRef.value?.querySelector('a'))
+  descCut.value = overflowing(descRef.value)
+}
+
+let cardObserver: ResizeObserver | null = null
+onMounted(() => {
+  nextTick(measureClamp)
+  if (typeof ResizeObserver !== 'undefined' && cardRef.value) {
+    cardObserver = new ResizeObserver(measureClamp)
+    cardObserver.observe(cardRef.value)
+  }
+})
+onBeforeUnmount(() => cardObserver?.disconnect())
+/** 同一个卡片实例换了数据（翻页 / 搜索命中复用）时也要重量一次 */
+watch(() => [props.kb.name, props.kb.description], () => nextTick(measureClamp))
 
 const copied = ref(false)
 let copyTimer: number | undefined
@@ -173,7 +230,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <article class="md-card" :style="{ '--cover-a': palette[0], '--cover-b': palette[1] }">
+  <article ref="cardRef" class="md-card" :style="{ '--cover-a': palette[0], '--cover-b': palette[1] }">
     <!-- 竖版卡片：顶部一条水彩封面，正文在下，右下一颗圆形箭头 -->
     <router-link
       class="md-card__cover"
@@ -203,13 +260,17 @@ onBeforeUnmount(() => {
 
     <div class="md-card__body">
       <div class="md-card__head">
-        <span class="md-card__mark"><Icon name="books" :size="14" /></span>
-        <h3 class="md-card__title">
+        <span class="md-card__mark" aria-hidden="true">{{ initial }}</span>
+        <h3 ref="titleRef" class="md-card__title" :title="titleCut ? kb.name : undefined">
           <router-link :to="link">{{ kb.name }}</router-link>
         </h3>
       </div>
 
-      <p class="md-card__desc">{{ kb.description || '暂无描述' }}</p>
+      <p
+        ref="descRef"
+        class="md-card__desc"
+        :title="descCut ? (kb.description || '暂无描述') : undefined"
+      >{{ kb.description || '暂无描述' }}</p>
 
       <div class="md-card__foot">
         <span class="md-card__meta-item">

@@ -120,7 +120,8 @@ final class MailBodies {
     /**
      * 三封邮件共用的品牌外壳：顶部色线、眉标、正文、分隔线、Logo 页脚。
      *
-     * <p>Logo 用绝对地址且给 alt；被客户端拦截图片时，旁边的站点名仍然读得出来。</p>
+     * <p>横版 Logo 单独占一行并居中，站点名与域名排在它下面；Logo 用绝对地址且给 alt，
+     * 被客户端拦截图片时，下方的站点名仍然读得出来。</p>
      */
     private static String brandShell(String siteName, String subtitle, String siteHost, String logoUrl,
                                      String eyebrowSuffix, String content) {
@@ -133,10 +134,12 @@ final class MailBodies {
         String hostLine = siteHost == null || siteHost.isBlank() ? "" : """
                 <div style="margin-top:2px;font-size:11px;color:#9aa7a2;line-height:1.2">%s</div>
                 """.formatted(escape(siteHost));
-        String logoCell = logoUrl == null || logoUrl.isBlank() ? "" : """
-                <td style="padding-right:9px" valign="middle">\
-                <img src="%s" height="36" alt="%s" style="display:block;height:36px;width:auto;\
-                max-width:150px;border:0;border-radius:9px"></td>
+        // 横版 Logo 独占一行：邮件客户端对 flex 与并排表格的支持参差，竖排最稳，
+        // 也不会让站点名挤在图片右边显得像图注。
+        String logoBlock = logoUrl == null || logoUrl.isBlank() ? "" : """
+                <div style="margin:0 0 13px;line-height:0">\
+                <img src="%s" height="52" alt="%s" style="display:inline-block;height:52px;width:auto;\
+                max-width:220px;border:0"></div>
                 """.formatted(escape(logoUrl), brand);
         return """
                 <!doctype html>
@@ -148,16 +151,14 @@ final class MailBodies {
                 <tr><td style="padding:28px 36px 6px;font-size:11px;letter-spacing:.18em;color:#8a9a94">%s</td></tr>
                 <tr><td style="padding:0 36px 26px">%s</td></tr>
                 <tr><td style="padding:0 36px"><div style="height:1px;background:#eef2f0"></div></td></tr>
-                <tr><td style="padding:22px 36px 30px;text-align:center">
-                  <table role="presentation" align="center" style="margin:0 auto"><tr>\
-                %s<td valign="middle" style="text-align:left">\
-                <div style="font-size:15px;font-weight:700;color:#1f2d28;line-height:1.2">%s</div>%s</td></tr></table>\
+                <tr><td style="padding:24px 36px 30px;text-align:center">
                 %s
+                  <div style="font-size:15px;font-weight:700;color:#1f2d28;line-height:1.2">%s</div>%s%s
                   <p style="margin:4px 0 0;font-size:12px;line-height:1.7;color:#a3aea9">本邮件由系统自动发出，请勿直接回复。</p>
                 </td></tr>
                 </table>
                 </body></html>
-                """.formatted(BRAND, eyebrow, content, logoCell, brand, hostLine, subtitleLine);
+                """.formatted(BRAND, eyebrow, content, logoBlock, brand, hostLine, subtitleLine);
     }
 
     private static String button(String link) {

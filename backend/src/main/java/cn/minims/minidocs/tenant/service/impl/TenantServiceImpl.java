@@ -235,16 +235,20 @@ public class TenantServiceImpl extends ServiceImpl<TenantMapper, Tenant> impleme
     }
 
     @Override
-    public PageResult<DiscoverVO> discover(long page, long size) {
+    public PageResult<DiscoverVO> discover(long page, long size, String keyword) {
         long current = Math.max(1, page);
         long pageSize = Math.min(Math.max(1, size), 50);
-        Page<Tenant> result = page(new Page<>(current, pageSize),
+        String kw = keyword == null ? "" : keyword.trim();
+        LambdaQueryWrapper<Tenant> query = Wrappers.<Tenant>lambdaQuery()
                 // 「可被发现」的唯一读出口：只有这三项条件。要加第四条就来这里，别在调用方另起一套口径（I3）
-                Wrappers.<Tenant>lambdaQuery()
-                        .eq(Tenant::getType, Tenant.TYPE_TEAM)
-                        .eq(Tenant::getDiscoverable, true)
-                        .eq(Tenant::getStatus, Tenant.STATUS_ACTIVE)
-                        .orderByAsc(Tenant::getSlug));
+                .eq(Tenant::getType, Tenant.TYPE_TEAM)
+                .eq(Tenant::getDiscoverable, true)
+                .eq(Tenant::getStatus, Tenant.STATUS_ACTIVE);
+        if (!kw.isEmpty()) {
+            query.and(w -> w.like(Tenant::getName, kw).or().like(Tenant::getSlug, kw));
+        }
+        query.orderByAsc(Tenant::getSlug);
+        Page<Tenant> result = page(new Page<>(current, pageSize), query);
         List<DiscoverVO> list = result.getRecords().stream().map(this::toDiscoverVO).toList();
         return PageResult.of(list, result.getTotal(), result.getCurrent(), result.getSize());
     }

@@ -38,8 +38,9 @@ public class TenantController {
     @Operation(summary = "组织发现列表（仅可发现的活跃团队组织）")
     @GetMapping("/discover")
     public ApiResponse<PageResult<DiscoverVO>> discover(@RequestParam(defaultValue = "1") long page,
-                                                        @RequestParam(defaultValue = "20") long size) {
-        return ApiResponse.ok(tenantService.discover(page, size));
+                                                        @RequestParam(defaultValue = "20") long size,
+                                                        @RequestParam(required = false) String keyword) {
+        return ApiResponse.ok(tenantService.discover(page, size, keyword));
     }
 
     @Operation(summary = "我参与的组织（顶栏切换器）")

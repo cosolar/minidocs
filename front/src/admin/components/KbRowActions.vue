@@ -51,9 +51,8 @@ const showPerms = computed(() => kbCan('KB_MEMBER_MANAGE') || kbCan('KB_SET_VISI
       <MdIcon name="key" :size="14" />权限
     </el-button>
     <el-dropdown placement="bottom-end" trigger="click">
-      <el-button :link="dense" size="small">
-        <MdIcon v-if="dense" name="more" :size="14" />
-        <span>更多</span>
+      <el-button :link="dense" size="small" title="更多操作">
+        <MdIcon name="more" :size="14" />
         <MdIcon v-if="!dense" name="chevron-down" :size="12" class="md-row-actions__caret" />
       </el-button>
       <template #dropdown>
@@ -76,11 +75,13 @@ const showPerms = computed(() => kbCan('KB_MEMBER_MANAGE') || kbCan('KB_SET_VISI
 <style scoped>
 .md-row-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-width: 0; }
 .md-row-actions :deep(.el-button + .el-button) { margin-left: 0; }
+/* 表格里的动作必须一行：换行时「更多」会单独掉到第二行，看着像一条孤立的分隔符 */
+.md-row-actions.is-dense { gap: 2px; flex-wrap: nowrap; }
 
 /* ---------------------------------------------------------------- 卡片形态 */
-.md-row-actions.is-card { gap: 4px; }
+.md-row-actions.is-card { gap: 2px; flex-wrap: nowrap; }
 .md-row-actions.is-card :deep(.el-button) {
-  height: 30px; padding: 0 11px;
+  height: 30px; padding: 0 9px;
   border-radius: 8px;
   font-size: 12.5px; font-weight: 500;
   /* 幽灵态：默认无底无框，靠悬停底色提示可点，避免一排描边按钮把卡片压碎 */
@@ -99,7 +100,7 @@ const showPerms = computed(() => kbCan('KB_MEMBER_MANAGE') || kbCan('KB_SET_VISI
 }
 /* 主行动实心：整张卡片只有它一处重色，视线自然落上去 */
 .md-row-actions.is-card :deep(.el-button--primary) {
-  padding: 0 14px;
+  padding: 0 12px;
   font-weight: 600;
   box-shadow: 0 1px 2px rgba(59, 108, 246, .32);
   --el-button-bg-color: var(--md-primary);

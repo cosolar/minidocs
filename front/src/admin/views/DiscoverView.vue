@@ -3,8 +3,8 @@ import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { tenantApi } from '@/admin/api'
+import AdminPageHeader from '@/admin/components/AdminPageHeader.vue'
 import MdIcon from '@/admin/components/MdIcon.vue'
-import HelpTip from '@/shared/components/HelpTip.vue'
 import { useOrgStore } from '@/admin/stores/org'
 import type { DiscoverOrgVO } from '@/shared/api/types'
 
@@ -24,6 +24,7 @@ const org = useOrgStore()
 const keyword = ref('')
 const loading = ref(false)
 const rows = ref<DiscoverOrgVO[]>([])
+const total = ref(0)
 const applying = ref('')
 
 const mine = computed(() => new Set(org.tenants.map((tenant) => tenant.slug)))
@@ -31,7 +32,9 @@ const mine = computed(() => new Set(org.tenants.map((tenant) => tenant.slug)))
 async function search() {
   loading.value = true
   try {
-    rows.value = await tenantApi.discover(keyword.value.trim() || undefined)
+    const result = await tenantApi.discover(keyword.value.trim() || undefined)
+    rows.value = result.list
+    total.value = result.total
   } finally {
     loading.value = false
   }
@@ -69,47 +72,65 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div style="display: grid; gap: 16px">
-    <div class="md-card-panel">
-      <div class="md-panel-head">
-        <h2>发现组织<HelpTip :width="340" text="只有勾选了「出现在发现列表」的组织会出现在这里，看到的字段也都是公开字段；成员构成与内部知识库一概不展示。加入后你就能看到该组织的内部知识库。" /></h2>
-        <div class="md-head-row">
-          <el-input
-            v-model="keyword"
-            placeholder="按名称搜索"
-            clearable
-            style="width: 240px"
-            @keyup.enter="search"
-            @clear="search"
-          />
-          <el-button @click="search">
-            <MdIcon name="search" :size="14" />搜索
-          </el-button>
-        </div>
-      </div>
+  <div class="md-page">
+    <AdminPageHeader
+      eyebrow="个人"
+      title="发现组织"
+      description="浏览公开组织并申请加入；只有管理员审核通过后，才能看到对方的内部知识库。"
+    />
+
+    <div class="md-toolbar">
+      <el-input
+        v-model="keyword"
+        placeholder="按组织名称搜索"
+        clearable
+        @keyup.enter="search"
+        @clear="search"
+      />
+      <el-button type="primary" @click="search">
+        <MdIcon name="search" :size="14" />搜索
+      </el-button>
+      <span class="md-toolbar__spacer" />
+      <span class="md-toolbar__hint">共 {{ total }} 个公开组织</span>
+    </div>
+
+    <section class="md-card-panel">
       <div class="md-panel-body">
         <el-skeleton v-if="loading && !rows.length" :rows="4" animated />
-        <p v-else-if="!rows.length" class="md-ad-sub">没有可加入的组织。可以让管理员按用户名邀请你，或从顶栏「新建组织」自己开一个。</p>
-        <div v-else class="md-ad-list">
-          <div v-for="row in rows" :key="row.slug" class="md-ad-row">
-            <div class="md-ad-row__main">
-              <div class="md-ad-row__title">
-                <span>{{ row.name }}</span>
-                <span class="md-ad-sub">/ {{ row.slug }}</span>
-                <span v-if="mine.has(row.slug)" class="md-ad-chip md-ad-chip--member">已加入</span>
-              </div>
-              <div v-if="row.description" class="md-ad-row__desc">{{ row.description }}</div>
-              <div class="md-ad-sub">
-                {{ row.memberCount }} 位成员 · {{ row.publicKbCount }} 个公开知识库 ·
-                {{ row.joinPolicy === 'request' ? '接受申请' : '仅管理员邀请' }}
+        <div v-else-if="!rows.length" class="md-empty">
+          <span class="md-empty__icon"><MdIcon name="globe" :size="22" /></span>
+          <div class="md-empty__title">没有找到可加入的组织</div>
+          <p class="md-empty__desc">
+            可以让管理员按用户名邀请你，或从顶栏「新建组织」自己开一个。
+          </p>
+        </div>
+        <div v-else class="md-org-grid">
+          <article v-for="row in rows" :key="row.slug" class="md-org-card">
+            <div class="md-org-card__head">
+              <span class="md-org-card__mark">{{ row.name.slice(0, 1) }}</span>
+              <div>
+                <div class="md-org-card__name">{{ row.name }}</div>
+                <div class="md-org-card__slug">/ {{ row.slug }}</div>
               </div>
             </div>
-            <div class="md-ad-row__actions">
-              <el-button v-if="mine.has(row.slug)" text type="primary" @click="enter(row.slug)">
+            <p class="md-org-card__desc">
+              {{ row.description || '这个组织还没有填写简介。' }}
+            </p>
+            <div class="md-org-card__meta">
+              <span>{{ row.memberCount }} 位成员</span>
+              <span>{{ row.publicKbCount }} 个公开知识库</span>
+            </div>
+            <div class="md-org-card__foot">
+              <span v-if="mine.has(row.slug)" class="md-ad-chip">已加入</span>
+              <span v-else class="md-ad-sub">
+                {{ row.joinPolicy === 'request' ? '接受申请' : '仅管理员邀请' }}
+              </span>
+              <el-button v-if="mine.has(row.slug)" size="small" type="primary" @click="enter(row.slug)">
                 <MdIcon name="arrow-right" :size="14" />进入
               </el-button>
               <el-button
                 v-else-if="row.joinPolicy === 'request'"
+                size="small"
                 type="primary"
                 plain
                 :loading="applying === row.slug"
@@ -121,9 +142,9 @@ onMounted(async () => {
                 <span class="md-ad-sub">不可申请</span>
               </el-tooltip>
             </div>
-          </div>
+          </article>
         </div>
       </div>
-    </div>
+    </section>
   </div>
 </template>

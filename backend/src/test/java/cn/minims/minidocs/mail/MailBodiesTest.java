@@ -30,6 +30,11 @@ class MailBodiesTest {
                 .contains("https://docs.example.com/logo-mark.png")
                 .contains("10 分钟内")
                 .contains("请勿直接回复");
+        // 横版 Logo 独占一行，不再与站点名并排成图注
+        assertThat(html)
+                .contains("margin:0 0 13px;line-height:0")
+                .contains("height:52px")
+                .doesNotContain("padding-right:9px");
     }
 
     @Test

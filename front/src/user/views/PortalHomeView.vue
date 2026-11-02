@@ -292,7 +292,7 @@ function switchView(mode: 'grid' | 'list') {
             <p class="md-hero__eyebrow">
               <Icon name="bolt" :size="13" />轻量 · 简约 · 高效
             </p>
-            <h1 class="md-hero__title">探索知识，连接<span class="md-hero__title-mark">灵感</span></h1>
+            <h1 class="md-hero__title">探索<span class="md-hero__title-mark">知识</span>，连接<span class="md-hero__title-mark">灵感</span></h1>
             <p class="md-hero__lead">MiniDocs 为你打造的轻量级知识库平台，让知识更有价值</p>
 
             <form class="md-search" role="search" @submit.prevent="goBrowse">
@@ -465,23 +465,23 @@ function switchView(mode: 'grid' | 'list') {
         <!-- 能力条：磨砂玻璃底、五格实心图标，发丝线分隔 -->
         <ul class="md-features">
           <li class="md-feature">
-            <span class="md-feature__icon"><Icon name="bookOpen" :size="28" /></span>
+            <span class="md-feature__icon"><Icon name="bookOpen" :size="24" /></span>
             <span class="md-feature__text"><strong>海量文档</strong><small>优质知识，随时获取</small></span>
           </li>
           <li class="md-feature">
-            <span class="md-feature__icon"><Icon name="layers" :size="28" /></span>
+            <span class="md-feature__icon"><Icon name="bookshelf" :size="24" /></span>
             <span class="md-feature__text"><strong>多库管理</strong><small>独立知识库，灵活配置</small></span>
           </li>
           <li class="md-feature">
-            <span class="md-feature__icon"><Icon name="tagSolid" :size="28" /></span>
+            <span class="md-feature__icon"><Icon name="tagSolid" :size="24" /></span>
             <span class="md-feature__text"><strong>标签分类</strong><small>精准分类，快速查找</small></span>
           </li>
           <li class="md-feature">
-            <span class="md-feature__icon"><Icon name="shieldCheck" :size="28" /></span>
+            <span class="md-feature__icon"><Icon name="shieldCheck" :size="24" /></span>
             <span class="md-feature__text"><strong>权限控制</strong><small>安全可控，放心使用</small></span>
           </li>
           <li class="md-feature">
-            <span class="md-feature__icon"><Icon name="githubBadge" :size="28" /></span>
+            <span class="md-feature__icon"><Icon name="githubBadge" :size="24" /></span>
             <span class="md-feature__text"><strong>开源共建</strong><small>开源项目，携手共建</small></span>
           </li>
         </ul>

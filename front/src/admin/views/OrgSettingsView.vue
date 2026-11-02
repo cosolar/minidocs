@@ -11,6 +11,7 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { orgApi } from '@/admin/api'
+import AdminPageHeader from '@/admin/components/AdminPageHeader.vue'
 import MdIcon from '@/admin/components/MdIcon.vue'
 import HelpTip from '@/shared/components/HelpTip.vue'
 import { useIsMobile } from '@/admin/composables/useIsMobile'
@@ -179,23 +180,25 @@ onMounted(load)
 </script>
 
 <template>
-  <div v-loading="loading" style="display: grid; gap: 16px">
+  <div v-loading="loading" class="md-page">
+    <AdminPageHeader
+      eyebrow="组织管理"
+      title="组织设置"
+      description="维护组织资料、成员与入组申请；组织标识创建后不可修改。"
+    />
+
     <div class="md-card-panel">
       <div class="md-panel-head">
-        <h2>组织资料<HelpTip v-if="detail" :width="360">标识（slug）{{ detail.slug }} 不参与改名：它是链接与磁盘目录的一部分，换掉等于把所有外链作废。</HelpTip></h2>
+        <div class="md-panel-head__text">
+          <h2>组织资料<HelpTip v-if="detail" :width="360">标识（slug）{{ detail.slug }} 不参与改名：它是链接与磁盘目录的一部分，换掉等于把所有外链作废。</HelpTip></h2>
+          <p class="md-panel-desc">这些信息会出现在组织列表、邀请与知识库归属中。</p>
+        </div>
         <span v-if="detail" class="md-ad-chip">{{ detail.myRole }}</span>
       </div>
       <div class="md-panel-body">
-        <el-form label-position="top" style="max-width: 560px" :disabled="!canEditProfile">
+        <el-form label-position="top" class="md-form-grid md-form-max" :disabled="!canEditProfile">
           <el-form-item label="组织名称">
             <el-input v-model="profile.name" maxlength="64" show-word-limit />
-          </el-form-item>
-          <el-form-item label="简介">
-            <el-input v-model="profile.description" type="textarea" :rows="2" maxlength="255" show-word-limit />
-          </el-form-item>
-          <el-form-item>
-            <template #label>Logo 地址<HelpTip text="组织内知识库的封面与它同源；留空即清除。" /></template>
-            <el-input v-model="profile.logoUrl" maxlength="512" placeholder="/vaults/o1/xx/cover.png 或绝对 URL" />
           </el-form-item>
           <el-form-item label="加入方式">
             <el-radio-group v-model="profile.joinPolicy">
@@ -203,36 +206,46 @@ onMounted(load)
               <el-radio-button value="invite_only">仅管理员邀请</el-radio-button>
             </el-radio-group>
           </el-form-item>
+          <el-form-item label="简介" class="md-form-span-2">
+            <el-input v-model="profile.description" type="textarea" :rows="3" maxlength="255" show-word-limit />
+          </el-form-item>
+          <el-form-item class="md-form-span-2">
+            <template #label>Logo 地址<HelpTip text="组织内知识库的封面与它同源；留空即清除。" /></template>
+            <el-input v-model="profile.logoUrl" maxlength="512" placeholder="/vaults/o1/xx/cover.png 或绝对 URL" />
+          </el-form-item>
           <el-form-item label="出现在组织发现列表">
             <el-switch v-model="profile.discoverable" />
           </el-form-item>
-          <el-form-item>
+          <div class="md-form-footer md-form-span-2">
             <el-button type="primary" :loading="savingProfile" @click="saveProfile">
               <MdIcon name="save" :size="14" />保存资料
             </el-button>
-          </el-form-item>
+            <span v-if="!canEditProfile" class="md-copy-hint">
+              组织资料由 OWNER 维护；你在这一档可以改的是成员与自己的库。
+            </span>
+            <span v-else-if="isPersonal" class="md-copy-hint">
+              个人组织随账号自动创建，不能添加成员，也不能删除。
+            </span>
+          </div>
         </el-form>
-        <p v-if="!canEditProfile" class="md-copy-hint">
-          组织资料由 OWNER 维护；你在这一档可以改的是成员与自己的库。
-        </p>
-        <p v-if="isPersonal" class="md-copy-hint">
-          个人组织随账号自动创建，不能添加成员，也不能删除。
-        </p>
       </div>
     </div>
 
-    <div class="md-card-panel">
+    <div class="md-card-panel md-table-card">
       <div class="md-panel-head">
-        <h2>成员<HelpTip :width="360">
-          OWNER 只有一个且只能靠转让产生；管理员能添加与移出普通成员、处理申请，但任免管理员只能由
-          OWNER 操作 —— 按钮显隐读的就是后端给的这一条动作（TENANT_APPOINT_ADMIN）。
-        </HelpTip></h2>
+        <div class="md-panel-head__text">
+          <h2>成员<HelpTip :width="360">
+            OWNER 只有一个且只能靠转让产生；管理员能添加与移出普通成员、处理申请，但任免管理员只能由
+            OWNER 操作 —— 按钮显隐读的就是后端给的这一条动作（TENANT_APPOINT_ADMIN）。
+          </HelpTip></h2>
+          <p class="md-panel-desc">成员加入后即可按知识库的可见范围访问内容。</p>
+        </div>
         <span class="md-ad-chip">{{ members.length }} 人</span>
       </div>
       <div class="md-panel-body">
-        <el-form v-if="canGovern && !isPersonal" inline @submit.prevent="addMember">
+        <el-form v-if="canGovern && !isPersonal" inline class="md-member-add" @submit.prevent="addMember">
           <el-form-item>
-            <el-input v-model="newMember.username" placeholder="用户名" style="width: 180px" maxlength="32" />
+            <el-input v-model="newMember.username" placeholder="输入用户名添加成员" style="width: 220px" maxlength="32" />
           </el-form-item>
           <el-form-item>
             <el-select v-model="newMember.role" style="width: 120px">
@@ -249,7 +262,10 @@ onMounted(load)
         </el-form>
         <!-- 窄屏：一卡一人，治理动作原样搬进卡片底部 -->
         <div v-if="isMobile" class="md-ad-cards">
-          <el-empty v-if="!members.length" description="暂无成员" :image-size="60" />
+          <div v-if="!members.length" class="md-empty">
+            <span class="md-empty__icon"><MdIcon name="users" :size="22" /></span>
+            <div class="md-empty__title">暂无成员</div>
+          </div>
           <div v-for="row in members" :key="row.userId" class="md-ad-item">
             <div class="md-ad-item__head">
               <div class="md-ad-item__title">
@@ -290,10 +306,15 @@ onMounted(load)
         </div>
 
         <el-table v-else :data="members" style="width: 100%">
-          <el-table-column label="成员" min-width="180">
+          <el-table-column label="成员" min-width="220">
             <template #default="{ row }">
-              <div>{{ row.displayName || row.username }}</div>
-              <div class="md-ad-sub">@{{ row.username }}</div>
+              <div class="md-user-cell">
+                <span class="md-user-cell__avatar">{{ (row.displayName || row.username).slice(0, 1) }}</span>
+                <div class="md-user-cell__text">
+                  <strong>{{ row.displayName || row.username }}</strong>
+                  <small>@{{ row.username }}</small>
+                </div>
+              </div>
             </template>
           </el-table-column>
           <el-table-column label="角色" width="120">
@@ -302,35 +323,37 @@ onMounted(load)
             </template>
           </el-table-column>
           <el-table-column prop="joinedFrom" label="来源" width="120" />
-          <el-table-column label="操作" width="330">
+          <el-table-column label="操作" width="340" align="right">
             <template #default="{ row }">
-              <span v-if="row.userId === meUserId" class="md-ad-sub">这是你</span>
-              <template v-else-if="canGovern">
-                <!-- ADMIN 只能动普通成员：任免管理员与移出管理员都是 OWNER 的动作 -->
-                <el-button
-                  v-if="canAppointAdmin && row.role !== 'OWNER'"
-                  link
-                  type="primary"
-                  @click="setRole(row, row.role === 'ADMIN' ? 'MEMBER' : 'ADMIN')"
-                >
-                  <MdIcon name="key" :size="13" />{{ row.role === 'ADMIN' ? '降为成员' : '设为管理员' }}
-                </el-button>
-                <el-button v-if="canTransfer && row.role !== 'OWNER'" link type="primary" @click="transferTo(row)">
-                  <MdIcon name="arrow-right" :size="13" />转让 OWNER
-                </el-button>
-                <el-button
-                  v-if="row.role !== 'OWNER' && (canAppointAdmin || row.role === 'MEMBER')"
-                  link
-                  type="danger"
-                  @click="removeMember(row)"
-                >
-                  <MdIcon name="trash" :size="13" />移除
-                </el-button>
-                <span v-if="row.role === 'OWNER' || (!canAppointAdmin && row.role === 'ADMIN')" class="md-ad-sub">
-                  仅 OWNER 可改
-                </span>
-              </template>
-              <span v-else class="md-ad-sub">由管理员维护</span>
+              <div class="md-row-actions">
+                <span v-if="row.userId === meUserId" class="md-ad-sub">这是你</span>
+                <template v-else-if="canGovern">
+                  <!-- ADMIN 只能动普通成员：任免管理员与移出管理员都是 OWNER 的动作 -->
+                  <el-button
+                    v-if="canAppointAdmin && row.role !== 'OWNER'"
+                    link
+                    type="primary"
+                    @click="setRole(row, row.role === 'ADMIN' ? 'MEMBER' : 'ADMIN')"
+                  >
+                    <MdIcon name="key" :size="13" />{{ row.role === 'ADMIN' ? '降为成员' : '设为管理员' }}
+                  </el-button>
+                  <el-button v-if="canTransfer && row.role !== 'OWNER'" link type="primary" @click="transferTo(row)">
+                    <MdIcon name="arrow-right" :size="13" />转让 OWNER
+                  </el-button>
+                  <el-button
+                    v-if="row.role !== 'OWNER' && (canAppointAdmin || row.role === 'MEMBER')"
+                    link
+                    type="danger"
+                    @click="removeMember(row)"
+                  >
+                    <MdIcon name="trash" :size="13" />移除
+                  </el-button>
+                  <span v-if="row.role === 'OWNER' || (!canAppointAdmin && row.role === 'ADMIN')" class="md-ad-sub">
+                    仅 OWNER 可改
+                  </span>
+                </template>
+                <span v-else class="md-ad-sub">由管理员维护</span>
+              </div>
             </template>
           </el-table-column>
         </el-table>
@@ -339,11 +362,18 @@ onMounted(load)
 
     <div v-if="canReviewRequests" class="md-card-panel">
       <div class="md-panel-head">
-        <h2>入组申请</h2>
+        <div class="md-panel-head__text">
+          <h2>入组申请</h2>
+          <p class="md-panel-desc">同意后对方立即成为普通成员，可以按可见范围访问组织内容。</p>
+        </div>
         <span class="md-ad-chip">{{ pending.length }} 条待处理</span>
       </div>
       <div class="md-panel-body">
-        <el-empty v-if="!pending.length" description="没有待处理的申请" :image-size="60" />
+        <div v-if="!pending.length" class="md-empty">
+          <span class="md-empty__icon"><MdIcon name="clock" :size="22" /></span>
+          <div class="md-empty__title">没有待处理的申请</div>
+          <p class="md-empty__desc">新的入组申请会出现在这里，同意后对方即可加入组织。</p>
+        </div>
         <div v-for="item in pending" :key="item.id" class="md-ad-row">
           <div class="md-ad-row__main">
             <div>{{ item.displayName || item.username }}<span class="md-ad-sub"> @{{ item.username }}</span></div>
@@ -365,7 +395,12 @@ onMounted(load)
     </div>
 
     <div v-if="detail && !isPersonal" class="md-card-panel md-card-panel--danger">
-      <div class="md-panel-head"><h2>危险区</h2></div>
+      <div class="md-panel-head">
+        <div class="md-panel-head__text">
+          <h2>危险区</h2>
+          <p class="md-panel-desc">这些操作会改变成员关系或删除数据，执行前请确认。</p>
+        </div>
+      </div>
       <div class="md-panel-body">
         <div class="md-ad-row">
           <div class="md-ad-row__main">

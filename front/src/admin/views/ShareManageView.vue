@@ -2,6 +2,7 @@
 import { onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { docApi, kbApi, shareApi } from '@/admin/api'
+import AdminPageHeader from '@/admin/components/AdminPageHeader.vue'
 import MdIcon from '@/admin/components/MdIcon.vue'
 import { useIsMobile } from '@/admin/composables/useIsMobile'
 import type { DocNode, KbVO, ShareVO } from '@/shared/api/types'
@@ -168,28 +169,43 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="md-card-panel">
-    <div class="md-panel-head">
-      <el-select v-model="query.status" placeholder="全部状态" clearable style="width: 140px" @change="load">
+  <div class="md-page">
+    <AdminPageHeader
+      eyebrow="组织管理"
+      title="分享管理"
+      description="集中管理对外分享链接、访问密码与有效期；撤销后的链接立即失效。"
+    >
+      <template #actions>
+        <el-button type="primary" @click="openCreate">
+          <MdIcon name="plus" :size="14" />新建分享
+        </el-button>
+      </template>
+    </AdminPageHeader>
+
+    <div class="md-toolbar">
+      <el-select v-model="query.status" placeholder="全部状态" clearable style="width: 150px" @change="load">
         <el-option label="有效" value="active" />
         <el-option label="已过期" value="expired" />
         <el-option label="已撤销" value="revoked" />
         <el-option label="已失效" value="invalid" />
       </el-select>
-      <el-select v-model="query.scope" placeholder="全部范围" clearable style="width: 140px" @change="load">
+      <el-select v-model="query.scope" placeholder="全部范围" clearable style="width: 150px" @change="load">
         <el-option label="整库分享" value="kb" />
         <el-option label="单篇分享" value="doc" />
       </el-select>
-      <span class="md-spacer" />
-      <el-button type="primary" @click="openCreate">
-        <MdIcon name="plus" :size="14" />新建分享
-      </el-button>
+      <span class="md-toolbar__spacer" />
+      <span class="md-toolbar__hint">共 {{ total }} 条分享</span>
     </div>
 
+    <section class="md-card-panel md-table-card">
     <div class="md-panel-body">
       <!-- 窄屏：链接是一整串 URL，塞进表格列里只会被截断，卡片里可以整行折开 -->
       <div v-if="isMobile" v-loading="loading" class="md-ad-cards">
-        <el-empty v-if="!loading && !list.length" description="暂无分享" />
+        <div v-if="!loading && !list.length" class="md-empty">
+          <span class="md-empty__icon"><MdIcon name="share" :size="22" /></span>
+          <div class="md-empty__title">暂无分享</div>
+          <p class="md-empty__desc">新建一条分享链接后，会在这里集中管理。</p>
+        </div>
         <div v-for="row in list" :key="row.token" class="md-ad-item">
           <div class="md-ad-item__head">
             <div class="md-ad-item__title">
@@ -239,7 +255,7 @@ onMounted(async () => {
         </el-table-column>
         <el-table-column label="链接" min-width="260">
           <template #default="{ row }">
-            <span class="md-share-url">{{ row.url }}</span>
+            <span class="md-share-url" :title="row.url">{{ row.url }}</span>
           </template>
         </el-table-column>
         <el-table-column label="密码" width="80" align="center">
@@ -272,30 +288,32 @@ onMounted(async () => {
             <el-tag size="small" :type="statusTag(row.status)">{{ statusText(row.status) }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="270" fixed="right">
+        <el-table-column label="操作" width="240" fixed="right" align="right">
           <template #default="{ row }">
-            <el-button size="small" @click="copy(row.url)">
-              <MdIcon name="copy" :size="14" />复制
-            </el-button>
-            <el-button v-if="governable(row)" size="small" @click="openEdit(row)">
-              <MdIcon name="settings" :size="14" />设置
-            </el-button>
-            <el-button
-              v-if="governable(row)"
-              size="small"
-              type="danger"
-              plain
-              :disabled="row.status === 'revoked'"
-              @click="revoke(row)"
-            >
-              <MdIcon name="trash" :size="14" />撤销
-            </el-button>
-            <span v-if="!governable(row)" class="md-copy-hint">仅创建者可管理</span>
+            <div class="md-row-actions">
+              <el-button link type="primary" size="small" @click="copy(row.url)">
+                <MdIcon name="copy" :size="14" />复制
+              </el-button>
+              <el-button v-if="governable(row)" link type="primary" size="small" @click="openEdit(row)">
+                <MdIcon name="settings" :size="14" />设置
+              </el-button>
+              <el-button
+                v-if="governable(row)"
+                link
+                type="danger"
+                size="small"
+                :disabled="row.status === 'revoked'"
+                @click="revoke(row)"
+              >
+                <MdIcon name="trash" :size="14" />撤销
+              </el-button>
+              <span v-if="!governable(row)" class="md-copy-hint">仅创建者可管理</span>
+            </div>
           </template>
         </el-table-column>
       </el-table>
 
-      <div style="display: flex; justify-content: flex-end; margin-top: 16px">
+      <div class="md-table-foot">
         <el-pagination
           v-model:current-page="query.page"
           v-model:page-size="query.size"
@@ -307,6 +325,7 @@ onMounted(async () => {
         />
       </div>
     </div>
+    </section>
 
     <el-dialog v-model="dialogVisible" title="新建分享" width="520px">
       <el-form label-position="top">
