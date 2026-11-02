@@ -50,11 +50,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.tuple;
 
 /**
- * M3 组织与成员：注册流、组织 CRUD、成员治理（I1 / §2.4 注）、入组申请、维护名单。
+ * M3 组织与成员：注册流、组织 CRUD、成员治理、入组申请、维护名单。
  *
  * <p>全部走服务层，不起 HTTP：判定与规则都在服务里，控制器只是形状。</p>
  *
- * @see <a href="file:../../../../../docs/多租户知识库权限与功能规范.md">规范 §3</a>
+ * @see <a href="https://github.com/cosolar/minidocs/blob/main/docs/USAGE.md">使用手册 · 权限模型</a>
  */
 @DisplayName("M3 组织与成员")
 class OrgFlowTest extends MiniDocsTestBase {

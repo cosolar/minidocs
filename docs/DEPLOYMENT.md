@@ -7,8 +7,8 @@
 [3. 方案 A](#3-方案-a前后端分离--nginx推荐) 或 [4. 方案 B](#4-方案-b单体只分发一个jar) 走，
 最后过一遍 [9. 上线检查清单](#9-上线检查清单)。
 
-开发与本地启动见 [DEVELOPMENT.md](DEVELOPMENT.md)；功能与权限规范见
-[多租户知识库权限与功能规范.md](多租户知识库权限与功能规范.md)。
+开发与本地启动见 [DEVELOPMENT.md](DEVELOPMENT.md)；功能与权限见
+[USAGE.md](USAGE.md#8-权限模型)。
 
 > 只想最快跑起来：官方单镜像一条命令即可，见 [13. 官方镜像（Docker Hub）](#13-官方镜像docker-hub)。
 

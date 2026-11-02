@@ -187,7 +187,7 @@ java -jar target/minidocs.jar \
 | 维护范围 | `owner_only` / `members` / `org_all` | 谁算这个库的维护者 |
 | 成员角色 | `OWNER` / `EDITOR` / `VIEWER` | 读 / 写 / 治理 / 分享 四条轴的判定 |
 
-细则见 [`docs/多租户知识库权限与功能规范.md`](docs/多租户知识库权限与功能规范.md)。
+细则见 [使用手册 · 权限模型](docs/USAGE.md#8-权限模型)。
 
 ## 架构
 
@@ -248,10 +248,7 @@ cd front  && npm run build    # 产出 front/dist
 - [开发指南](docs/DEVELOPMENT.md) —— 本地启动、仓库地图、六条硬约定、提交前检查清单
 - [部署指南](docs/DEPLOYMENT.md) —— 三种部署形态、Nginx、备份与升级、故障排查
 - [使用手册](docs/USAGE.md) —— 注册登录、组织成员、写作、分享与权限模型
-- [产品需求分析](docs/产品设计需求分析.md) —— 产品定位、角色、验收场景
 - [设计取舍](docs/DESIGN.md) —— 视觉层级、色相体系、阅读版面等设计理由（含试过但行不通的做法）
-- [权限与功能规范](docs/多租户知识库权限与功能规范.md) —— 角色、可见性、维护范围与不变式
-- [开发计划（历史）](docs/开发计划-M5.md) —— v2 施工顺序与验收记录
 
 ## 贡献
 

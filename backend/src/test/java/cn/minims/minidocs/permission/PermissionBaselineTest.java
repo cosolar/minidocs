@@ -36,9 +36,9 @@ import static org.assertj.core.api.Assertions.assertThat;
  * </ul>
  *
  * <p>v1 的两个门 {@code requireOwned} / {@code requireReadable} 已删除，判定统一经
- * {@link AccessService}，见规范 §2.5 / §2.6。</p>
+ * {@link AccessService}。</p>
  *
- * @see <a href="file:../../../../../docs/多租户知识库权限与功能规范.md">多租户知识库权限与功能规范</a>
+ * @see <a href="https://github.com/cosolar/minidocs/blob/main/docs/USAGE.md">使用手册 · 权限模型</a>
  */
 @DisplayName("权限层：v1 基线 → v2 落点")
 class PermissionBaselineTest extends MiniDocsTestBase {
