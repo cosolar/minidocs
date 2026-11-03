@@ -630,10 +630,8 @@ public class KnowledgeBaseServiceImpl extends ServiceImpl<KnowledgeBaseMapper, K
                 .filter(kb -> kb.getCreatedAt() != null && !kb.getCreatedAt().isBefore(monthStart))
                 .toList();
         long kbDelta = thisMonth.size();
-        long docDelta = thisMonth.stream()
-                .mapToLong(kb -> kb.getDocCount() == null ? 0 : kb.getDocCount()).sum();
 
-        return new StatsVO(kbTotal, kbPublic, kbOrg, kbPrivate, publicDocTotal, docTotal, kbDelta, docDelta);
+        return new StatsVO(kbTotal, kbPublic, kbOrg, kbPrivate, publicDocTotal, docTotal, kbDelta);
     }
 
     @Override

@@ -232,9 +232,14 @@ public final class KbDtos {
     }
 
 
-    /** 管理台统计卡片。三档可见性各自计数，不再用「总数减公开」冒充私有（规范 §2.2）。 */
+    /**
+     * 管理台统计卡片。三档可见性各自计数，不再用「总数减公开」冒充私有（规范 §2.2）。
+     *
+     * <p>只给知识库的「本月新增」：文档是磁盘上的 Markdown，没有逐篇创建时间，
+     * 拿库的创建月份冒充文档新增会得出明显错误的数字，所以这里不提供该口径。</p>
+     */
     public record StatsVO(long kbTotal, long kbPublic, long kbOrg, long kbPrivate, long publicDocTotal,
-                          long docTotal, long kbTotalDelta, long docTotalDelta) {
+                          long docTotal, long kbTotalDelta) {
     }
 
     /**

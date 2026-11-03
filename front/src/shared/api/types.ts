@@ -264,7 +264,6 @@ export interface StatsVO {
   publicDocTotal: number
   docTotal: number
   kbTotalDelta: number
-  docTotalDelta: number
 }
 
 export interface DocNode {

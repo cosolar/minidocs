@@ -4,7 +4,6 @@ import cn.minims.minidocs.common.api.ApiResponse;
 import cn.minims.minidocs.common.api.ErrorCode;
 import cn.minims.minidocs.common.api.PageResult;
 import cn.minims.minidocs.common.context.LoginUser;
-import cn.minims.minidocs.common.context.UserContext;
 import cn.minims.minidocs.common.exception.BizException;
 import cn.minims.minidocs.common.support.RateLimiter;
 import cn.minims.minidocs.common.util.PathEncoder;
@@ -86,7 +85,12 @@ public class PortalApiController {
      */
     @GetMapping("/api/portal/stats")
     public ApiResponse<StatsVO> stats() {
-        return ApiResponse.ok(knowledgeBaseService.stats(UserContext.get()));
+        /*
+         * /api/portal/** 在 AuthInterceptor 的放行名单里，UserContext 不会被填充。
+         * 这里必须自己解析登录态：拿 UserContext.get() 会恒为 null，统计随即落进
+         * 「游客只看公开库」的分支 —— 表现就是概览页的知识库总数永远是 1。
+         */
+        return ApiResponse.ok(knowledgeBaseService.stats(currentUserResolver.resolve()));
     }
 
     /** 门户首页：已发布库的统计概览 + 当前用户。卡片列表走 {@code /api/portal/kbs} 按页取。 */

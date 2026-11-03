@@ -355,7 +355,7 @@ onMounted(async () => {
           </div>
           <div class="md-panel-body">
             <div class="md-profile__rows">
-              <div class="md-profile__row"><span>版本</span><span>MiniDocs 1.2.5</span></div>
+              <div class="md-profile__row"><span>版本</span><span>MiniDocs 1.2.6</span></div>
               <div class="md-profile__row">
                 <span>接口文档</span>
                 <!-- swagger 由后端伺服，要带 context-path；页面基址是根，两者不是同一段 -->
