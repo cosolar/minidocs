@@ -44,37 +44,40 @@ const showPerms = computed(() => kbCan('KB_MEMBER_MANAGE') || kbCan('KB_SET_VISI
     </el-button>
     <el-button
       v-if="kbCan('SHARE_CREATE')"
+      class="md-action md-action--share"
       :link="dense"
       size="small"
       :title="dense ? undefined : '分享'"
       :aria-label="dense ? undefined : '分享'"
       @click="$emit('share')"
     >
-      <MdIcon name="share" :size="14" /><span v-if="dense">分享</span>
+      <MdIcon name="share" :size="15" /><span v-if="dense">分享</span>
     </el-button>
     <el-button
       v-if="kbCan('KB_EDIT_META')"
+      class="md-action md-action--edit"
       :link="dense"
       size="small"
       :title="dense ? undefined : '编辑知识库'"
       :aria-label="dense ? undefined : '编辑知识库'"
       @click="$emit('edit')"
     >
-      <MdIcon name="edit" :size="14" /><span v-if="dense">编辑</span>
+      <MdIcon name="edit" :size="15" /><span v-if="dense">编辑</span>
     </el-button>
     <el-button
       v-if="showPerms"
+      class="md-action md-action--perms"
       :link="dense"
       size="small"
       :title="dense ? undefined : '权限与名单'"
       :aria-label="dense ? undefined : '权限与名单'"
       @click="$emit('perms')"
     >
-      <MdIcon name="key" :size="14" /><span v-if="dense">权限</span>
+      <MdIcon name="key" :size="15" /><span v-if="dense">权限</span>
     </el-button>
     <el-dropdown placement="bottom-end" trigger="click">
-      <el-button :link="dense" size="small" title="更多操作" aria-label="更多操作">
-        <MdIcon name="more" :size="14" />
+      <el-button class="md-action md-action--more" :link="dense" size="small" title="更多操作" aria-label="更多操作">
+        <MdIcon name="more" :size="15" />
       </el-button>
       <template #dropdown>
         <el-dropdown-menu>
@@ -107,10 +110,11 @@ const showPerms = computed(() => kbCan('KB_MEMBER_MANAGE') || kbCan('KB_SET_VISI
 }
 
 /* ---------------------------------------------------------------- 卡片形态 */
-.md-row-actions.is-card { gap: 3px; flex-wrap: nowrap; }
+/* --act 挂在容器上让按钮继承，具体动作再用同名类覆盖；默认值落在「更多」的灰蓝 */
+.md-row-actions.is-card { gap: 4px; flex-wrap: nowrap; --act: #64748b; }
 .md-row-actions.is-card :deep(.el-button) {
-  height: 30px; padding: 0 9px;
-  border-radius: 8px;
+  height: 36px; padding: 0 9px;
+  border-radius: 10px;
   font-size: 12.5px; font-weight: 500;
   /* 幽灵态：默认无底无框，靠悬停底色提示可点，避免一排描边按钮把卡片压碎 */
   --el-button-bg-color: transparent;
@@ -128,12 +132,40 @@ const showPerms = computed(() => kbCan('KB_MEMBER_MANAGE') || kbCan('KB_SET_VISI
 }
 /* 图标按钮：撑成正方形，抹掉全局 .el-button .md-icon 的右间距，图标才会真正居中 */
 .md-row-actions.is-card :deep(.el-button:not(.el-button--primary)) {
-  width: 30px; padding: 0; justify-content: center;
+  width: 36px; padding: 0; justify-content: center;
 }
 .md-row-actions.is-card :deep(.el-button:not(.el-button--primary) .md-icon) { margin-right: 0; }
+/*
+ * 次级动作各给一色，但都用低饱和底 + 同色图标：一眼能分清「分享 / 编辑 / 权限 / 更多」，
+ * 又不会像四颗实心按钮那样把卡片底栏变成色板。颜色由 --act 驱动，深色主题靠
+ * color-mix 与 --md-text 自适应，不必再写一套暗色值。
+ */
+.md-row-actions.is-card :deep(.el-button.md-action) {
+  --el-button-bg-color: color-mix(in srgb, var(--act) 18%, transparent);
+  --el-button-border-color: color-mix(in srgb, var(--act) 30%, transparent);
+  --el-button-text-color: color-mix(in srgb, var(--act) 88%, var(--md-text));
+  --el-button-hover-bg-color: color-mix(in srgb, var(--act) 26%, transparent);
+  --el-button-hover-border-color: color-mix(in srgb, var(--act) 44%, transparent);
+  --el-button-hover-text-color: color-mix(in srgb, var(--act) 94%, var(--md-text));
+  --el-button-active-bg-color: color-mix(in srgb, var(--act) 32%, transparent);
+  --el-button-active-border-color: color-mix(in srgb, var(--act) 50%, transparent);
+  --el-button-active-text-color: color-mix(in srgb, var(--act) 96%, var(--md-text));
+  --el-button-disabled-bg-color: color-mix(in srgb, var(--act) 8%, transparent);
+  --el-button-disabled-border-color: transparent;
+  --el-button-disabled-text-color: var(--md-text-3);
+}
+.md-row-actions.is-card :deep(.el-button.md-action--share) { --act: #0ea5e9; }
+.md-row-actions.is-card :deep(.el-button.md-action--edit) { --act: #f59e0b; }
+.md-row-actions.is-card :deep(.el-button.md-action--perms) { --act: #8b5cf6; }
+.md-row-actions.is-card :deep(.el-button.md-action--more) { --act: #64748b; }
+.md-row-actions.is-card :deep(.el-button.md-action:focus-visible) {
+  outline: 2px solid color-mix(in srgb, var(--act) 70%, transparent);
+  outline-offset: 1px;
+}
 /* 主行动实心：整张卡片只有它一处重色，视线自然落上去 */
 .md-row-actions.is-card :deep(.el-button--primary) {
-  padding: 0 12px;
+  height: 36px; padding: 0 13px;
+  border-radius: 10px;
   font-weight: 600;
   background: linear-gradient(135deg, var(--md-primary), var(--md-primary-hover));
   box-shadow: 0 2px 6px color-mix(in srgb, var(--md-primary) 32%, transparent);

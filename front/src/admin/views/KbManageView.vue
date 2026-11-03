@@ -62,6 +62,8 @@ const form = reactive({
   coverPreview: '',
   /** 外链封面地址。与 coverFile 二选一：填了它就优先用链接，不再上传 */
   coverUrl: '',
+  /** 作者点了「移除封面」。只有这个为真、或原本的外链被清空时，保存才真的清封面 */
+  coverCleared: false,
   encrypted: false,
   password: '',
   expiresIn: 'forever',
@@ -74,6 +76,15 @@ const form = reactive({
   /** 编辑态回显用：库里是否已有令牌（后端只回布尔，不回明文） */
   gitTokenSet: false
 })
+
+/**
+ * 打开编辑弹窗时库里已有的封面是什么形态。
+ *
+ * <p>上传的封面只回显预览图、不回显到输入框（输入框是给外链用的），所以「输入框为空」
+ * 并不等于「作者要删掉封面」。这里记下原有那一张的来源，保存时才知道该不该清：
+ * 只有作者明确点了移除、或原本的外链被清空，才发清空请求。</p>
+ */
+const coverOriginExternal = ref(false)
 
 /*
  * 标签编辑器的临时状态：草稿串、聚焦态、错误提示都不进 form ——
@@ -182,10 +193,11 @@ function openCreate() {
   formMode.value = 'create'
   Object.assign(form, {
     slug: '', name: '', description: '', visibility: 'org', maintainScope: 'owner_only', tags: [],
-    coverFile: null, coverPreview: '', coverUrl: '', coverBroken: false,
+    coverFile: null, coverPreview: '', coverUrl: '', coverCleared: false, coverBroken: false,
     encrypted: false, password: '', expiresIn: 'forever',
     sourceType: 'local', gitUrl: '', gitBranch: 'main', gitUsername: '', gitToken: '', gitTokenSet: false
   })
+  coverOriginExternal.value = false
   resetTagEditor()
   formVisible.value = true
 }
@@ -205,6 +217,7 @@ function openEdit(kb: KbVO) {
     coverPreview: kb.coverSrc || '',
     // 已存的外链回填进输入框：只回填预览图的话，作者看不到那条链接、也没法改
     coverUrl: isExternalCover(kb.coverSrc) ? kb.coverSrc : '',
+    coverCleared: false,
     coverBroken: false,
     encrypted: false,
     password: '',
@@ -217,6 +230,7 @@ function openEdit(kb: KbVO) {
     gitTokenSet: Boolean(kb.git?.tokenSet)
   })
   gitOrigin.value = { url: kb.git?.url || '', branch: kb.git?.branch || 'main' }
+  coverOriginExternal.value = isExternalCover(kb.coverSrc)
   resetTagEditor()
   formVisible.value = true
 }
@@ -244,6 +258,8 @@ function clearCover() {
   form.coverFile = null
   form.coverUrl = ''
   form.coverPreview = ''
+  // 这是作者明确按下的「移除封面」，保存时才允许发清空请求
+  form.coverCleared = true
   coverBroken.value = false
 }
 
@@ -319,8 +335,12 @@ async function submitForm() {
     } else if (form.coverUrl.trim()) {
       // 外链封面单独一次调用：它落在 knowledge_base.cover_url，与库元信息的 payload 是两条路
       await kbApi.setCoverUrl(kb.slug, form.coverUrl.trim())
-    } else if (!isCreate) {
-      // 编辑态两个都空 = 清掉封面。不加这一条的话，粘错了地址就只能重新上传一张盖掉它
+    } else if (!isCreate && (form.coverCleared || coverOriginExternal.value)) {
+      /*
+       * 只在两种情况下清封面：作者按了「移除封面」，或原本挂的是外链而这次把地址清空了。
+       * 上传的封面不回显到外链输入框，所以「输入框为空」不代表要删图 —— 早先写成
+       * 「两个都空就清」，改个名字就会把已经上传的封面连文件一起删掉。
+       */
       await kbApi.clearCover(kb.slug)
     }
     if (form.encrypted || form.password) {
