@@ -24,6 +24,8 @@ public class VaultDirInitializer implements ApplicationContextInitializer<Config
         try {
             Files.createDirectories(root.resolve("vaults"));
             Files.createDirectories(root.resolve("logs"));
+            // 封面等平台元数据不放在 vaults 下，启动时先把目录准备好
+            Files.createDirectories(root.resolve("platform").resolve("covers"));
         } catch (IOException e) {
             throw new UncheckedIOException("无法创建应用数据目录：" + root, e);
         }

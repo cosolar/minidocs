@@ -82,7 +82,11 @@ public interface DocService {
     /** 上传图片到知识库 assets/，返回相对知识库根的路径。 */
     String uploadImage(Long kbId, MultipartFile file, LoginUser user);
 
-    /** 上传封面图，返回相对知识库根的路径。 */
+    /**
+     * 上传封面图，返回平台封面目录里的文件名。
+     *
+     * <p>封面属于平台元数据，落在 {@code VAULT_HOME/platform/covers}，不写进知识库工作副本。</p>
+     */
     String uploadCover(Long kbId, MultipartFile file, LoginUser user);
 
     /** 设置外链封面；传空串等价于 {@link #clearCover} */

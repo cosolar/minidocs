@@ -1,9 +1,9 @@
 package cn.minims.minidocs.kb.dto;
 
-import cn.minims.minidocs.common.util.PathEncoder;
 import cn.minims.minidocs.common.util.TimeUtil;
 import cn.minims.minidocs.common.web.AppPaths;
 import cn.minims.minidocs.kb.entity.KnowledgeBase;
+import cn.minims.minidocs.kb.support.CoverAssets;
 import cn.minims.minidocs.permission.KbAction;
 import cn.minims.minidocs.share.support.SharePublicationSupport;
 import cn.minims.minidocs.tenant.entity.Tenant;
@@ -128,24 +128,16 @@ public final class KbDtos {
                                List<KbAction> permissions) {
             String tenantSlug = tenant == null ? null : tenant.getSlug();
             /*
-             * cover_url 有两种形态：上传存的是库内相对路径（assets/cover-xxx.png），
-             * 外链存的是完整 http(s) 地址。
-             *
-             * <p>外链必须原样下发。少了这个判断，它会被拼成
-             * {@code /kb/{组织}/{库}/asset/https%3A//...} —— 那个地址指向库内的资源
-             * 代理，必然 404，于是「设置成功但门户上封面空白」。</p>
+             * cover_url 有三种形态（外链 / 平台文件名 / 旧版库内路径），解析口径统一交给
+             * {@link CoverAssets}：上传的封面现在存在平台目录，后台与门户都走本库的
+             * {@code /cover} 接口，既不再依赖库内 assets，也不会被 Git 操作波及。
              */
             String coverUrl = kb.getCoverUrl();
-            String coverSrc;
-            if (coverUrl == null) {
-                coverSrc = null;
-            } else if (coverUrl.startsWith("http://") || coverUrl.startsWith("https://")) {
-                coverSrc = coverUrl;
-            } else {
-                coverSrc = tenantSlug == null ? null
-                        : AppPaths.of("/kb/" + tenantSlug + "/" + kb.getSlug() + "/asset/"
-                        + PathEncoder.encodePath(coverUrl));
-            }
+            String assetPrefix = tenantSlug == null ? null
+                    : AppPaths.of("/kb/" + tenantSlug + "/" + kb.getSlug() + "/asset/");
+            String coverPrefix = tenantSlug == null ? null
+                    : AppPaths.of("/kb/" + tenantSlug + "/" + kb.getSlug() + "/cover");
+            String coverSrc = CoverAssets.src(coverUrl, coverPrefix, assetPrefix);
             List<String> granted = permissions == null ? List.of()
                     : permissions.stream().map(Enum::name).toList();
             return new KbVO(kb.getId(), kb.getOwnerId(), ownerName, kb.getName(), kb.getSlug(), kb.getDescription(),

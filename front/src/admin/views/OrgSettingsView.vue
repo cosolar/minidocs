@@ -53,6 +53,21 @@ const openForApplications = computed(
 )
 const pending = computed(() => requests.value.filter((item) => item.status === 'pending'))
 const meUserId = computed(() => auth.user?.id)
+
+/** 成员表的角色章：后端给的是枚举，界面上换成中文，颜色按治理权从高到低递减 */
+function roleLabel(role: string) {
+  return role === 'OWNER' ? '拥有者' : role === 'ADMIN' ? '管理员' : '成员'
+}
+function roleTone(role: string) {
+  return role === 'OWNER' ? 'warn' : role === 'ADMIN' ? 'brand' : 'muted'
+}
+
+/** 成员身份色：按用户名固定，同一个人在不同列表里颜色一致 */
+function tileTone(username: string) {
+  let hash = 0
+  for (let i = 0; i < username.length; i += 1) hash = (hash * 31 + username.charCodeAt(i)) >>> 0
+  return hash % 6
+}
 /**
  * OWNER 不能直接退出：这里还剩最后一个 OWNER，退出去组织就没有主人了。
  *
@@ -304,7 +319,7 @@ onMounted(load)
                 <strong>{{ row.displayName || row.username }}</strong>
                 <small>@{{ row.username }} · 来自{{ row.joinedFrom }}</small>
               </div>
-              <span :class="`md-ad-chip md-ad-chip--${row.role.toLowerCase()}`">{{ row.role }}</span>
+              <span class="md-tbl-pill md-tbl-pill--plain" :class="`md-tbl-pill--${roleTone(row.role)}`">{{ roleLabel(row.role) }}</span>
             </div>
             <div class="md-ad-item__actions">
               <span v-if="row.userId === meUserId" class="md-ad-sub">这是你</span>
@@ -338,10 +353,15 @@ onMounted(load)
         </div>
 
         <el-table v-else :data="members" style="width: 100%">
-          <el-table-column label="成员" min-width="220">
+          <el-table-column min-width="220">
+            <template #header>
+              <span class="md-th"><MdIcon name="user" :size="14" />成员</span>
+            </template>
             <template #default="{ row }">
               <div class="md-user-cell">
-                <span class="md-user-cell__avatar">{{ (row.displayName || row.username).slice(0, 1) }}</span>
+                <span class="md-tile md-tile--sm" :class="`md-tile--t${tileTone(row.username)}`">
+                  {{ (row.displayName || row.username).slice(0, 1) }}
+                </span>
                 <div class="md-user-cell__text">
                   <strong>{{ row.displayName || row.username }}</strong>
                   <small>@{{ row.username }}</small>
@@ -349,13 +369,24 @@ onMounted(load)
               </div>
             </template>
           </el-table-column>
-          <el-table-column label="角色" width="120">
+          <el-table-column width="120">
+            <template #header>
+              <span class="md-th"><MdIcon name="key" :size="14" />角色</span>
+            </template>
             <template #default="{ row }">
-              <span :class="`md-ad-chip md-ad-chip--${row.role.toLowerCase()}`">{{ row.role }}</span>
+              <span class="md-tbl-pill md-tbl-pill--plain" :class="`md-tbl-pill--${roleTone(row.role)}`">{{ roleLabel(row.role) }}</span>
             </template>
           </el-table-column>
-          <el-table-column prop="joinedFrom" label="来源" width="120" />
-          <el-table-column label="操作" width="340" align="right">
+          <el-table-column width="120">
+            <template #header>
+              <span class="md-th"><MdIcon name="globe" :size="14" />来源</span>
+            </template>
+            <template #default="{ row }">{{ row.joinedFrom }}</template>
+          </el-table-column>
+          <el-table-column width="340" align="right">
+            <template #header>
+              <span class="md-th"><MdIcon name="gear" :size="14" />操作</span>
+            </template>
             <template #default="{ row }">
               <div class="md-row-actions">
                 <span v-if="row.userId === meUserId" class="md-ad-sub">这是你</span>

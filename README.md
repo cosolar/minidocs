@@ -148,7 +148,7 @@ location / { try_files $uri $uri/ /index.html; }     # SPA 深链接（/share/xx
 location /minidocs/ { proxy_pass http://127.0.0.1:9098; }
 ```
 
-- 站点基址（分享链接的地址前缀）**推荐在「站点设置」页里配**（`/console/platform/site`，改完立即生效，不必重启后端）。
+- 站点基址（分享链接的地址前缀）**推荐在「站点设置」页里配**（`/platform/site`，改完立即生效，不必重启后端）。
   `--minidocs.page-base-url` 只是部署期兜底，用于「还没人登录后台」或「配置由平台注入不便入库」的场景
 - 分离部署若基址没配对，复制出去的链接会带上接口前缀而打不开
 - 置于反向代理之后时建议开启 `server.forward-headers-strategy=framework`，让后端正确识别 `X-Forwarded-*`
@@ -231,7 +231,7 @@ cd front  && npm run build    # 产出 front/dist
 | `PORT` | `9098` | HTTP 端口 |
 | `CONTEXT_PATH` | `/minidocs` | 后端 context-path，即**接口**前缀（页面不带这一层） |
 | `PAGE_BASE_URL` | 空 | 站点基址的**部署期兜底**。优先在「站点设置」页配（改完即生效）；本项只在页面上没配时用 |
-| `VAULT_HOME` | `./data` | 数据根目录（SQLite、文档、日志），**建议生产写绝对路径** |
+| `VAULT_HOME` | `./data` | 数据根目录（SQLite、文档、头像、封面等平台元数据、日志），**建议生产写绝对路径** |
 | `SPRING_PROFILES_ACTIVE` | `dev` | `dev`=SQLite，`prod`=MySQL |
 | `DB_HOST` / `DB_USER` / `DB_PASSWORD` / `DB_URL` | — | MySQL 连接信息 |
 | `JWT_SECRET` | 内置开发密钥 | **生产必须覆盖**，≥ 32 字节 |

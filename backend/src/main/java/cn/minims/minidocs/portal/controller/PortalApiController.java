@@ -14,6 +14,7 @@ import cn.minims.minidocs.kb.dto.KbDtos.KbVO;
 import cn.minims.minidocs.kb.dto.KbDtos.PortalStatsVO;
 import cn.minims.minidocs.kb.dto.KbDtos.StatsVO;
 import cn.minims.minidocs.kb.entity.KnowledgeBase;
+import cn.minims.minidocs.kb.service.KbCoverService;
 import cn.minims.minidocs.kb.service.KnowledgeBaseService;
 import cn.minims.minidocs.permission.AccessService;
 import cn.minims.minidocs.permission.KbAction;
@@ -65,6 +66,7 @@ public class PortalApiController {
     private static final Duration PASSWORD_WINDOW = Duration.ofSeconds(60);
 
     private final KnowledgeBaseService knowledgeBaseService;
+    private final KbCoverService kbCoverService;
     private final TenantService tenantService;
     private final AccessService accessService;
     private final ReaderService readerService;
@@ -207,6 +209,23 @@ public class PortalApiController {
 
         AssetService.Asset asset = assetService.load(vaultFileService.rootOf(kb.getStorageKey()), relative);
         return assetService.respond(asset, ifNoneMatch);
+    }
+
+    /**
+     * 门户封面。
+     *
+     * <p>封面文件在平台目录，不随知识库内容走；但访问门与资源代理保持一致：加密库在通过口令前
+     * 按不存在处理，避免用封面地址确认「这个私有库确实存在」。</p>
+     */
+    @GetMapping("/kb/{org}/{slug}/cover")
+    public ResponseEntity<Resource> cover(@PathVariable String org, @PathVariable String slug,
+                                          @RequestHeader(value = "If-None-Match", required = false) String ifNoneMatch,
+                                          HttpServletRequest request) {
+        PortalTarget target = resolve(org, slug, currentUserResolver.resolve(), request);
+        if (target.needPassword()) {
+            throw BizException.notFound("知识库不存在或未公开");
+        }
+        return assetService.respond(kbCoverService.load(target.kb()), ifNoneMatch);
     }
 
     /**

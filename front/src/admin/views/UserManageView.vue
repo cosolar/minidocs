@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { userApi } from '@/admin/api'
 import AdminPageHeader from '@/admin/components/AdminPageHeader.vue'
@@ -96,11 +96,26 @@ async function remove(row: AdminUserVO) {
   await load()
 }
 
-function statusTag(status: string) {
-  if (status === 'active') return 'success'
-  if (status === 'pending') return 'warning'
+function statusTone(status: string) {
+  if (status === 'active') return 'ok'
+  if (status === 'pending') return 'warn'
   if (status === 'disabled') return 'danger'
-  return 'info'
+  return 'muted'
+}
+
+function splitTime(value?: string) {
+  const text = (value || '').replace('T', ' ')
+  const [date, time] = text.split(' ')
+  return { date: date || '—', time: time ? time.slice(0, 5) : '' }
+}
+
+const pageCount = computed(() => Math.max(1, Math.ceil(total.value / query.size)))
+
+/** 用户身份色：按用户名固定，同一个人在不同列表里颜色一致 */
+function tileTone(username: string) {
+  let hash = 0
+  for (let i = 0; i < username.length; i += 1) hash = (hash * 31 + username.charCodeAt(i)) >>> 0
+  return hash % 6
 }
 
 function statusText(status: string) {
@@ -113,6 +128,8 @@ onMounted(load)
 <template>
   <div class="md-page">
     <AdminPageHeader
+      hero
+      icon="users"
       eyebrow="站点"
       title="平台用户管理"
       description="管理全站账号、角色与启停状态；删除用户会连带删除其知识库与分享。"
@@ -158,15 +175,20 @@ onMounted(load)
         </div>
         <div v-for="row in list" :key="row.id" class="md-ad-item">
           <div class="md-ad-item__head">
-            <div class="md-ad-item__title">
-              <strong>{{ row.username }}</strong>
-              <small>{{ row.displayName || '—' }}</small>
+            <div class="md-row-id md-ad-item__title">
+              <span class="md-tile md-tile--sm" :class="`md-tile--t${tileTone(row.username)}`">
+                {{ (row.displayName || row.username).slice(0, 1) }}
+              </span>
+              <span class="md-row-id__text">
+                <strong>{{ row.username }}</strong>
+                <small>{{ row.displayName || '—' }}</small>
+              </span>
             </div>
             <div class="md-ad-item__chips">
-              <span :class="['md-ad-chip', row.role === 'ADMIN' ? 'md-ad-chip--admin' : 'md-ad-chip--member']">
+              <span class="md-tbl-pill md-tbl-pill--plain" :class="row.role === 'ADMIN' ? 'md-tbl-pill--brand' : 'md-tbl-pill--muted'">
                 {{ row.role === 'ADMIN' ? '管理员' : '用户' }}
               </span>
-              <el-tag size="small" :type="statusTag(row.status)">{{ statusText(row.status) }}</el-tag>
+              <span class="md-tbl-pill" :class="`md-tbl-pill--${statusTone(row.status)}`">{{ statusText(row.status) }}</span>
             </div>
           </div>
           <div class="md-ad-item__meta">
@@ -214,10 +236,22 @@ onMounted(load)
       </div>
 
       <el-table v-else :data="list" v-loading="loading" style="width: 100%">
-        <el-table-column label="用户" min-width="200">
+        <template #empty>
+          <div class="md-empty">
+            <span class="md-empty__icon"><MdIcon name="users" :size="22" /></span>
+            <div class="md-empty__title">暂无用户</div>
+            <p class="md-empty__desc">调整筛选条件，或等待新用户注册。</p>
+          </div>
+        </template>
+        <el-table-column min-width="200">
+          <template #header>
+            <span class="md-th"><MdIcon name="user" :size="14" />用户</span>
+          </template>
           <template #default="{ row }">
             <div class="md-user-cell">
-              <span class="md-user-cell__avatar">{{ (row.displayName || row.username).slice(0, 1) }}</span>
+              <span class="md-tile md-tile--sm" :class="`md-tile--t${tileTone(row.username)}`">
+                {{ (row.displayName || row.username).slice(0, 1) }}
+              </span>
               <div class="md-user-cell__text">
                 <strong>{{ row.username }}</strong>
                 <small>{{ row.displayName || '未设置显示名' }}</small>
@@ -225,28 +259,54 @@ onMounted(load)
             </div>
           </template>
         </el-table-column>
-        <el-table-column prop="email" label="邮箱" min-width="190">
-          <template #default="{ row }">{{ row.email || '—' }}</template>
-        </el-table-column>
-        <el-table-column label="角色" width="100" align="center">
+        <el-table-column min-width="190">
+          <template #header>
+            <span class="md-th"><MdIcon name="mail" :size="14" />邮箱</span>
+          </template>
           <template #default="{ row }">
-            <span :class="['md-ad-chip', row.role === 'ADMIN' ? 'md-ad-chip--admin' : 'md-ad-chip--member']">
+            <span v-if="row.email">{{ row.email }}</span>
+            <span v-else class="md-copy-hint">未填邮箱</span>
+          </template>
+        </el-table-column>
+        <el-table-column width="104" align="center">
+          <template #header>
+            <span class="md-th md-th--center"><MdIcon name="key" :size="14" />角色</span>
+          </template>
+          <template #default="{ row }">
+            <span class="md-tbl-pill md-tbl-pill--plain" :class="row.role === 'ADMIN' ? 'md-tbl-pill--brand' : 'md-tbl-pill--muted'">
               {{ row.role === 'ADMIN' ? '管理员' : '用户' }}
             </span>
           </template>
         </el-table-column>
-        <el-table-column label="状态" width="100" align="center">
+        <el-table-column width="100" align="center">
+          <template #header>
+            <span class="md-th md-th--center"><MdIcon name="check-circle" :size="14" />状态</span>
+          </template>
           <template #default="{ row }">
-            <el-tag size="small" :type="statusTag(row.status)">{{ statusText(row.status) }}</el-tag>
+            <span class="md-tbl-pill" :class="`md-tbl-pill--${statusTone(row.status)}`">{{ statusText(row.status) }}</span>
           </template>
         </el-table-column>
-        <el-table-column prop="kbCount" label="知识库" width="90" align="center" />
-        <el-table-column label="创建时间" width="160">
+        <el-table-column width="90" align="center">
+          <template #header>
+            <span class="md-th md-th--center"><MdIcon name="books" :size="14" />知识库</span>
+          </template>
+          <template #default="{ row }"><span class="md-tbl-num"><strong>{{ row.kbCount }}</strong></span></template>
+        </el-table-column>
+        <el-table-column width="150">
+          <template #header>
+            <span class="md-th"><MdIcon name="clock" :size="14" />创建时间</span>
+          </template>
           <template #default="{ row }">
-            <span class="md-copy-hint">{{ (row.createdAt || '').replace('T', ' ').slice(0, 16) }}</span>
+            <span class="md-tbl-time">
+              <strong>{{ splitTime(row.createdAt).date }}</strong>
+              <small>{{ splitTime(row.createdAt).time }}</small>
+            </span>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="280" fixed="right" align="right">
+        <el-table-column width="280" fixed="right" align="right">
+          <template #header>
+            <span class="md-th"><MdIcon name="gear" :size="14" />操作</span>
+          </template>
           <template #default="{ row }">
             <div class="md-row-actions">
               <el-button link type="primary" size="small" @click="openEdit(row)">
@@ -288,12 +348,15 @@ onMounted(load)
       </el-table>
 
       <div class="md-table-foot">
+        <span class="md-table-foot__summary">
+          <MdIcon name="info" :size="13" />共 {{ total }} 条记录，当前第 {{ query.page }} / {{ pageCount }} 页
+        </span>
         <el-pagination
           v-model:current-page="query.page"
           v-model:page-size="query.size"
           :total="total"
           :page-sizes="[20, 50, 100]"
-          layout="total, sizes, prev, pager, next"
+          layout="sizes, prev, pager, next"
           @current-change="load"
           @size-change="load"
         />

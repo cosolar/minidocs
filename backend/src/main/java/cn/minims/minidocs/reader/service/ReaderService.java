@@ -7,6 +7,7 @@ import cn.minims.minidocs.common.util.TimeUtil;
 import cn.minims.minidocs.common.web.AppPaths;
 import cn.minims.minidocs.doc.service.VaultFileService;
 import cn.minims.minidocs.kb.entity.KnowledgeBase;
+import cn.minims.minidocs.kb.support.CoverAssets;
 import cn.minims.minidocs.markdown.MarkdownService;
 import cn.minims.minidocs.markdown.model.MarkdownModels.DocMeta;
 import cn.minims.minidocs.markdown.model.MarkdownModels.RenderContext;
@@ -47,9 +48,9 @@ public class ReaderService {
      *
      * @param fixedDocPath 固定文档（单篇分享），为 null 时按 requestedPath / 首篇解析
      */
-    public record ReadRequest(String mode, String assetPrefix, String docLinkPrefix, Variant variant,
-                              boolean singleDoc, boolean includeTree, String fixedDocPath, String requestedPath,
-                              String shareToken, String expiresText, Long views) {
+    public record ReadRequest(String mode, String assetPrefix, String coverPrefix, String docLinkPrefix,
+                              Variant variant, boolean singleDoc, boolean includeTree, String fixedDocPath,
+                              String requestedPath, String shareToken, String expiresText, Long views) {
 
         /**
          * 门户阅读链接。
@@ -60,12 +61,13 @@ public class ReaderService {
         public static ReadRequest portal(String orgSlug, String slug, String requestedPath) {
             // 前缀要带上下文路径：它会写进渲染后的 <img src> 与站内链接，少一段就整片 404
             String base = AppPaths.of("/kb/" + orgSlug + "/" + slug);
-            return new ReadRequest("portal", base + "/asset/", base + "?path=",
+            return new ReadRequest("portal", base + "/asset/", base + "/cover", base + "?path=",
                     Variant.KB, false, true, null, requestedPath, null, null, null);
         }
 
         public static ReadRequest share(String token, boolean singleDoc) {
             return new ReadRequest("share", AppPaths.of("/share/" + token + "/asset/"),
+                    AppPaths.of("/share/" + token + "/cover"),
                     AppPaths.of("/share/" + token + "?path="),
                     singleDoc ? Variant.DOC : Variant.KB, singleDoc, !singleDoc, null, null, token, null, null);
         }
@@ -81,7 +83,7 @@ public class ReaderService {
         view.setKbName(kb.getName());
         view.setKbSlug(kb.getSlug());
         view.setKbDescription(kb.getDescription());
-        view.setKbCoverSrc(coverSrc(kb.getCoverUrl(), request.assetPrefix()));
+        view.setKbCoverSrc(CoverAssets.src(kb.getCoverUrl(), request.coverPrefix(), request.assetPrefix()));
         view.setKbUpdatedText(TimeUtil.display(kb.getUpdatedAt()));
         view.setKbTags(splitTags(kb.getTags()));
         view.setVisibility(kb.getVisibility());
@@ -148,18 +150,6 @@ public class ReaderService {
         return view;
     }
 
-    /**
-     * 封面取图地址。
-     *
-     * <p>封面是库 vault 里的普通文件，所以借当前场景自己的资源前缀取；没有封面就留空，
-     * 由前端退回首字母徽标——拼一个不存在的地址只会换来一个坏图图标。</p>
-     */
-    private String coverSrc(String coverUrl, String assetPrefix) {
-        if (coverUrl == null || coverUrl.isBlank()) {
-            return null;
-        }
-        return assetPrefix + PathEncoder.encodePath(coverUrl);
-    }
 
     private String resolveDocPath(List<String> docPaths, ReadRequest request) {
         if (request.fixedDocPath() != null && !request.fixedDocPath().isBlank()) {

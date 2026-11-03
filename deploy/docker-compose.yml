@@ -14,7 +14,7 @@ name: minidocs
 
 services:
   app:
-    image: ${IMAGE_TAG:-minidocs:1.2.4}
+    image: ${IMAGE_TAG:-minidocs:1.2.5}
     container_name: minidocs-app
     restart: unless-stopped
     environment:
@@ -25,7 +25,7 @@ services:
       PORT: "9098"
       # 数据根：文档、库内资源、头像、站点 Logo、日志。compose 里挂到 ./data
       VAULT_HOME: /data
-      # 站点基址的兜底值。优先在「站点设置」页里配（/console/platform/site，改完即生效），
+      # 站点基址的兜底值。优先在「站点设置」页里配（/platform/site，改完即生效），
       # 本项只在还没人登录后台、或首启兜底时用。两种方式别填成两个不同地址。
       PAGE_BASE_URL: ${PAGE_BASE_URL:?请在 deploy/.env 里设置}
       # host 是 compose 网络里的 MySQL 容器名，不是 127.0.0.1：
@@ -51,7 +51,7 @@ services:
     networks: [minidocs, onepanel]
 
   web:
-    image: ${WEB_IMAGE_TAG:-minidocs-web:1.2.4}
+    image: ${WEB_IMAGE_TAG:-minidocs-web:1.2.5}
     container_name: minidocs-web
     restart: unless-stopped
     depends_on: [app]

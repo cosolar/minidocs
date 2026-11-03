@@ -920,33 +920,54 @@
 .md-stat-card__value { font-size: 26px; font-weight: 680; margin-top: 4px; letter-spacing: -.02em; }
 .md-stat-card__hint { color: var(--md-text-3); font-size: 12px; margin-top: 4px; }
 
-/* 最窄列宽要容得下「进入/分享/编辑/权限/更多」五个动作一行排完，否则动作区会折行 */
+/*
+ * 知识库网格：宽屏四列，向下依次 3 / 2 / 1 列。
+ *
+ * <p>用显式列数而不是 auto-fill：auto-fill 在 1600px 左右会卡在「三列各 420」，
+ * 右边留一条空带，正是这次要改掉的观感。卡片动作区已收成图标按钮，四列时
+ * 最窄约 270px 也不会折行。</p>
+ */
 .md-kb-grid {
-  display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 420px));
-  justify-content: start; align-items: stretch; gap: 18px;
+  display: grid; grid-template-columns: repeat(4, minmax(0, 1fr));
+  align-items: stretch; gap: 16px;
+}
+@media (max-width: 1440px) {
+  .md-kb-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (max-width: 1300px) {
+  .md-kb-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
 }
 .md-kb-card {
   position: relative;
-  background: var(--md-surface); border: 1px solid var(--md-border); border-radius: 16px;
+  background: var(--md-surface); border: 1px solid var(--md-border); border-radius: 14px;
   overflow: hidden; display: flex; flex-direction: column;
   box-shadow: 0 1px 2px rgba(24, 29, 51, .03);
   transition: transform .16s ease, box-shadow .16s ease, border-color .16s ease;
 }
 .md-kb-card:hover {
-  border-color: var(--md-border-strong);
-  box-shadow: 0 18px 38px -26px rgba(24, 29, 51, .35);
-  transform: translateY(-3px);
+  border-color: color-mix(in srgb, var(--md-primary) 28%, var(--md-border));
+  box-shadow: 0 16px 34px -26px rgba(18, 60, 52, .45);
+  transform: translateY(-2px);
 }
 /* 封面只当氛围带：占满 16:9 会把卡片压成「一张图 + 一段附言」，正文反而读不到 */
 .md-kb-card__cover {
-  position: relative; height: 128px; flex-shrink: 0; overflow: hidden;
-  display: grid; place-items: center; color: rgba(255, 255, 255, .82);
+  position: relative; height: 108px; flex-shrink: 0; overflow: hidden;
+  display: grid; place-items: center; color: rgba(255, 255, 255, .9);
   background:
-    radial-gradient(circle at 86% 14%, rgba(255, 255, 255, .26), transparent 42%),
-    radial-gradient(circle at 8% 92%, rgba(15, 23, 42, .18), transparent 56%),
-    linear-gradient(135deg, #128577, #2f9c8b 55%, #7ac9a6);
+    radial-gradient(circle at 82% 16%, rgba(255, 255, 255, .24), transparent 40%),
+    radial-gradient(circle at 6% 98%, rgba(6, 45, 40, .3), transparent 58%),
+    linear-gradient(135deg, #0f7c6e, #1f9483 48%, #5cc3a6);
 }
-.md-kb-card__cover-icon { position: relative; z-index: 0; }
+/* 没传封面时的占位章：白圆片托住品牌色的开卷图标，与门户知识卡的身份标同源 */
+.md-kb-card__cover-mark {
+  position: relative; z-index: 0;
+  width: 44px; height: 44px; border-radius: 50%;
+  display: grid; place-items: center;
+  background: rgba(255, 255, 255, .94);
+  border: 1px solid rgba(255, 255, 255, .7);
+  color: #0f7c6e;
+  box-shadow: 0 4px 12px rgba(6, 45, 40, .2);
+}
 .md-kb-card__cover img {
   position: absolute; inset: 0; z-index: 1;
   width: 100%; height: 100%; object-fit: cover; display: block;
@@ -959,26 +980,48 @@
   background: linear-gradient(to top, rgba(15, 17, 23, .18), transparent);
   pointer-events: none;
 }
-.md-kb-card__body { padding: 16px 18px 14px; flex: 1; display: flex; flex-direction: column; }
-.md-kb-card__title { display: flex; align-items: center; gap: 6px; margin-bottom: 9px; }
+/* 来源与发布态压在封面上：无论下面是渐变还是实拍图，磨砂深底都能保证字读得清 */
+.md-kb-card__badges {
+  position: absolute; inset: 8px 8px auto; z-index: 3;
+  display: flex; align-items: center; gap: 6px;
+  pointer-events: none;
+}
+.md-kb-card__badges > :last-child { margin-left: auto; }
+.md-kb-card__badge {
+  display: inline-flex; align-items: center; gap: 4px;
+  height: 21px; padding: 0 8px; border-radius: 999px;
+  background: rgba(15, 23, 42, .42);
+  border: 1px solid rgba(255, 255, 255, .18);
+  backdrop-filter: blur(8px);
+  color: #fff; font-size: 11px; line-height: 1;
+  white-space: nowrap;
+}
+.md-kb-card__dot {
+  width: 5px; height: 5px; border-radius: 50%;
+  background: #cbd5e1; box-shadow: 0 0 0 2px rgba(255, 255, 255, .14);
+}
+.md-kb-card__badge--status.is-public .md-kb-card__dot { background: #6ee7b7; }
+.md-kb-card__badge--status.is-private .md-kb-card__dot { background: #93c5fd; }
+.md-kb-card__body { padding: 14px 15px 12px; flex: 1; display: flex; flex-direction: column; }
+.md-kb-card__title { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; }
 .md-kb-card__name {
-  min-width: 0; color: var(--md-text); font-size: 15.5px; font-weight: 680; letter-spacing: -.012em;
+  min-width: 0; color: var(--md-text); font-size: 15px; font-weight: 650; letter-spacing: -.01em;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .md-kb-card__fav { flex-shrink: 0; color: #f59e0b; fill: currentColor; }
-.md-kb-card__chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+.md-kb-card__chips { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 9px; }
 .md-kb-card__chips:empty { display: none; }
 .md-kb-card__desc {
-  color: var(--md-text-2); font-size: 12.8px; line-height: 1.62; min-height: 41px;
+  color: var(--md-text-2); font-size: 12.5px; line-height: 1.6; min-height: 40px;
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
 }
 /* 标签单独占描述下面一行：与上面的状态章分开站，读的人不用先分辨哪枚是状态、哪枚是主题 */
-.md-kb-card__tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.md-kb-card__tags { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px; }
 /* margin-top:auto 把元信息压到卡底：同一行的卡片高度一致，这行也会对齐 */
 .md-kb-card__meta {
   display: flex; flex-wrap: wrap; align-items: center;
-  margin-top: auto; padding-top: 14px;
-  color: var(--md-text-3); font-size: 11.8px;
+  margin-top: auto; padding-top: 12px;
+  color: var(--md-text-3); font-size: 11.5px;
 }
 .md-kb-card__meta > span { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
 /* 圆点当分隔符：比空格可靠，折行时也不会把两段信息粘在一起 */
@@ -988,7 +1031,7 @@
 }
 .md-kb-card__actions {
   display: flex; align-items: center; flex-wrap: nowrap;
-  padding: 9px 12px; background: var(--md-surface-2);
+  padding: 8px 10px; background: var(--md-surface-2);
   border-top: 1px solid var(--md-border);
 }
 .md-kb-card__actions .md-row-actions { flex: 1; flex-wrap: nowrap; min-width: 0; }
@@ -997,8 +1040,8 @@
 
 /* 网格里的「新建」占位卡：库少时把右侧空位变成入口，而不是留一片空白 */
 .md-kb-create {
-  min-height: 320px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px;
-  border: 1.5px dashed var(--md-border-strong); border-radius: 16px;
+  min-height: 260px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px;
+  border: 1.5px dashed var(--md-border-strong); border-radius: 14px;
   background: transparent; color: var(--md-text-2); font: inherit; cursor: pointer;
   transition: border-color .16s ease, background .16s ease, transform .16s ease;
 }
@@ -1017,20 +1060,14 @@
 .md-kb-create:hover .md-kb-create__icon { background: var(--md-primary); color: #fff; }
 .md-kb-create:focus-visible { outline: 2px solid var(--md-primary); outline-offset: 2px; }
 
-/* 列表视图的名称单元格：缩略封面 + 名称 + 目录路径，两行足够区分同名库 */
-.md-kb-cell__name { display: flex; align-items: center; gap: 10px; min-width: 0; }
-.md-kb-cell__thumb {
-  position: relative; width: 52px; height: 30px; border-radius: 7px; flex-shrink: 0; overflow: hidden;
-  display: grid; place-items: center; color: rgba(255, 255, 255, .86);
-  background:
-    radial-gradient(circle at 82% 18%, rgba(255, 255, 255, .22), transparent 48%),
-    linear-gradient(135deg, #128577, #2f9c8b 55%, #7ac9a6);
-}
+/* 列表视图的名称单元格：彩色身份章 + 名称 + 目录路径，两行足够区分同名库 */
+.md-kb-cell__name { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.md-kb-cell__thumb { position: relative; flex-shrink: 0; overflow: hidden; }
 .md-kb-cell__thumb img {
   position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block;
 }
 .md-kb-cell__text { display: flex; flex-direction: column; min-width: 0; }
-.md-kb-cell__text strong { font-size: 13.5px; font-weight: 620; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.md-kb-cell__text strong { color: var(--md-text); font-size: 14.5px; font-weight: 650; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .md-kb-cell__text small { color: var(--md-text-3); font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .md-kb-cell__star { color: #f59e0b; fill: currentColor; vertical-align: -1px; }
 
@@ -1049,6 +1086,20 @@
 .md-ad-chip--cloud { background: rgba(14, 165, 233, .16); color: #0369a1; font-weight: 400; }
 /* 标签压成中性灰：状态章用主色与语义色，标签只是内容主题，不该跟着抢戏 */
 .md-ad-chip--tag { background: rgba(148, 163, 184, .16); color: var(--md-text-2); font-weight: 400; }
+/* 可写档位：与可见范围并排，但它是写轴、不是状态，所以用最轻的中性底 */
+.md-ad-chip--meta {
+  display: inline-flex; align-items: center; gap: 4px;
+  background: var(--md-surface-2); color: var(--md-text-3); font-weight: 400;
+}
+.md-ad-chip--meta .md-icon { color: var(--md-text-3); }
+/* 审计动作：值是后端枚举（SHARE_CREATE 这类），等宽字更易逐行对齐比较；
+   底色压成中性，避免一整列薄荷胶囊把真正要看的状态淹没 */
+.md-ad-chip--action {
+  background: color-mix(in srgb, var(--md-text-3) 10%, transparent);
+  color: var(--md-text-2); font-weight: 500;
+  font-family: var(--md-mono, ui-monospace, Menlo, Consolas, monospace);
+  font-size: 10.5px; letter-spacing: .015em;
+}
 
 /* 组织设置里反复出现的「一行一件事」行：左侧说明，右侧动作 */
 .md-ad-row {
@@ -1779,12 +1830,6 @@ body.is-col-resizing .md-ws__bytemd-resizer::after { background: var(--md-primar
 }
 
 /* 分享管理 */
-.md-share-url {
-  font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 12.5px;
-  background: var(--md-surface-2); border: 1px solid var(--md-border);
-  border-radius: 6px; padding: 2px 8px; word-break: break-all;
-}
-
 .md-fill { width: 100%; }
 .md-mt-16 { margin-top: 16px; }
 .md-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
@@ -2455,7 +2500,13 @@ body.is-col-resizing .md-ws__bytemd-resizer::after { background: var(--md-primar
  * 表单与按钮收成一套。颜色仍走 --md-* 令牌，阅读端完全不受影响。
  * ================================================================== */
 
-.md-content { padding: 26px 28px 44px; }
+.md-content {
+  padding: 26px 28px 44px;
+  background: linear-gradient(180deg, #eef9f4 0%, #f4faf8 320px, var(--md-bg) 580px);
+}
+[data-theme='dark'] .md-content {
+  background: radial-gradient(900px 420px at 60% 0%, rgba(38, 120, 100, .18), transparent 70%), var(--md-bg);
+}
 
 .md-page { display: flex; flex-direction: column; gap: 18px; }
 
@@ -2479,6 +2530,106 @@ body.is-col-resizing .md-ws__bytemd-resizer::after { background: var(--md-primar
 }
 .md-page-head__actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding-bottom: 2px; }
 .md-page-head__actions .el-button { height: 36px; }
+
+/*
+ * 水彩头部：列表页的第一屏。
+ *
+ * <p>青绿纸面托着一幅淡彩山水，标题与主操作浮在画上；筛选条随后压着它的下沿升起，
+ * 把「页面标题 → 筛选 → 表格」三层收成一条连续的视觉带。只给列表页用，表单页仍是普通页头。</p>
+ */
+.md-page-head--hero {
+  position: relative;
+  align-items: center;
+  gap: 20px;
+  min-height: 160px;
+  margin: 0;
+  padding: 26px 32px;
+  border-radius: 20px;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--md-primary) 14%, transparent);
+  background:
+    radial-gradient(680px 220px at 78% 20%, rgba(255, 255, 255, .55), transparent 70%),
+    linear-gradient(96deg, rgba(236, 250, 244, .97) 0%, rgba(236, 250, 244, .84) 34%, rgba(236, 250, 244, .24) 66%, rgba(236, 250, 244, 0) 100%),
+    var(--md-hero-art, none) right center / cover no-repeat,
+    linear-gradient(120deg, #eaf8f2, #d9f1e7);
+  box-shadow: 0 26px 52px -40px rgba(8, 62, 52, .55);
+}
+.md-page-head__icon {
+  width: 62px; height: 62px; flex-shrink: 0;
+  display: grid; place-items: center;
+  border-radius: 18px; color: #fff;
+  background: linear-gradient(145deg, #3ad4b8, #0e8a76);
+  box-shadow: 0 12px 26px -12px rgba(14, 138, 118, .6), inset 0 1px 0 rgba(255, 255, 255, .45);
+}
+.md-page-head--hero .md-page-head__text { flex: 1; }
+.md-page-head--hero .md-page-head__title {
+  font-size: 30px; font-weight: 750; letter-spacing: -.03em;
+  color: color-mix(in srgb, var(--md-text) 92%, #0c4d44);
+}
+.md-page-head--hero .md-page-head__desc {
+  max-width: 640px; margin-top: 7px;
+  color: color-mix(in srgb, var(--md-text-2) 86%, var(--md-primary));
+}
+.md-page-head--hero .md-page-head__actions { padding-bottom: 0; }
+.md-page-head--hero .md-page-head__actions .el-button {
+  height: 40px; padding: 0 20px; border-radius: 999px;
+}
+.md-page-head--hero .md-page-head__actions .el-button--primary {
+  background: #0e6b5c; border-color: #0e6b5c;
+  box-shadow: 0 10px 22px -12px rgba(14, 107, 92, .7);
+}
+.md-page-head--hero .md-page-head__actions .el-button--primary:hover {
+  background: #0b5c4f; border-color: #0b5c4f;
+}
+[data-theme='dark'] .md-page-head--hero {
+  border-color: color-mix(in srgb, var(--md-primary) 24%, transparent);
+  background:
+    linear-gradient(rgba(10, 22, 19, .58), rgba(10, 22, 19, .58)),
+    linear-gradient(96deg, rgba(12, 28, 24, .97) 0%, rgba(12, 28, 24, .8) 42%, rgba(12, 28, 24, .3) 80%, rgba(12, 28, 24, .14) 100%),
+    var(--md-hero-art, none) right center / cover no-repeat,
+    linear-gradient(120deg, #102720, #0d1f1b);
+}
+[data-theme='dark'] .md-page-head--hero .md-page-head__title { color: #eafaf5; }
+[data-theme='dark'] .md-page-head--hero .md-page-head__desc { color: rgba(224, 243, 237, .76); }
+[data-theme='dark'] .md-page-head__icon {
+  background: linear-gradient(145deg, #2fae97, #0d6e5d);
+  box-shadow: 0 12px 26px -14px rgba(0, 0, 0, .65), inset 0 1px 0 rgba(255, 255, 255, .22);
+}
+/* 水彩头部下面紧跟的筛选条压着画的下沿浮起 */
+.md-page-head--hero + .md-toolbar {
+  position: relative; z-index: 2;
+  margin-top: -58px;
+  padding: 10px 14px;
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--md-surface) 82%, transparent);
+  -webkit-backdrop-filter: blur(16px) saturate(150%);
+  backdrop-filter: blur(16px) saturate(150%);
+  border-color: color-mix(in srgb, #fff 62%, var(--md-border));
+  box-shadow: 0 20px 40px -30px rgba(8, 62, 52, .55);
+}
+[data-theme='dark'] .md-page-head--hero + .md-toolbar {
+  background: color-mix(in srgb, var(--md-surface) 82%, transparent);
+  border-color: var(--md-border);
+  box-shadow: 0 20px 40px -30px rgba(0, 0, 0, .7);
+}
+/* 筛选控件左侧的小色章：与表头图标同一套语言（绿底 + 青绿图标） */
+.md-filter-mark {
+  width: 24px; height: 24px; display: grid; place-items: center;
+  border-radius: 7px;
+  background: var(--md-primary-soft); color: var(--md-primary);
+}
+.md-toolbar .el-select__prefix { margin-right: 8px; }
+.md-toolbar .el-select__placeholder { color: var(--md-text-2); }
+.md-toolbar .el-select__wrapper {
+  min-height: 38px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--md-surface) 92%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--md-primary) 14%, var(--md-border)) inset;
+}
+.md-page-head--hero + .md-toolbar .el-input__wrapper,
+.md-page-head--hero + .md-toolbar .el-select__wrapper {
+  background: color-mix(in srgb, var(--md-surface) 86%, transparent);
+}
 
 /* ------------------------------------------------------------------ 卡片 */
 .md-card-panel {
@@ -2592,41 +2743,294 @@ body.is-col-resizing .md-ws__bytemd-resizer::after { background: var(--md-primar
 .md-profile__row > span:last-child { min-width: 0; color: var(--md-text); text-align: right; overflow-wrap: anywhere; }
 
 /* ------------------------------------------------------------------ 表格 */
+/*
+ * 管理端表格：白色面板 + 薄荷色圆角表头条 + 44px 彩色身份章。
+ * 不画满格线，只留行间发丝线；悬停整行浮起一层极淡的薄荷，视线不需要额外的竖条。
+ */
+.md-table-card {
+  overflow: hidden;
+  --md-table-bg: color-mix(in srgb, var(--md-surface) 96%, var(--md-primary) 4%);
+  border-radius: 18px;
+  border-color: color-mix(in srgb, var(--md-primary) 10%, var(--md-border));
+  background: var(--md-table-bg);
+  box-shadow: 0 26px 60px -46px rgba(8, 62, 52, .5);
+}
+.md-table-card > .md-panel-body { padding: 12px 14px 0; }
+.md-table-card .md-panel-head + .md-panel-body { padding-top: 0; }
+.md-table-card > .md-panel-body > .md-member-add { margin: 14px 4px 6px; }
+.md-table-card > .md-panel-body > .md-ad-cards { padding: 2px; }
+.md-table-card > .md-panel-body > .md-empty { padding: 40px 20px; }
+
 .md-table-card .el-table {
-  --el-table-border-color: var(--md-border);
-  --el-table-header-bg-color: var(--md-surface-2);
-  --el-table-row-hover-bg-color: color-mix(in srgb, var(--md-primary) 5%, var(--md-surface));
-  background: transparent; font-size: 13px;
+  --el-table-border-color: transparent;
+  --el-table-header-bg-color: transparent;
+  --el-table-tr-bg-color: transparent;
+  --el-table-bg-color: transparent;
+  --el-table-row-hover-bg-color: color-mix(in srgb, var(--md-primary) 3.5%, var(--md-surface));
+  background: transparent; color: var(--md-text-2); font-size: 13px;
 }
+/* 表头是一条独立的薄荷色圆角条，不是整块色带 */
 .md-table-card .el-table th.el-table__cell {
-  padding: 11px 0; background: var(--md-surface-2);
-  color: var(--md-text-3); font-size: 11.5px; font-weight: 650; letter-spacing: .04em;
+  height: 38px; padding: 0;
+  background: color-mix(in srgb, var(--md-primary) 6.5%, var(--md-surface));
+  border-bottom: 0;
+  color: color-mix(in srgb, var(--md-primary) 72%, var(--md-text-2));
+  font-size: 12px; font-weight: 600; letter-spacing: 0;
 }
-.md-table-card .el-table td.el-table__cell { padding: 13px 0; }
+.md-table-card .el-table th.el-table__cell:first-child { border-radius: 10px 0 0 10px; }
+.md-table-card .el-table th.el-table__cell:last-child { border-radius: 0 10px 10px 0; }
+.md-table-card .el-table td.el-table__cell {
+  padding: 13px 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--md-primary) 7%, var(--md-border));
+  vertical-align: middle;
+}
+.md-table-card .el-table .cell { padding: 0 14px; line-height: 1.5; }
+.md-table-card .el-table th.el-table__cell:first-child .cell,
+.md-table-card .el-table td.el-table__cell:first-child .cell { padding-left: 20px; }
+.md-table-card .el-table th.el-table__cell:last-child .cell,
+.md-table-card .el-table td.el-table__cell:last-child .cell { padding-right: 20px; }
 .md-table-card .el-table__inner-wrapper::before { display: none; }
 .md-table-card .el-table__body tr:last-child td.el-table__cell { border-bottom: 0; }
-.md-table-card .md-share-url {
-  display: block; max-width: 100%; overflow: hidden;
-  text-overflow: ellipsis; white-space: nowrap;
+
+/* 表头图标 + 文字：与行内身份章同一套青绿语言 */
+.md-th { display: inline-flex; align-items: center; gap: 6px; }
+.md-th .md-icon { color: color-mix(in srgb, var(--md-primary) 68%, transparent); }
+.md-th--center { justify-content: center; }
+
+/*
+ * 固定列要自己接住底色：行与表头都是透明/半透明底，固定列若跟着透明，
+ * 横向滚动时下层的普通单元格会从它底下透出来。
+ */
+.md-table-card .el-table .el-table-fixed-column--right,
+.md-table-card .el-table .el-table-fixed-column--left { background: var(--md-table-bg); }
+.md-table-card .el-table th.el-table-fixed-column--right,
+.md-table-card .el-table th.el-table-fixed-column--left {
+  background: color-mix(in srgb, var(--md-primary) 6.5%, var(--md-surface));
 }
-.md-table-foot {
-  display: flex; align-items: center; justify-content: flex-end; gap: 12px;
-  padding-top: 16px; margin-top: 4px; border-top: 1px solid var(--md-border);
+.md-table-card .el-table__body tr:hover > td.el-table-fixed-column--right,
+.md-table-card .el-table__body tr:hover > td.el-table-fixed-column--left {
+  background: color-mix(in srgb, var(--md-primary) 3.5%, var(--md-surface));
 }
+.md-table-card .el-table__empty-block { min-height: 220px; }
+.md-table-card .el-table__empty-text { width: 100%; }
+
+[data-theme='dark'] .md-table-card {
+  --md-table-bg: color-mix(in srgb, var(--md-surface) 96%, var(--md-primary) 4%);
+  background: var(--md-table-bg);
+  box-shadow: 0 30px 60px -46px rgba(0, 0, 0, .8);
+}
+[data-theme='dark'] .md-table-card .el-table th.el-table__cell {
+  background: color-mix(in srgb, var(--md-primary) 13%, var(--md-surface-2));
+  color: color-mix(in srgb, var(--md-primary) 76%, #e8f7f2);
+}
+[data-theme='dark'] .md-table-card .el-table td.el-table__cell {
+  border-bottom-color: color-mix(in srgb, var(--md-primary) 10%, var(--md-border));
+}
+[data-theme='dark'] .md-table-card .el-table th.el-table-fixed-column--right,
+[data-theme='dark'] .md-table-card .el-table th.el-table-fixed-column--left {
+  background: color-mix(in srgb, var(--md-primary) 13%, var(--md-surface-2));
+}
+
+/* 身份块：44px 彩色章 + 标题 / 副题 */
+.md-row-id { display: flex; flex-direction: row; align-items: center; gap: 12px; min-width: 0; }
+.md-row-id__text { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.md-row-id__text strong {
+  color: var(--md-text); font-size: 14.5px; font-weight: 650; letter-spacing: -.01em;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.md-row-id__text small {
+  color: var(--md-text-3); font-size: 11.5px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+/* 彩色身份章：颜色由内容哈希固定，同一个库每次看到的色块一致 */
+.md-tile {
+  width: 44px; height: 44px; flex-shrink: 0;
+  display: grid; place-items: center;
+  border-radius: 12px; color: #fff; overflow: hidden;
+  background: linear-gradient(140deg, var(--tile-a, #37cbb0), var(--tile-b, #128577));
+  box-shadow: 0 7px 16px -10px color-mix(in srgb, var(--tile-a, #128577) 72%, transparent),
+    inset 0 1px 0 rgba(255, 255, 255, .35);
+}
+.md-tile--sm { width: 38px; height: 38px; border-radius: 10px; }
+.md-tile--t0 { --tile-a: #42d3b8; --tile-b: #0f8f7a; }
+.md-tile--t1 { --tile-a: #6fa8ff; --tile-b: #3f6fdc; }
+.md-tile--t2 { --tile-a: #bda2ff; --tile-b: #7c5ce0; }
+.md-tile--t3 { --tile-a: #63d69c; --tile-b: #16a34a; }
+.md-tile--t4 { --tile-a: #ffc75f; --tile-b: #ef9410; }
+.md-tile--t5 { --tile-a: #ffa0b4; --tile-b: #e04653; }
+.md-tile img { width: 100%; height: 100%; object-fit: cover; border-radius: inherit; display: block; }
+
+/* 链接列：整条填入浅灰紫的地址槽，右端带一个复制按钮 */
+.md-link-field {
+  display: flex; align-items: center; gap: 8px;
+  width: 100%; min-height: 34px; padding: 4px 6px 4px 10px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--md-text-3) 7%, var(--md-surface-2));
+  color: var(--md-text-2);
+  transition: background .15s ease;
+}
+.md-link-field__text {
+  flex: 1; min-width: 0;
+  font-family: var(--md-mono, ui-monospace, Menlo, Consolas, monospace);
+  font-size: 12px; line-height: 1.5;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.md-link-field__copy {
+  width: 24px; height: 24px; flex-shrink: 0;
+  display: grid; place-items: center;
+  border: 0; border-radius: 6px; background: transparent;
+  color: color-mix(in srgb, var(--md-primary) 68%, var(--md-text-3)); cursor: pointer;
+  transition: background .15s ease, color .15s ease;
+}
+.md-link-field__copy:hover { background: var(--md-primary-soft); color: var(--md-primary); }
+.md-link-field__copy:focus-visible { outline: 2px solid var(--md-primary); outline-offset: 1px; }
+.md-table-card .el-table__row:hover .md-link-field {
+  background: color-mix(in srgb, var(--md-primary) 7%, var(--md-surface-2));
+}
+
+/* 密码：小方章；有密码用琥珀，无密码保持中性 */
+.md-tbl-flag {
+  min-width: 30px; height: 26px; display: inline-grid; place-items: center;
+  padding: 0 9px; border-radius: 8px;
+  background: color-mix(in srgb, var(--md-text-3) 9%, transparent);
+  color: var(--md-text-3); font-size: 12px; font-weight: 550; line-height: 1;
+}
+.md-tbl-flag.is-on { background: color-mix(in srgb, var(--md-warning) 13%, transparent); color: var(--md-warning); }
+
+/* 有效期等轻量元信息：图标 + 文字 */
+.md-tbl-meta {
+  display: inline-flex; align-items: center; gap: 6px;
+  color: var(--md-text-2); font-size: 12.5px; white-space: nowrap;
+}
+.md-tbl-meta .md-icon { color: var(--md-text-3); }
+
+/* 状态章：圆点 + 文字，尺寸与参考一致 */
+.md-tbl-pill {
+  display: inline-flex; align-items: center; gap: 6px;
+  height: 24px; padding: 0 10px; border-radius: 999px;
+  background: var(--md-surface-2); color: var(--md-text-2);
+  font-size: 11.5px; font-weight: 550; line-height: 1; white-space: nowrap;
+}
+.md-tbl-pill::before {
+  content: ''; width: 5px; height: 5px; border-radius: 50%;
+  background: currentColor; opacity: .9;
+}
+.md-tbl-pill--ok { background: var(--md-vis-public-bg); color: var(--md-vis-public); }
+.md-tbl-pill--warn { background: color-mix(in srgb, var(--md-warning) 13%, transparent); color: var(--md-warning); }
+.md-tbl-pill--danger { background: color-mix(in srgb, var(--md-danger) 10%, transparent); color: var(--md-danger); }
+.md-tbl-pill--muted { background: color-mix(in srgb, var(--md-text-3) 10%, transparent); color: var(--md-text-3); }
+.md-tbl-pill--brand { background: var(--md-primary-soft); color: var(--md-primary); }
+/* 带图标的章（如密码）：图标代替圆点，不再挤两个视觉锚点 */
+.md-tbl-pill--icon::before { display: none; }
+.md-tbl-pill--icon .md-icon { margin: 0; }
+/* 无圆点：角色这类「身份」不是状态，不加状态点，避免与旁边的状态章读成同一类 */
+.md-tbl-pill--plain::before { display: none; }
+
+/* 数字列：等宽数字让 PV/UV 与篇数上下对齐 */
+.md-tbl-num { color: var(--md-text-2); font-size: 12.5px; font-variant-numeric: tabular-nums; }
+.md-tbl-num strong { color: var(--md-text); font-weight: 650; }
+.md-tbl-num i { margin: 0 4px; color: var(--md-border-strong); font-style: normal; }
+
+/* 时间列拆成两行：日期在上、时分在下，比一整串「2026-11-03 15:22」好扫 */
+.md-tbl-time { display: flex; flex-direction: column; gap: 1px; font-variant-numeric: tabular-nums; }
+.md-tbl-time strong { color: var(--md-text-2); font-size: 12.5px; font-weight: 600; }
+.md-tbl-time small { color: var(--md-text-3); font-size: 11px; }
+
+/* 行内动作：浅薄荷底的圆角小胶囊；危险动作整颗转成淡红 */
 .md-row-actions { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
 .md-row-actions .el-button + .el-button { margin-left: 0; }
 .md-row-actions .el-button.is-link { padding: 0 7px; }
 .md-row-actions__divider { width: 1px; height: 14px; margin: 0 2px; background: var(--md-border); }
-.md-table-card > .md-panel-body { padding: 8px 20px 16px; }
-.md-table-card .md-panel-head + .md-panel-body { padding-top: 4px; }
-.md-user-cell { display: flex; align-items: center; gap: 10px; min-width: 0; }
-.md-user-cell__avatar {
-  width: 32px; height: 32px; flex-shrink: 0; border-radius: 9px;
-  display: grid; place-items: center;
-  background: var(--md-primary-soft); color: var(--md-primary);
-  font-size: 13px; font-weight: 700;
+.md-table-card .md-row-actions { justify-content: flex-end; gap: 6px; flex-wrap: nowrap; }
+.md-table-card .md-row-actions .el-button {
+  height: 28px; margin: 0; padding: 0 10px;
+  border: 1px solid color-mix(in srgb, var(--md-primary) 17%, transparent);
+  border-radius: 8px; font-size: 12px; font-weight: 500;
+  background: color-mix(in srgb, var(--md-primary) 7%, var(--md-surface));
+  --el-button-bg-color: transparent;
+  --el-button-border-color: transparent;
+  --el-button-text-color: color-mix(in srgb, var(--md-primary) 72%, var(--md-text-2));
+  --el-button-hover-bg-color: color-mix(in srgb, var(--md-primary) 12%, var(--md-surface));
+  --el-button-hover-border-color: color-mix(in srgb, var(--md-primary) 26%, transparent);
+  --el-button-hover-text-color: var(--md-primary);
+  --el-button-hover-link-text-color: var(--md-primary);
+  --el-button-active-bg-color: color-mix(in srgb, var(--md-primary) 16%, var(--md-surface));
+  --el-button-active-border-color: color-mix(in srgb, var(--md-primary) 30%, transparent);
+  --el-button-active-text-color: var(--md-primary);
+  --el-button-disabled-bg-color: transparent;
+  --el-button-disabled-border-color: transparent;
+  --el-button-disabled-text-color: color-mix(in srgb, var(--md-text-3) 45%, transparent);
 }
-.md-user-cell__text { display: flex; flex-direction: column; min-width: 0; }
+.md-table-card .md-row-actions .el-button:hover {
+  border-color: color-mix(in srgb, var(--md-primary) 26%, transparent);
+  background: color-mix(in srgb, var(--md-primary) 12%, var(--md-surface));
+}
+.md-table-card .md-row-actions .el-button.is-link.el-button--danger {
+  border-color: color-mix(in srgb, var(--md-danger) 18%, transparent);
+  background: color-mix(in srgb, var(--md-danger) 7%, var(--md-surface));
+  --el-button-text-color: var(--md-danger);
+  --el-button-hover-text-color: var(--md-danger);
+  --el-button-hover-link-text-color: var(--md-danger);
+  --el-button-hover-bg-color: color-mix(in srgb, var(--md-danger) 11%, var(--md-surface));
+  --el-button-hover-border-color: color-mix(in srgb, var(--md-danger) 26%, transparent);
+}
+.md-table-card .md-row-actions .el-button.is-link.el-button--danger:hover {
+  border-color: color-mix(in srgb, var(--md-danger) 26%, transparent);
+  background: color-mix(in srgb, var(--md-danger) 11%, var(--md-surface));
+}
+/* 已撤销的行里「撤销」是禁用的：整颗压回中性灰 */
+.md-table-card .md-row-actions .el-button.is-link.el-button--danger.is-disabled,
+.md-table-card .md-row-actions .el-button.is-link.el-button--danger.is-disabled:hover {
+  border-color: transparent; background: transparent;
+  --el-button-text-color: color-mix(in srgb, var(--md-text-3) 40%, transparent);
+  --el-button-disabled-text-color: color-mix(in srgb, var(--md-text-3) 40%, transparent);
+}
+.md-table-card .md-row-actions .el-button .md-icon { margin-right: 5px; }
+
+/* 表尾：总数在左、翻页在右；与表格共用一条薄荷底色 */
+.md-table-foot {
+  display: flex; align-items: center; justify-content: flex-end; gap: 12px;
+  padding: 16px 2px 2px;
+  border-top: 1px solid var(--md-border);
+}
+.md-table-card .md-table-foot {
+  margin: 12px -14px 0;
+  padding: 12px 20px;
+  border-top: 1px solid color-mix(in srgb, var(--md-primary) 9%, var(--md-border));
+  background: color-mix(in srgb, var(--md-primary) 4%, var(--md-surface));
+  border-radius: 0 0 18px 18px;
+}
+.md-table-foot__summary {
+  display: inline-flex; align-items: center; gap: 6px;
+  margin-right: auto; color: var(--md-text-3);
+  font-size: 12px; font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+.md-table-foot__summary .md-icon { color: var(--md-text-3); }
+.md-table-foot .el-pagination { justify-content: flex-end; column-gap: 6px; margin-left: auto; }
+.md-table-foot .el-pagination .el-select { width: 108px; }
+.md-table-foot .el-pagination .el-select__wrapper {
+  min-height: 30px; border-radius: 8px;
+  background: var(--md-surface);
+  box-shadow: 0 0 0 1px var(--md-border) inset;
+}
+.md-table-foot .el-pager li,
+.md-table-foot .btn-prev,
+.md-table-foot .btn-next {
+  min-width: 30px; height: 30px; line-height: 30px;
+  border-radius: 8px; background: transparent;
+  color: var(--md-text-2); font-weight: 550;
+}
+.md-table-foot .el-pager li:hover,
+.md-table-foot .btn-prev:hover,
+.md-table-foot .btn-next:hover { background: var(--md-primary-soft); color: var(--md-primary); }
+.md-table-foot .el-pager li.is-active { background: var(--md-primary); color: #fff; }
+.md-table-foot .el-pager li.is-active:hover { background: var(--md-primary-hover); color: #fff; }
+
+/* 用户单元格 */
+.md-user-cell { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.md-user-cell .md-tile { font-size: 14px; font-weight: 700; }
+.md-user-cell__text { display: flex; flex-direction: column; min-width: 0; gap: 2px; }
 .md-user-cell__text strong { color: var(--md-text); font-size: 13.5px; font-weight: 650; }
 .md-user-cell__text small { color: var(--md-text-3); font-size: 11.5px; }
 
@@ -2755,8 +3159,19 @@ body.is-col-resizing .md-ws__bytemd-resizer::after { background: var(--md-primar
     width: 100% !important;
   }
   .md-toolbar__spacer { display: none; }
+  /* 水彩头部在窄屏收小，筛选条不再压着它浮起（竖排后压上去会盖住标题） */
+  .md-page-head.md-page-head--hero {
+    display: flex; flex-direction: row; align-items: center; flex-wrap: wrap;
+    gap: 14px; min-height: 0; padding: 20px; border-radius: 16px;
+  }
+  .md-page-head--hero .md-page-head__icon { width: 50px; height: 50px; border-radius: 14px; }
+  .md-page-head--hero .md-page-head__title { font-size: 24px; }
+  .md-page-head--hero .md-page-head__desc { margin-top: 5px; font-size: 13px; }
+  .md-page-head--hero .md-page-head__text { flex: 1 1 220px; }
+  .md-page-head.md-page-head--hero + .md-toolbar { margin-top: 0; padding: 12px; }
   /* 卡片里的链接要整串换行，表格里的单行省略号规则在这里会撑出横向滚动 */
-  .md-table-card .md-ad-cards .md-share-url {
+  .md-ad-item .md-link-field { align-items: flex-start; }
+  .md-ad-item .md-link-field__text {
     white-space: normal; overflow-wrap: anywhere; word-break: break-all;
   }
 }

@@ -480,6 +480,22 @@ function hideBrokenImage(event: Event) {
   ;(event.target as HTMLImageElement).style.display = 'none'
 }
 
+/** 列表里的「更新」拆成日期 / 时分两行，与分享、审计两页的时间列保持同一读法 */
+function splitTime(value?: string) {
+  const [date, time] = (value || '').split(' ')
+  return { date: date || '—', time: time || '' }
+}
+
+/** 知识库的身份色：按 slug 固定，列表里同一个库每次都是同一块颜色 */
+function tileTone(kb: KbVO) {
+  const key = kb.slug || kb.name || ''
+  let hash = 0
+  for (let i = 0; i < key.length; i += 1) hash = (hash * 31 + key.charCodeAt(i)) >>> 0
+  return hash % 6
+}
+
+const pageCount = computed(() => Math.max(1, Math.ceil(total.value / query.size)))
+
 /* ------------------------------------------------------------------ 标签编辑器 */
 function resetTagEditor() {
   tagDraft.value = ''
@@ -575,6 +591,8 @@ watch(org, () => {
 <template>
   <div class="md-page">
     <AdminPageHeader
+      hero
+      icon="books"
       eyebrow="组织管理"
       title="知识库管理"
       description="集中管理组织内的知识库：建库、调整可见范围、维护名单，以及把内容发布到门户。"
@@ -640,15 +658,18 @@ watch(org, () => {
         而「操作」列是 fixed="right" 的浮层——它会正好盖住「更新」那一格，
         日期看着像被截成了「2026-」。
 
-        「操作」列用紧凑链接式按钮：进入 / 分享 / 编辑 / 权限 + 图标式「更多」，
-        288px 足够一行排完；再加文字标签就会折行，也会把「更新」挤成半截日期。
+        「操作」列用紧凑胶囊按钮：进入 / 分享 / 编辑 / 权限 + 图标式「更多」，
+        320px 足够一行排完；再加文字标签就会折行，也会把「更新」挤成半截日期。
       -->
       <el-table v-else-if="viewMode === 'list' && !isCompact" :data="list" style="width: 100%">
-        <el-table-column label="名称" min-width="190">
+        <el-table-column min-width="190">
+          <template #header>
+            <span class="md-th"><MdIcon name="books" :size="14" />名称</span>
+          </template>
           <template #default="{ row }">
             <div class="md-kb-cell__name">
-              <span class="md-kb-cell__thumb">
-                <MdIcon name="books" :size="15" />
+              <span class="md-kb-cell__thumb md-tile" :class="`md-tile--t${tileTone(row)}`">
+                <MdIcon v-if="!row.coverSrc" name="bookOpen" :size="20" />
                 <img v-if="row.coverSrc" :src="row.coverSrc" alt="" loading="lazy" @error="hideBrokenImage">
               </span>
               <span class="md-kb-cell__text">
@@ -662,7 +683,10 @@ watch(org, () => {
             </div>
           </template>
         </el-table-column>
-        <el-table-column label="可见范围" width="124">
+        <el-table-column width="124">
+          <template #header>
+            <span class="md-th"><MdIcon name="eye" :size="14" />可见范围</span>
+          </template>
           <template #default="{ row }">
             <span
               class="md-ad-chip"
@@ -678,7 +702,10 @@ watch(org, () => {
           前者答的是「平台内谁能读」，后者答的是「门户上出去了没有、要不要口令」，
           两者正交（私有库可以已发布，公开库也可以没发布）。合成一列就回到老问题上去了。
         -->
-        <el-table-column label="发布状态" width="116">
+        <el-table-column width="116">
+          <template #header>
+            <span class="md-th"><MdIcon name="globe" :size="14" />发布状态</span>
+          </template>
           <template #default="{ row }">
             <span
               class="md-ad-chip"
@@ -689,21 +716,41 @@ watch(org, () => {
             </span>
           </template>
         </el-table-column>
-        <el-table-column label="可写" width="92">
+        <el-table-column width="92">
+          <template #header>
+            <span class="md-th"><MdIcon name="key" :size="14" />可写</span>
+          </template>
           <template #default="{ row }">
             <span :title="maintainScopeHint(row.maintainScope)">{{ maintainScopeLabel(row.maintainScope) }}</span>
           </template>
         </el-table-column>
-        <el-table-column label="描述" min-width="120" show-overflow-tooltip>
+        <el-table-column min-width="120" show-overflow-tooltip>
+          <template #header>
+            <span class="md-th"><MdIcon name="file" :size="14" />描述</span>
+          </template>
           <template #default="{ row }">{{ row.description || '—' }}</template>
         </el-table-column>
-        <el-table-column label="篇数" width="56" align="center">
-          <template #default="{ row }">{{ row.docCount }}</template>
+        <el-table-column width="72" align="center">
+          <template #header>
+            <span class="md-th md-th--center"><MdIcon name="list" :size="14" />篇数</span>
+          </template>
+          <template #default="{ row }"><span class="md-tbl-num">{{ row.docCount }}</span></template>
         </el-table-column>
-        <el-table-column label="更新" width="140">
-          <template #default="{ row }">{{ row.updatedText }}</template>
+        <el-table-column width="140">
+          <template #header>
+            <span class="md-th"><MdIcon name="clock" :size="14" />更新</span>
+          </template>
+          <template #default="{ row }">
+            <span class="md-tbl-time">
+              <strong>{{ splitTime(row.updatedText).date }}</strong>
+              <small>{{ splitTime(row.updatedText).time }}</small>
+            </span>
+          </template>
         </el-table-column>
-        <el-table-column label="操作" width="288" fixed="right">
+        <el-table-column width="320" fixed="right" align="right">
+          <template #header>
+            <span class="md-th"><MdIcon name="gear" :size="14" />操作</span>
+          </template>
           <template #default="{ row }">
             <KbRowActions
               :kb="row"
@@ -722,31 +769,36 @@ watch(org, () => {
 
       <div v-else class="md-kb-grid">
         <article v-for="kb in list" :key="kb.id" class="md-kb-card">
+          <!-- 封面只当氛围带：来源与发布状态压在右上角，正文就不必再挤一行状态章 -->
           <div class="md-kb-card__cover">
-            <MdIcon name="books" :size="28" class="md-kb-card__cover-icon" />
+            <span class="md-kb-card__cover-mark" aria-hidden="true"><MdIcon name="bookOpen" :size="21" /></span>
             <img v-if="kb.coverSrc" :src="kb.coverSrc" alt="" loading="lazy" @error="hideBrokenImage" />
+            <div class="md-kb-card__badges">
+              <span v-if="kb.sourceType === 'git'" class="md-kb-card__badge" title="绑定线上 Git 仓库">
+                <MdIcon name="cloud" :size="11" />云端
+              </span>
+              <span
+                class="md-kb-card__badge md-kb-card__badge--status"
+                :class="`is-${kb.shareStatus || 'unpublished'}`"
+                :title="publishStatusHint(kb.shareStatus)"
+              >
+                <i class="md-kb-card__dot" />{{ publishStatusLabel(kb.shareStatus) }}
+              </span>
+            </div>
           </div>
           <div class="md-kb-card__body">
             <div class="md-kb-card__title">
               <span class="md-kb-card__name" :title="kb.name">{{ kb.name }}</span>
               <MdIcon v-if="kb.favored" name="star" :size="13" class="md-kb-card__fav" title="已收藏" />
             </div>
-            <!-- 来源、可见范围、发布状态是「这库是什么」的状态章，合成一行；标签是内容主题，
-                 单独放到描述下面一行，免得状态和主题混在一排互相抢戏 -->
+            <!-- 两条权限轴各占一章：谁能读（着色）+ 谁能写（中性），与封面上的对外发布态分开 -->
             <div class="md-kb-card__chips">
-              <span
-                v-if="kb.sourceType === 'git'"
-                class="md-ad-chip md-ad-chip--cloud"
-                title="绑定线上 Git 仓库"
-              >云端</span>
               <span class="md-ad-chip" :class="visibilityChipClass(kb.visibility)" :title="visibilityHint(kb.visibility)">
                 {{ visibilityLabel(kb.visibility) }}
               </span>
-              <span
-                class="md-ad-chip"
-                :class="publishStatusChipClass(kb.shareStatus)"
-                :title="publishStatusHint(kb.shareStatus)"
-              >{{ publishStatusLabel(kb.shareStatus) }}</span>
+              <span class="md-ad-chip md-ad-chip--meta" :title="maintainScopeHint(kb.maintainScope)">
+                <MdIcon name="key" :size="11" />可写：{{ maintainScopeLabel(kb.maintainScope) }}
+              </span>
             </div>
             <p class="md-kb-card__desc">{{ kb.description || '暂无描述' }}</p>
             <div v-if="kb.tags.length" class="md-kb-card__tags">
@@ -754,9 +806,6 @@ watch(org, () => {
             </div>
             <div class="md-kb-card__meta">
               <span><MdIcon name="file" :size="12" />{{ kb.docCount }} 篇</span>
-              <span :title="maintainScopeHint(kb.maintainScope)">
-                <MdIcon name="key" :size="12" />可写：{{ maintainScopeLabel(kb.maintainScope) }}
-              </span>
               <span><MdIcon name="clock" :size="12" />{{ kb.updatedText }}</span>
             </div>
           </div>
@@ -782,12 +831,15 @@ watch(org, () => {
       </div>
 
       <div class="md-table-foot">
+        <span class="md-table-foot__summary">
+          <MdIcon name="info" :size="13" />共 {{ total }} 条记录，当前第 {{ query.page }} / {{ pageCount }} 页
+        </span>
         <el-pagination
           v-model:current-page="query.page"
           v-model:page-size="query.size"
           :total="total"
           :page-sizes="[12, 24, 48]"
-          layout="total, sizes, prev, pager, next"
+          layout="sizes, prev, pager, next"
           @current-change="load"
           @size-change="load"
         />

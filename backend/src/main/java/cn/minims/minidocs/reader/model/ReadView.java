@@ -31,8 +31,9 @@ public class ReadView {
     /**
      * 知识库封面在当前场景下的取图地址。
      *
-     * <p>前缀必须是本场景自己的资源路由（门户是 {@code /kb/{org}/{slug}/asset/}，分享是
-     * {@code /share/{token}/asset/}）：封面落在库的 vault 里，走另一侧的资源端点会撞上权限门。</p>
+     * <p>封面存在平台目录，读取走本场景自己的封面路由（门户是
+     * {@code /kb/{org}/{slug}/cover}，分享是 {@code /share/{token}/cover}）：
+     * 两侧的阅读门槛不同，不能共用一个不校验的公共地址。</p>
      */
     private String kbCoverSrc;
     /** 知识库最近更新时间（展示用文案），分享页左栏「共 N 篇 · 更新 …」用。 */

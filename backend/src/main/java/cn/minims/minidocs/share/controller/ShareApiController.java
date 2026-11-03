@@ -18,6 +18,7 @@ import cn.minims.minidocs.common.web.AppPaths;
 import cn.minims.minidocs.doc.dto.DocDtos.DocNode;
 import cn.minims.minidocs.doc.service.VaultFileService;
 import cn.minims.minidocs.kb.entity.KnowledgeBase;
+import cn.minims.minidocs.kb.service.KbCoverService;
 import cn.minims.minidocs.kb.service.KnowledgeBaseService;
 import cn.minims.minidocs.markdown.model.MarkdownModels.Variant;
 import cn.minims.minidocs.reader.model.NavMenuItem;
@@ -76,6 +77,7 @@ public class ShareApiController {
     private final ShareService shareService;
     private final SiteBaseUrlResolver siteBaseUrlResolver;
     private final KnowledgeBaseService knowledgeBaseService;
+    private final KbCoverService kbCoverService;
     private final VaultFileService vaultFileService;
     private final AssetService assetService;
     private final AccessService accessService;
@@ -142,7 +144,8 @@ public class ShareApiController {
                 request.getHeader("User-Agent"));
 
         ReaderService.ReadRequest readRequest = new ReaderService.ReadRequest("share",
-                AppPaths.of("/share/" + token + "/asset/"), AppPaths.of("/share/" + token + "?path="),
+                AppPaths.of("/share/" + token + "/asset/"), AppPaths.of("/share/" + token + "/cover"),
+                AppPaths.of("/share/" + token + "?path="),
                 singleDoc ? Variant.DOC : Variant.KB, singleDoc, !singleDoc,
                 singleDoc ? share.getDocPath() : null, path,
                 token, expiresText(share),
@@ -219,6 +222,29 @@ public class ShareApiController {
 
         AssetService.Asset asset = assetService.load(vaultFileService.rootOf(kb.getStorageKey()), relative);
         return assetService.respond(asset, ifNoneMatch);
+    }
+
+    /**
+     * 分享页封面。
+     *
+     * <p>与分享资源代理同一道门：撤销 / 过期 / 未通过口令都按不存在处理。</p>
+     */
+    @GetMapping("/share/{token}/cover")
+    public ResponseEntity<Resource> cover(@PathVariable String token,
+                                          @RequestHeader(value = "If-None-Match", required = false) String ifNoneMatch,
+                                          HttpServletRequest request) {
+        Share share = shareService.findByToken(ShareTokenUtil.isValid(token) ? token : null);
+        if (share == null || share.revoked() || share.invalid() || share.expired()) {
+            throw BizException.notFound("分享不存在或已被撤销");
+        }
+        if (!accessSupport.isVerified(share, request)) {
+            throw BizException.notFound("分享不存在或已被撤销");
+        }
+        KnowledgeBase kb = knowledgeBaseService.getById(share.getKbId());
+        if (kb == null) {
+            throw BizException.notFound("分享不存在或已被撤销");
+        }
+        return assetService.respond(kbCoverService.load(kb), ifNoneMatch);
     }
 
     /** 分享存活校验：撤销 / 内容缺失 → 404，过期 → 410。 */

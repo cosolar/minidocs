@@ -111,6 +111,21 @@ public class MiniDocsProperties {
         return vaultRoot().resolve("avatars");
     }
 
+    /**
+     * 平台元数据目录：VAULT_HOME/platform。
+     *
+     * <p>封面这类「平台替知识库保管、但不属于知识库内容」的文件放这里，与 {@code vaults/}
+     * 彻底分开：Git 拉取、强制覆盖、工作副本整体清理都不会再碰到它们。</p>
+     */
+    public Path platformDir() {
+        return vaultRoot().resolve("platform");
+    }
+
+    /** 知识库封面目录：VAULT_HOME/platform/covers */
+    public Path coversDir() {
+        return platformDir().resolve("covers");
+    }
+
     /** 站点资源目录：VAULT_HOME/site。站点 Logo 属于整个部署，同样独立于 vaults 之外 */
     public Path siteDir() {
         return vaultRoot().resolve("site");

@@ -172,13 +172,16 @@ public class GitVaultService {
             SyncOutcome outcome;
             try {
                 outcome = doPull(git, repository, branch, username, token, before);
-            } catch (RuntimeException e) {
+            } catch (Exception e) {
                 if (stashed != null) {
                     // 拉取失败必须把改动放回去：界面上写着「拉取失败」，用户理所当然以为
-                    // 自己的东西还在 —— 实际它躺在 stash 里而没人告诉他
+                    // 自己的东西还在 —— 实际它躺在 stash 里而没人告诉他。
+                    // 注意这里必须捕获 Exception：网络超时是受检异常，只抓 RuntimeException
+                    // 会让它直接落到外层，stash 永远留不下来。
                     restoreStash(git, stashed, repoDir);
                 }
-                throw e;
+                throw e instanceof BizException biz ? biz
+                        : BizException.of(ErrorCode.GIT_SYNC_FAILED, "拉取失败：" + reasonOf(e));
             }
             if (stashed != null) {
                 // 成功之后放回。冲突时 restoreStash 会抛，并在消息里带上 ref

@@ -66,6 +66,7 @@ const query = reactive({
 })
 
 const members = ref<OrgMemberVO[]>([])
+const pageCount = computed(() => Math.max(1, Math.ceil(total.value / query.size)))
 /** 成员名单读不到就只少一个筛选项，不让审计页整个打不开（§2.5：那条通道另有门槛） */
 const memberOptions = computed(() =>
   members.value.map((item) => ({
@@ -129,6 +130,12 @@ async function reload() {
   await load()
 }
 
+/** 时间列拆成日期 / 时分两行：审计要按时间扫，一整串「2026-11-03 15:22」不如两行好认 */
+function splitTime(value?: string) {
+  const [date, time] = (value || '').split(' ')
+  return { date: date || '—', time: time || '' }
+}
+
 /** detail 是自由形状（后端按动作给不同键），直接铺开键值对，不猜结构。 */
 function detailEntries(detail: AuditVO['detail']): Array<[string, string]> {
   if (!detail || typeof detail !== 'object') {
@@ -150,6 +157,8 @@ onMounted(async () => {
 <template>
   <div class="md-page">
     <AdminPageHeader
+      hero
+      icon="clock"
       eyebrow="组织管理"
       title="审计日志"
       description="记录组织内的重要操作，保留 180 天；筛选条件会同步到地址栏，方便把同一批记录发给同事。"
@@ -161,6 +170,9 @@ onMounted(async () => {
         style="width: 190px"
         @change="(value: unknown) => pickAction(String(value))"
       >
+        <template #prefix>
+          <span class="md-filter-mark"><MdIcon name="checklist" :size="13" /></span>
+        </template>
         <el-option v-for="item in actions" :key="item.value" :label="item.label" :value="item.value" />
       </el-select>
       <el-select
@@ -171,6 +183,9 @@ onMounted(async () => {
         filterable
         @change="applyFilters"
       >
+        <template #prefix>
+          <span class="md-filter-mark"><MdIcon name="user" :size="13" /></span>
+        </template>
         <el-option v-for="item in memberOptions" :key="item.value" :label="item.label" :value="item.value" />
       </el-select>
       <el-date-picker
@@ -230,21 +245,43 @@ onMounted(async () => {
               <p class="md-empty__desc">当前筛选条件下没有匹配的审计记录。</p>
             </div>
           </template>
-          <el-table-column prop="createdText" label="时间" width="160" />
-          <el-table-column label="操作者" width="140">
+          <el-table-column width="160">
+            <template #header>
+              <span class="md-th"><MdIcon name="clock" :size="14" />时间</span>
+            </template>
+            <template #default="{ row }">
+              <span class="md-tbl-time">
+                <strong>{{ splitTime(row.createdText).date }}</strong>
+                <small>{{ splitTime(row.createdText).time }}</small>
+              </span>
+            </template>
+          </el-table-column>
+          <el-table-column width="140">
+            <template #header>
+              <span class="md-th"><MdIcon name="user" :size="14" />操作者</span>
+            </template>
             <template #default="{ row }">{{ row.actor || '—' }}</template>
           </el-table-column>
-          <el-table-column label="动作" width="200">
-            <template #default="{ row }"><span class="md-ad-chip">{{ row.action }}</span></template>
+          <el-table-column width="200">
+            <template #header>
+              <span class="md-th"><MdIcon name="checklist" :size="14" />动作</span>
+            </template>
+            <template #default="{ row }"><span class="md-ad-chip md-ad-chip--action">{{ row.action }}</span></template>
           </el-table-column>
-          <el-table-column label="对象" min-width="220">
+          <el-table-column min-width="220">
+            <template #header>
+              <span class="md-th"><MdIcon name="folder" :size="14" />对象</span>
+            </template>
             <template #default="{ row }">
               <span v-if="row.kbName">{{ row.kbName }}</span>
               <span v-if="row.docPath" class="md-ad-sub"> / {{ row.docPath }}</span>
               <span v-if="!row.kbName && !row.docPath" class="md-ad-sub">—</span>
             </template>
           </el-table-column>
-          <el-table-column label="详情" min-width="240">
+          <el-table-column min-width="240">
+            <template #header>
+              <span class="md-th"><MdIcon name="list" :size="14" />详情</span>
+            </template>
             <template #default="{ row }">
               <span v-for="entry in detailEntries(row.detail)" :key="entry[0]" class="md-ad-detail">
                 {{ entry[0] }}={{ entry[1] }}
@@ -253,12 +290,15 @@ onMounted(async () => {
           </el-table-column>
         </el-table>
         <div class="md-table-foot">
+          <span class="md-table-foot__summary">
+            <MdIcon name="info" :size="13" />共 {{ total }} 条记录，当前第 {{ query.page }} / {{ pageCount }} 页
+          </span>
           <el-pagination
             v-model:current-page="query.page"
             v-model:page-size="query.size"
             :total="total"
             :page-sizes="[20, 50, 100]"
-            layout="total, sizes, prev, pager, next"
+            layout="sizes, prev, pager, next"
             @current-change="reload"
             @size-change="applyFilters"
           />

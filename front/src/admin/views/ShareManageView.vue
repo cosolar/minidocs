@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { docApi, kbApi, shareApi } from '@/admin/api'
 import AdminPageHeader from '@/admin/components/AdminPageHeader.vue'
@@ -148,8 +148,18 @@ async function copy(url?: string) {
   }
 }
 
-function statusTag(status: string) {
-  return status === 'active' ? 'success' : status === 'expired' ? 'warning' : 'info'
+function statusTone(status: string) {
+  return status === 'active' ? 'ok' : status === 'expired' ? 'warn' : status === 'revoked' ? 'muted' : 'danger'
+}
+
+const pageCount = computed(() => Math.max(1, Math.ceil(total.value / query.size)))
+
+/** 每条分享一个固定的身份色：同一个库 / 同一条链接每次打开色块都不变 */
+function tileTone(row: ShareVO) {
+  const key = `${row.kbName || ''}${row.token || ''}`
+  let hash = 0
+  for (let i = 0; i < key.length; i += 1) hash = (hash * 31 + key.charCodeAt(i)) >>> 0
+  return hash % 6
 }
 
 /**
@@ -171,25 +181,33 @@ onMounted(async () => {
 <template>
   <div class="md-page">
     <AdminPageHeader
+      hero
+      icon="share"
       eyebrow="组织管理"
       title="分享管理"
-      description="集中管理对外分享链接、访问密码与有效期；撤销后的链接立即失效。"
+      description="集中管理对外分享链接、访问密码与有效期；撤销后将链接立即失效。"
     >
       <template #actions>
         <el-button type="primary" @click="openCreate">
-          <MdIcon name="plus" :size="14" />新建分享
+          <MdIcon name="send" :size="15" />新建分享
         </el-button>
       </template>
     </AdminPageHeader>
 
     <div class="md-toolbar">
-      <el-select v-model="query.status" placeholder="全部状态" clearable style="width: 150px" @change="load">
+      <el-select v-model="query.status" placeholder="全部状态" clearable style="width: 158px" @change="load">
+        <template #prefix>
+          <span class="md-filter-mark"><MdIcon name="grid" :size="13" /></span>
+        </template>
         <el-option label="有效" value="active" />
         <el-option label="已过期" value="expired" />
         <el-option label="已撤销" value="revoked" />
         <el-option label="已失效" value="invalid" />
       </el-select>
-      <el-select v-model="query.scope" placeholder="全部范围" clearable style="width: 150px" @change="load">
+      <el-select v-model="query.scope" placeholder="全部范围" clearable style="width: 158px" @change="load">
+        <template #prefix>
+          <span class="md-filter-mark"><MdIcon name="folder" :size="13" /></span>
+        </template>
         <el-option label="整库分享" value="kb" />
         <el-option label="单篇分享" value="doc" />
       </el-select>
@@ -208,22 +226,30 @@ onMounted(async () => {
         </div>
         <div v-for="row in list" :key="row.token" class="md-ad-item">
           <div class="md-ad-item__head">
-            <div class="md-ad-item__title">
-              <strong>{{ row.kbName || '知识库' }}</strong>
-              <small>{{ row.scope === 'kb' ? '整库分享' : row.docPath }}</small>
+            <div class="md-row-id md-ad-item__title">
+              <span class="md-tile md-tile--sm" :class="`md-tile--t${tileTone(row)}`">
+                <MdIcon :name="row.scope === 'kb' ? 'bookOpen' : 'file'" :size="18" />
+              </span>
+              <span class="md-row-id__text">
+                <strong>{{ row.kbName || '知识库' }}</strong>
+                <small>{{ row.scope === 'kb' ? '整库分享' : row.docPath }}</small>
+              </span>
             </div>
             <div class="md-ad-item__chips">
-              <el-tag size="small" :type="statusTag(row.status)">{{ statusText(row.status) }}</el-tag>
-              <el-tag size="small" :type="row.encrypted ? 'warning' : 'info'">
-                {{ row.encrypted ? '有密码' : '无密码' }}
-              </el-tag>
+              <span class="md-tbl-pill" :class="`md-tbl-pill--${statusTone(row.status)}`">{{ statusText(row.status) }}</span>
+              <span class="md-tbl-flag" :class="{ 'is-on': row.encrypted }">{{ row.encrypted ? '有' : '无' }}</span>
             </div>
           </div>
           <div class="md-ad-item__meta">
             <span>{{ row.expiresAt ? row.expiresAt.replace('T', ' ').slice(0, 16) : '永久有效' }}</span>
             <span>PV {{ row.views }} · UV {{ row.uv }}</span>
           </div>
-          <span class="md-share-url">{{ row.url }}</span>
+          <div class="md-link-field">
+            <span class="md-link-field__text">{{ row.url }}</span>
+            <button type="button" class="md-link-field__copy" title="复制链接" @click="copy(row.url)">
+              <MdIcon name="copy" :size="14" />
+            </button>
+          </div>
           <div class="md-ad-item__actions">
             <el-button size="small" @click="copy(row.url)">
               <MdIcon name="copy" :size="14" />复制
@@ -247,33 +273,65 @@ onMounted(async () => {
       </div>
 
       <el-table v-else :data="list" v-loading="loading" style="width: 100%">
-        <el-table-column label="目标" min-width="200">
+        <template #empty>
+          <div class="md-empty">
+            <span class="md-empty__icon"><MdIcon name="share" :size="22" /></span>
+            <div class="md-empty__title">暂无分享</div>
+            <p class="md-empty__desc">新建一条分享链接后，会在这里集中管理。</p>
+          </div>
+        </template>
+        <el-table-column min-width="220">
+          <template #header>
+            <span class="md-th"><MdIcon name="bookmark" :size="14" />目标</span>
+          </template>
           <template #default="{ row }">
-            <div><strong>{{ row.kbName || '知识库' }}</strong></div>
-            <div class="md-copy-hint">{{ row.scope === 'kb' ? '整库分享' : row.docPath }}</div>
+            <div class="md-row-id">
+              <span class="md-tile" :class="`md-tile--t${tileTone(row)}`">
+                <MdIcon :name="row.scope === 'kb' ? 'bookOpen' : 'file'" :size="20" />
+              </span>
+              <span class="md-row-id__text">
+                <strong>{{ row.kbName || '知识库' }}</strong>
+                <small>{{ row.scope === 'kb' ? '整库分享' : row.docPath }}</small>
+              </span>
+            </div>
           </template>
         </el-table-column>
-        <el-table-column label="链接" min-width="260">
+        <el-table-column min-width="280">
+          <template #header>
+            <span class="md-th"><MdIcon name="link" :size="14" />链接</span>
+          </template>
           <template #default="{ row }">
-            <span class="md-share-url" :title="row.url">{{ row.url }}</span>
+            <div class="md-link-field">
+              <span class="md-link-field__text" :title="row.url">{{ row.url }}</span>
+              <button type="button" class="md-link-field__copy" title="复制链接" @click="copy(row.url)">
+                <MdIcon name="copy" :size="14" />
+              </button>
+            </div>
           </template>
         </el-table-column>
-        <el-table-column label="密码" width="80" align="center">
+        <el-table-column width="96" align="center">
+          <template #header>
+            <span class="md-th md-th--center"><MdIcon name="lock" :size="14" />密码</span>
+          </template>
           <template #default="{ row }">
-            <el-tag size="small" :type="row.encrypted ? 'warning' : 'info'">{{ row.encrypted ? '有' : '无' }}</el-tag>
+            <span class="md-tbl-flag" :class="{ 'is-on': row.encrypted }">{{ row.encrypted ? '有' : '无' }}</span>
           </template>
         </el-table-column>
-        <el-table-column label="有效期" width="150">
+        <el-table-column width="150">
+          <template #header>
+            <span class="md-th"><MdIcon name="clock" :size="14" />有效期</span>
+          </template>
           <template #default="{ row }">
-            <span class="md-copy-hint">{{ row.expiresAt ? row.expiresAt.replace('T', ' ').slice(0, 16) : '永久有效' }}</span>
+            <span v-if="row.expiresAt" class="md-tbl-num">{{ row.expiresAt.replace('T', ' ').slice(0, 16) }}</span>
+            <span v-else class="md-tbl-meta"><MdIcon name="infinity" :size="14" />永久有效</span>
           </template>
         </el-table-column>
-        <el-table-column width="118" align="center">
+        <el-table-column width="110" align="center">
           <!-- 两个数字口径不同，列头说不清就会被当成同一个东西：PV 按访问会话，UV 按天去重 -->
           <template #header>
             <el-tooltip placement="top" :show-after="200">
               <template #default>
-                <span class="md-ad-hintable">PV / UV</span>
+                <span class="md-th"><MdIcon name="chart" :size="14" /><span class="md-ad-hintable">PV / UV</span></span>
               </template>
               <template #content>
                 PV：访问次数，30 分钟内同一访客只算一次<br>
@@ -281,14 +339,22 @@ onMounted(async () => {
               </template>
             </el-tooltip>
           </template>
-          <template #default="{ row }">{{ row.views }} / {{ row.uv }}</template>
-        </el-table-column>
-        <el-table-column label="状态" width="90" align="center">
           <template #default="{ row }">
-            <el-tag size="small" :type="statusTag(row.status)">{{ statusText(row.status) }}</el-tag>
+            <span class="md-tbl-num"><strong>{{ row.views }}</strong><i>/</i>{{ row.uv }}</span>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="240" fixed="right" align="right">
+        <el-table-column width="96" align="center">
+          <template #header>
+            <span class="md-th md-th--center"><MdIcon name="check-circle" :size="14" />状态</span>
+          </template>
+          <template #default="{ row }">
+            <span class="md-tbl-pill" :class="`md-tbl-pill--${statusTone(row.status)}`">{{ statusText(row.status) }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column width="236" fixed="right" align="right">
+          <template #header>
+            <span class="md-th"><MdIcon name="gear" :size="14" />操作</span>
+          </template>
           <template #default="{ row }">
             <div class="md-row-actions">
               <el-button link type="primary" size="small" @click="copy(row.url)">
@@ -314,12 +380,15 @@ onMounted(async () => {
       </el-table>
 
       <div class="md-table-foot">
+        <span class="md-table-foot__summary">
+          <MdIcon name="info" :size="13" />共 {{ total }} 条记录，当前第 {{ query.page }} / {{ pageCount }} 页
+        </span>
         <el-pagination
           v-model:current-page="query.page"
           v-model:page-size="query.size"
           :total="total"
           :page-sizes="[20, 50, 100]"
-          layout="total, sizes, prev, pager, next"
+          layout="sizes, prev, pager, next"
           @current-change="load"
           @size-change="load"
         />

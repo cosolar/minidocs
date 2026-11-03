@@ -15,10 +15,10 @@ import org.springframework.web.bind.annotation.GetMapping;
  * 新增前端页面时，只要落在下面这些前缀里就不用改这里；开了新的顶层前缀才需要补一条。</p>
  *
  * <p>组织段 {@code /console/{org}/...} 层级不固定，只能整条通配；它与 {@code /assets/**}
- * 首段不同，不会吃掉构建资源。{@code /kb/{org}/{slug}/asset/**}、
- * {@code /share/{token}/asset/**} 是资源代理接口，路径比 {@code /kb/**}、{@code /share/**}
- * 更具体，会被对应的 {@code @RestController} 优先命中。单段的 {@code /kb/{旧slug}} 由
- * {@code LegacyKbRedirectController} 承接（301 或消歧）。</p>
+ * 首段不同，不会吃掉构建资源。{@code /kb/{org}/{slug}/asset/**}、{@code /kb/{org}/{slug}/cover}、
+ * {@code /share/{token}/asset/**}、{@code /share/{token}/cover} 是资源代理接口，
+ * 路径比 {@code /kb/**}、{@code /share/**} 更具体，会被对应的 {@code @RestController}
+ * 优先命中。单段的 {@code /kb/{旧slug}} 由 {@code LegacyKbRedirectController} 承接（301 或消歧）。</p>
  *
  * <p>注意不要映射 {@code /index.html} 自身：forward 会重新进入分发链路，造成自转发死循环。</p>
  */

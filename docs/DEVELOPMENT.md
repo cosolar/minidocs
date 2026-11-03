@@ -54,7 +54,7 @@ npm run dev
 - 页面在**站点根**（`http://localhost:5173/share/xxx`、`/console/{org}/kbs` …）
 - 接口在 **`/minidocs/api`**，dev server 按后端 context-path 原样代理到 `127.0.0.1:9098`
 - 默认管理员 **admin / admin123**（`ADMIN_USER` / `ADMIN_PASS` 初始化），登录后请立刻改密码
-- 数据落在项目根的 `data/`（SQLite + 文档目录 + 日志），用 `VAULT_HOME` 可指到别处
+- 数据落在项目根的 `data/`（SQLite + 文档目录 + 平台元数据 + 日志），用 `VAULT_HOME` 可指到别处
 
 想只用后端看页面：先 `cd front && npm run build`（产物 `front/dist`），再 `mvn spring-boot:run`，
 访问 <http://localhost:9098> —— 页面同样在根，接口在 `/minidocs/api`。
@@ -75,7 +75,7 @@ npm run dev
 拼装在 `share/support/ShareLinks.java`。
 
 要改后端前缀：`CONTEXT_PATH`（后端）+ `VITE_BACKEND_BASE`（前端构建）一起改；
-要改对外地址：在「站点设置」页（`/console/platform/site`）填「站点基址」，改完即生效；
+要改对外地址：在「站点设置」页（`/platform/site`）填「站点基址」，改完即生效；
 部署期兜底才用 `--minidocs.page-base-url=https://your.host`，并让 Nginx 把 `/minidocs/` 反代过去。
 
 ---

@@ -35,25 +35,46 @@ const showPerms = computed(() => kbCan('KB_MEMBER_MANAGE') || kbCan('KB_SET_VISI
     挤到折行。这里统一归零，间距只由 .md-row-actions 的 gap 决定。
 
     两种形态各自一套皮肤：表格里是链接式文字（一行塞得下、不抢视觉），卡片里是
-    「实心主行动 + 一排幽灵按钮」—— 五个描边按钮并排会显得又重又碎。
+    「实心主行动 + 一排幽灵图标按钮」—— 五颗带文字的按钮并排会把四列卡片挤到折行，
+    而图标按钮高度仍是 30px，点击目标没有变小，含义由 title / aria-label 兜底。
   -->
   <div class="md-row-actions" :class="dense ? 'is-dense' : 'is-card'">
     <el-button :link="dense" size="small" type="primary" @click="$emit('workspace')">
       <MdIcon name="arrow-right" :size="14" />进入
     </el-button>
-    <el-button v-if="kbCan('SHARE_CREATE')" :link="dense" size="small" @click="$emit('share')">
-      <MdIcon name="share" :size="14" />分享
+    <el-button
+      v-if="kbCan('SHARE_CREATE')"
+      :link="dense"
+      size="small"
+      :title="dense ? undefined : '分享'"
+      :aria-label="dense ? undefined : '分享'"
+      @click="$emit('share')"
+    >
+      <MdIcon name="share" :size="14" /><span v-if="dense">分享</span>
     </el-button>
-    <el-button v-if="kbCan('KB_EDIT_META')" :link="dense" size="small" @click="$emit('edit')">
-      <MdIcon name="edit" :size="14" />编辑
+    <el-button
+      v-if="kbCan('KB_EDIT_META')"
+      :link="dense"
+      size="small"
+      :title="dense ? undefined : '编辑知识库'"
+      :aria-label="dense ? undefined : '编辑知识库'"
+      @click="$emit('edit')"
+    >
+      <MdIcon name="edit" :size="14" /><span v-if="dense">编辑</span>
     </el-button>
-    <el-button v-if="showPerms" :link="dense" size="small" @click="$emit('perms')">
-      <MdIcon name="key" :size="14" />权限
+    <el-button
+      v-if="showPerms"
+      :link="dense"
+      size="small"
+      :title="dense ? undefined : '权限与名单'"
+      :aria-label="dense ? undefined : '权限与名单'"
+      @click="$emit('perms')"
+    >
+      <MdIcon name="key" :size="14" /><span v-if="dense">权限</span>
     </el-button>
     <el-dropdown placement="bottom-end" trigger="click">
-      <el-button :link="dense" size="small" title="更多操作">
+      <el-button :link="dense" size="small" title="更多操作" aria-label="更多操作">
         <MdIcon name="more" :size="14" />
-        <MdIcon v-if="!dense" name="chevron-down" :size="12" class="md-row-actions__caret" />
       </el-button>
       <template #dropdown>
         <el-dropdown-menu>
@@ -77,9 +98,16 @@ const showPerms = computed(() => kbCan('KB_MEMBER_MANAGE') || kbCan('KB_SET_VISI
 .md-row-actions :deep(.el-button + .el-button) { margin-left: 0; }
 /* 表格里的动作必须一行：换行时「更多」会单独掉到第二行，看着像一条孤立的分隔符 */
 .md-row-actions.is-dense { gap: 2px; flex-wrap: nowrap; }
+/* 主行动（进入）常驻品牌色：表格里其余动作是安静灰字，需要有一个明确的入口 */
+.md-row-actions.is-dense :deep(.el-button--primary) {
+  --el-button-text-color: var(--md-primary);
+  --el-button-hover-text-color: var(--md-primary-hover);
+  --el-button-hover-link-text-color: var(--md-primary-hover);
+  font-weight: 600;
+}
 
 /* ---------------------------------------------------------------- 卡片形态 */
-.md-row-actions.is-card { gap: 2px; flex-wrap: nowrap; }
+.md-row-actions.is-card { gap: 3px; flex-wrap: nowrap; }
 .md-row-actions.is-card :deep(.el-button) {
   height: 30px; padding: 0 9px;
   border-radius: 8px;
@@ -98,23 +126,30 @@ const showPerms = computed(() => kbCan('KB_MEMBER_MANAGE') || kbCan('KB_SET_VISI
   --el-button-disabled-border-color: transparent;
   --el-button-disabled-text-color: var(--md-text-3);
 }
+/* 图标按钮：撑成正方形，抹掉全局 .el-button .md-icon 的右间距，图标才会真正居中 */
+.md-row-actions.is-card :deep(.el-button:not(.el-button--primary)) {
+  width: 30px; padding: 0; justify-content: center;
+}
+.md-row-actions.is-card :deep(.el-button:not(.el-button--primary) .md-icon) { margin-right: 0; }
 /* 主行动实心：整张卡片只有它一处重色，视线自然落上去 */
 .md-row-actions.is-card :deep(.el-button--primary) {
   padding: 0 12px;
   font-weight: 600;
-  box-shadow: 0 1px 2px rgba(59, 108, 246, .32);
-  --el-button-bg-color: var(--md-primary);
-  --el-button-border-color: var(--md-primary);
+  background: linear-gradient(135deg, var(--md-primary), var(--md-primary-hover));
+  box-shadow: 0 2px 6px color-mix(in srgb, var(--md-primary) 32%, transparent);
+  --el-button-bg-color: transparent;
+  --el-button-border-color: transparent;
   --el-button-text-color: #fff;
-  --el-button-hover-bg-color: var(--md-primary-hover);
-  --el-button-hover-border-color: var(--md-primary-hover);
+  --el-button-hover-bg-color: transparent;
+  --el-button-hover-border-color: transparent;
   --el-button-hover-text-color: #fff;
-  --el-button-active-bg-color: var(--md-primary-hover);
-  --el-button-active-border-color: var(--md-primary-hover);
+  --el-button-active-bg-color: transparent;
+  --el-button-active-border-color: transparent;
   --el-button-active-text-color: #fff;
 }
-
-/* 尾随图标：抵消全局 .el-button .md-icon 的右间距，改成左侧留一口气 */
-.md-row-actions__caret { margin-left: 3px; margin-right: 0; opacity: .6; }
+.md-row-actions.is-card :deep(.el-button--primary:hover) {
+  box-shadow: 0 3px 9px color-mix(in srgb, var(--md-primary) 40%, transparent);
+}
+.md-row-actions.is-card :deep(.el-button--primary .md-icon) { margin-right: 5px; }
 </style>
 

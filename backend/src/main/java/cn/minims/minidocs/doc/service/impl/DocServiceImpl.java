@@ -17,6 +17,7 @@ import cn.minims.minidocs.doc.service.DocService;
 import cn.minims.minidocs.doc.service.VaultFileService;
 import cn.minims.minidocs.doc.support.ImageValidator;
 import cn.minims.minidocs.kb.entity.KnowledgeBase;
+import cn.minims.minidocs.kb.service.KbCoverService;
 import cn.minims.minidocs.kb.service.KnowledgeBaseService;
 import cn.minims.minidocs.markdown.MarkdownService;
 import cn.minims.minidocs.markdown.model.MarkdownModels.RenderContext;
@@ -55,13 +56,13 @@ import java.util.zip.ZipInputStream;
 public class DocServiceImpl implements DocService {
 
     private static final String ASSETS_DIR = "assets";
-    private static final String COVER_PREFIX = "cover-";
     private static final int MAX_MESSAGES = 20;
     private static final ObjectMapper JSON = new ObjectMapper();
     private static final TypeReference<List<String>> PATH_LIST = new TypeReference<>() {
     };
 
     private final KnowledgeBaseService knowledgeBaseService;
+    private final KbCoverService kbCoverService;
     private final AccessService accessService;
     private final VaultFileService vaultFileService;
     private final DocLockService docLockService;
@@ -346,27 +347,17 @@ public class DocServiceImpl implements DocService {
     public String uploadCover(Long kbId, MultipartFile file, LoginUser user) {
         // 封面写进 knowledge_base.cover_url，改的是库元信息，故门在 KB_EDIT_META 而非资源上传
         KnowledgeBase kb = accessService.requireKb(kbId, KbAction.KB_EDIT_META, user);
-        Path root = vaultFileService.ensureRoot(kb.getStorageKey());
-        String extension = imageValidator.validate(file, properties.getCoverMaxSize());
-        String fileName = COVER_PREFIX + FileNameUtil.buildImageName(extension);
-        writeAsset(root, fileName, file, extension);
-        String relative = ASSETS_DIR + "/" + fileName;
-
-        KnowledgeBase update = new KnowledgeBase();
-        update.setId(kbId);
-        update.setCoverUrl(relative);
-        knowledgeBaseService.updateById(update);
-        return relative;
+        return kbCoverService.save(kb, file);
     }
 
     @Override
     public String setCoverUrl(Long kbId, String url, LoginUser user) {
         // 门与上传同一档：改的是库元信息（knowledge_base.cover_url），不是资源
-        accessService.requireKb(kbId, KbAction.KB_EDIT_META, user);
+        KnowledgeBase kb = accessService.requireKb(kbId, KbAction.KB_EDIT_META, user);
         String value = url == null ? null : url.trim();
         if (value == null || value.isEmpty()) {
             // 空串 = 清空：外链是手输的，粘错之后没有上传按钮可用来「覆盖掉」它
-            clearCover(kbId, user);
+            kbCoverService.clear(kb);
             return null;
         }
         /*
@@ -384,21 +375,14 @@ public class DocServiceImpl implements DocService {
         if (value.length() > 1024) {
             throw BizException.of(ErrorCode.FILE_TYPE_NOT_ALLOWED, "封面地址过长");
         }
-        KnowledgeBase update = new KnowledgeBase();
-        update.setId(kbId);
-        update.setCoverUrl(value);
-        knowledgeBaseService.updateById(update);
-        return value;
+        return kbCoverService.setExternal(kb, value);
     }
 
     @Override
     public void clearCover(Long kbId, LoginUser user) {
         // 单独一个清空入口：外链是手输的，粘错之后没有上传按钮可用来「覆盖掉」它
-        accessService.requireKb(kbId, KbAction.KB_EDIT_META, user);
-        KnowledgeBase update = new KnowledgeBase();
-        update.setId(kbId);
-        update.setCoverUrl(null);
-        knowledgeBaseService.updateById(update);
+        KnowledgeBase kb = accessService.requireKb(kbId, KbAction.KB_EDIT_META, user);
+        kbCoverService.clear(kb);
     }
 
     @Override

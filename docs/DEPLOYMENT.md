@@ -46,7 +46,7 @@
 
 后端无 Redis、无对象存储、无消息队列，**唯一依赖是「关系库 + 一个本地数据目录」**。
 所以部署的复杂度主要来自两个地方：数据库账号要有 DDL 权限（启动时会自动建表 / 改表），
-以及 `VAULT_HOME` 目录要做持久化（文档、头像、站点 Logo、日志都在里面）。
+以及 `VAULT_HOME` 目录要做持久化（文档、封面、头像、站点 Logo、日志都在里面）。
 
 ### 1.2 目录规划（以 Linux 为例）
 
@@ -275,7 +275,8 @@ curl -I https://kb.example.com/minidocs/swagger-ui/index.html
 
 浏览器登录后，逐项过一遍：
 
-- 头像、封面能正常显示（走 `/minidocs/avatars/**`、`kb/*/asset/**`）
+- 头像、封面能正常显示（头像走 `/minidocs/avatars/**`；封面走 `kb/{org}/{库}/cover`，
+  文档内图片走 `kb/{org}/{库}/asset/**`）
 - 复制分享链接，粘贴到无痕窗口能免密打开，且域名是公网域名
 - `/console/{org}/kbs` 直接刷新不 404
 
@@ -344,6 +345,7 @@ java -jar /srv/minidocs/minidocs.jar \
 | --- | --- | --- |
 | `data/minidocs.db` | SQLite 库（仅 dev/SQLite 形态） | 账号、权限、分享全丢 |
 | `data/vaults/` | 知识库文档正文与库内资源（按组织/库分目录） | 文档丢 |
+| `data/platform/` | 平台元数据，目前是知识库封面（`platform/covers/`） | 封面丢；文档与 Git 工作副本不受影响 |
 | `data/avatars/` | 用户头像 | 头像丢 |
 | `data/site/` | 站点 Logo | 站点配置丢 |
 | `data/logs/` | 应用日志 | 仅影响排障 |
@@ -409,7 +411,7 @@ WantedBy=multi-user.target
 SPRING_PROFILES_ACTIVE=prod
 PORT=9098
 VAULT_HOME=/srv/minidocs/data
-# 站点基址的兜底值。优先在「站点设置」页里配（/console/platform/site，改完即生效）；
+# 站点基址的兜底值。优先在「站点设置」页里配（/platform/site，改完即生效）；
 # 本项只在页面上没配、或配置由平台注入不便入库时才需要。两种方式别填成两个不同域名。
 PAGE_BASE_URL=https://kb.example.com
 DB_URL=jdbc:mysql://127.0.0.1:3306/minidocs?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false
@@ -543,6 +545,32 @@ DRUID_MONITOR_PASSWORD=换成强密码
 
 ---
 
+### 8.2 发件邮箱（SMTP）与邮箱验证
+
+邮件配置不在环境变量里，而是存在库中的站点配置（`site_config`），由平台管理员在
+「站点设置 → 邮件与邮箱验证」（`/platform/site`）里维护，改完即生效，无需重启。
+
+| 项 | 说明 |
+| --- | --- |
+| SMTP 主机 / 端口 | 例如 `smtp.exmail.qq.com:465`；端口 465 默认按 SSL，其余默认 STARTTLS，也可显式选「明文」 |
+| 发件地址 | 必须是服务商允许的发信身份，多数要求与用户名相同 |
+| 用户名 / 口令 | **要么都填，要么都清空**：只填用户名会以匿名身份投递，腾讯企业邮这类会回 `503 need EHLO and AUTH first`，界面上保存时就会拦下 |
+| 口令存储 | 用 `JWT_SECRET` 加密后落库，回显只给「已配置」；换掉 `JWT_SECRET` 后口令解不开，需要重新填一次 |
+| 测试发送 | 面板右上角可填一个收件地址做真实投递，用来验证主机、端口、凭证是否都通 |
+
+「注册邮箱验证」开关打开且传输参数齐全时：
+
+- 注册必须填写邮箱，并通过 **6 位验证码**（10 分钟有效，同一邮箱 60 秒只能发一次）完成验证
+- 未验证邮箱的账号不能登录（平台 ADMIN 豁免）；账号页可补发验证邮件，链接 24 小时有效
+- 迁移前已存在的老账号视为已验证，不会被挡在门外
+- **SMTP 没配好或发送失败时自动退回「注册即放行」**：邮箱不可用不该把新用户永久锁在登录页外；
+  面板上会显示当前是「已生效 / 未生效 / 未开启」哪一档
+
+> 上线前至少点一次「测试发送」。配置看着齐全但投递失败时，注册会静默走放行分支，
+> 不会报错——这是有意的容错，但也意味着「配了却没发出去」只能在测试发送里发现。
+
+---
+
 ## 9. 上线检查清单
 
 **构建**
@@ -555,7 +583,7 @@ DRUID_MONITOR_PASSWORD=换成强密码
 
 - [ ] `JWT_SECRET` 换成了随机 32+ 字节（`openssl rand -base64 48`）
 - [ ] `ADMIN_PASS` 换掉了 `admin123`，并且**登录后立刻在控制台改一次密码**
-- [ ] 站点基址已配（**推荐在「站点设置」页配**，`/console/platform/site`，改完即生效）；若仍用环境变量，`PAGE_BASE_URL` 要带 `https://`
+- [ ] 站点基址已配（**推荐在「站点设置」页配**，`/platform/site`，改完即生效）；若仍用环境变量，`PAGE_BASE_URL` 要带 `https://`
 - [ ] 若走 `full-schema-mysql.sql`：已确认 `schema_version` 有 7 行、应用账号**没有** DDL 权限（见 [3.2](#32-初始化数据库)）
 - [ ] `VAULT_HOME` 是绝对路径，且在持久化卷 / 备份范围内
 - [ ] `REGISTER_ENABLED` 按需关闭
@@ -673,7 +701,7 @@ markdown 引用的本地图片大多就躺在文档旁边的 `images/` 里。目
 | 分享链接指向内网地址 | 站点基址没配对 | 先看「站点设置」页的「站点基址」；没配则确认 `PAGE_BASE_URL` 含 `https://` 与对外域名 |
 | 分享链接少一段路径（如少了 `/minidocs`） | 站点基址只填了域名、没带页面实际挂载的路径 | 站点基址补上路径，如 `https://kb.example.com/minidocs` |
 | 上传大文件 413 | Nginx 体积限制 | `client_max_body_size 60m;` |
-| 头像/封面 404 | 反代没覆盖资源路径 | 确认 `/minidocs/` 前缀覆盖了 `avatars`、`kb/*/asset`、`share/*/asset` |
+| 头像/封面 404 | 反代没覆盖资源路径 | 确认 `/minidocs/` 前缀覆盖了 `avatars`、`kb/*/cover`、`kb/*/asset`、`share/*/cover`、`share/*/asset` |
 | 启动报找不到 `index.html`（WARN） | 方案 B 未配 `FRONT_DIR`，或目录为空 | 配 `--minidocs.front-dir=/srv/minidocs/dist` |
 | 启动报 `SQLITE_CANTOPEN`（连 `minidocs` profile 才会遇到） | `VAULT_HOME` 与数据源 URL 指向了不同目录：URL 里的 `${VAULT_HOME:./data}` 只认**环境变量** `VAULT_HOME`，不认 `--minidocs.vault-home` | 两者设成同一个值。SQLite 形态下用 `VAULT_HOME=/srv/minidocs/data java -jar ...` 或在 env 文件里写 `VAULT_HOME=...` |
 | `Public Key Retrieval is not allowed` | MySQL 认证与连接串不匹配 | 连接串加 `allowPublicKeyRetrieval=true` |
@@ -730,7 +758,7 @@ docker run -d --name minidocs -p 9098:9098 \
 | 变量 | 必需 | 默认 | 说明 |
 | --- | --- | --- | --- |
 | `ADMIN_PASS` | 是 | 无 | 首次启动创建内置管理员的密码；缺失直接拒绝启动 |
-| `JWT_SECRET` | 是 | 无 | 登录态签名密钥，**≥ 32 字符**；换掉后所有已登录会话失效 |
+| `JWT_SECRET` | 是 | 无 | 登录态签名密钥，**≥ 32 字符**；换掉后所有已登录会话失效，站点设置里已存的 SMTP 口令也需要重填（见 8.2）|
 | `ADMIN_USER` | 否 | `admin` | 管理员用户名，仅首次初始化生效 |
 | `REGISTER_ENABLED` | 否 | `false` | 官方镜像默认关闭自助注册；需要开放时置 `true` |
 | `PAGE_BASE_URL` | 否 | 空 | 站点基址（`https://kb.example.com`）；留空按请求推导 |
@@ -748,6 +776,7 @@ docker run -d --name minidocs -p 9098:9098 \
 /data
 ├── minidocs.db          # SQLite（standalone profile）
 ├── vaults/              # 文档正文与库内资源
+├── platform/            # 平台元数据（covers/ 知识库封面）
 ├── avatars/             # 用户头像
 ├── site/                # 站点 Logo、阅读主题包
 └── logs/                # 运行日志

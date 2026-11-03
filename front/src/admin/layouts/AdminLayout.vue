@@ -8,6 +8,7 @@ import { useAuthStore } from '@/admin/stores/auth'
 import { useOrgStore } from '@/admin/stores/org'
 import { useSettingsStore } from '@/shared/stores/settings'
 import { useSiteStore } from '@/shared/stores/site'
+import { DEFAULT_LOGO } from '@/shared/brand'
 import { appHref } from '@/shared/appBase'
 
 const route = useRoute()
@@ -34,6 +35,15 @@ const mobileNavOpen = ref(false)
 
 /** 抽屉里始终展示完整导航（图标 + 文字）；「收起态」只属于桌面端的窄栏形态 */
 const navCollapsed = computed(() => collapsed.value && !isMobile.value)
+
+/**
+ * 收起时只放得下正方形标记：横版 Logo 留在 32px 宽的框里会被裁成半截字，
+ * 所以换站点图标；没传图就回落到内置圆形标记，尺寸也交还给品牌位默认值。
+ */
+const sidebarLogoSrc = computed(() =>
+  navCollapsed.value ? site.value.iconSrc || DEFAULT_LOGO : site.brandSrc
+)
+const sidebarLogoStyle = computed(() => (navCollapsed.value ? undefined : site.logoStyle))
 
 function syncMobile(event: MediaQueryList | MediaQueryListEvent) {
   isMobile.value = event.matches
@@ -315,8 +325,8 @@ watch(() => route.fullPath, () => {
   <div class="md-admin">
     <aside class="md-sidebar" :class="{ 'is-collapsed': navCollapsed, 'is-mobile-open': mobileNavOpen }">
       <router-link class="md-sidebar__brand" to="/console">
-        <span class="md-sidebar__logo is-image" :style="site.logoStyle" aria-hidden="true">
-          <img :src="site.brandSrc" alt="" />
+        <span class="md-sidebar__logo is-image" :style="sidebarLogoStyle" aria-hidden="true">
+          <img :src="sidebarLogoSrc" alt="" />
         </span>
         <span v-if="!navCollapsed && !site.logoOnly" class="md-sidebar__title">
           {{ site.value.name }}<small>管理后台</small>
