@@ -3011,7 +3011,7 @@ body.is-col-resizing .md-ws__bytemd-resizer::after { background: var(--md-primar
 .md-row-actions__divider { width: 1px; height: 14px; margin: 0 2px; background: var(--md-border); }
 .md-table-card .md-row-actions { justify-content: flex-end; gap: 6px; flex-wrap: nowrap; }
 .md-table-card .md-row-actions .el-button {
-  height: 28px; margin: 0; padding: 0 10px;
+  height: 28px; margin: 0; padding: 0 6px;
   border: 1px solid color-mix(in srgb, var(--md-primary) 17%, transparent);
   border-radius: 8px; font-size: 12px; font-weight: 500;
   background: color-mix(in srgb, var(--md-primary) 7%, var(--md-surface));
@@ -3029,6 +3029,10 @@ body.is-col-resizing .md-ws__bytemd-resizer::after { background: var(--md-primar
   --el-button-disabled-border-color: transparent;
   --el-button-disabled-text-color: color-mix(in srgb, var(--md-text-3) 45%, transparent);
 }
+/* 更多是纯图标，固定成小方块；否则它会跟着文字按钮的左右内边距一起把整排撑出列宽 */
+.md-table-card .md-row-actions .el-button.md-action--more { width: 32px; padding: 0; }
+/* 操作列宽是固定的：动作整排一旦超出内容区，最左侧按钮会被上一列（z-index 更高）盖掉一截 */
+.md-table-card .md-row-actions { gap: 2px; }
 .md-table-card .md-row-actions .el-button:hover {
   border-color: color-mix(in srgb, var(--md-primary) 26%, transparent);
   background: color-mix(in srgb, var(--md-primary) 12%, var(--md-surface));
