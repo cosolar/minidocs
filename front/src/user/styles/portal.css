@@ -456,9 +456,11 @@
   border-radius: 13px;
   background: color-mix(in srgb, var(--md-surface) 82%, transparent);
   box-shadow: 0 10px 24px -24px rgba(8, 64, 55, .5);
+  overflow: hidden;
 }
 .md-stat {
   --st: var(--md-primary);
+  position: relative;
   display: inline-flex;
   align-items: center;
   gap: 7px;
@@ -467,7 +469,16 @@
   border-radius: 8px;
   transition: background .16s ease;
 }
-.md-stat + .md-stat { border-left: 1px solid color-mix(in srgb, var(--md-primary) 10%, var(--md-border)); }
+/* 分割线用独立的直线，不跟着单元格圆角拐弯 */
+.md-stat + .md-stat::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 9px;
+  bottom: 9px;
+  width: 1px;
+  background: color-mix(in srgb, var(--md-primary) 12%, var(--md-border));
+}
 .md-stat:hover { background: color-mix(in srgb, var(--md-primary) 5%, transparent); }
 .md-stat__icon {
   width: 26px;
