@@ -406,7 +406,7 @@ function onDrop(event: DragEvent) {
               </el-dropdown-item>
             </template>
             <el-dropdown-item v-else command="download">
-              <MdIcon name="download" :size="14" />下载 Markdown
+              <MdIcon name="download" :size="14" />下载文档
             </el-dropdown-item>
             <!-- 分享权等同写权（规范 §2.4），但它是一个单独的动作：只读成员能复制链接，不能建对外链接 -->
             <el-dropdown-item v-if="node.type === 'doc' && allowed('SHARE_CREATE')" command="share">

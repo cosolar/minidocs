@@ -110,7 +110,7 @@ const router = createRouter({
     },
     /**
      * 不带组织的管理页共用一套外壳：账号设置是「我自己的」，发现组织是「我还没进去的」，
-     * 平台用户管理是「平台角色的」。三者都没有 {@code /console/{org}} 前缀，因此 api 层在
+     * 用户管理是「平台角色的」。三者都没有 {@code /console/{org}} 前缀，因此 api 层在
      * 这些路径上不允许调用 {@code requireOrg()}（规范 §3.4 的两条通道分界）。
      *
      * <p>没有空的子路由，所以 {@code /} 仍然由上面的门户首页命中。</p>
@@ -126,10 +126,10 @@ const router = createRouter({
           path: 'platform/users',
           name: 'platform-users',
           component: () => import('@/admin/views/UserManageView.vue'),
-          meta: { admin: true, platformAdmin: true, title: '平台用户管理' }
+          meta: { admin: true, platformAdmin: true, title: '用户管理' }
         },
         /**
-         * 站点设置改的是「整个部署」的品牌（名称 / Logo），不属于任何组织，因此与平台用户管理
+         * 站点设置改的是「整个部署」的品牌（名称 / Logo），不属于任何组织，因此与用户管理
          * 同处一条不带组织段的通道，门槛也同是平台角色（{@code meta.platformAdmin}）。
          */
         {

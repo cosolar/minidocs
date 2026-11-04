@@ -113,7 +113,7 @@ function openPortal(slug: string) {
         <div class="md-ov-stat__main">
           <p class="md-ov-stat__label">
             公开可见知识库
-            <HelpTip text="可见范围为「所有登录用户」的知识库。它说明平台内谁能读，与门户上是否已分享无关。" />
+            <HelpTip text="可见范围为「所有登录用户」的知识库。它表示平台内谁能读，与首页上是否已公开分享无关。" />
           </p>
           <p class="md-ov-stat__value">{{ stats?.kbPublic ?? 0 }}<small>个</small></p>
           <p class="md-ov-stat__hint">占全部 {{ publicKbPct }}%</p>
@@ -124,7 +124,7 @@ function openPortal(slug: string) {
         <div class="md-ov-stat__main">
           <p class="md-ov-stat__label">
             公开可见文档
-            <HelpTip text="「所有登录用户」可见的知识库里的文档总数；不等于门户已发布的文档数。" />
+            <HelpTip text="「所有登录用户」可见的知识库里的文档总数；不等于首页已公开的文档数。" />
           </p>
           <p class="md-ov-stat__value">{{ stats?.publicDocTotal ?? 0 }}<small>篇</small></p>
           <p class="md-ov-stat__hint">占全部文档 {{ publicDocPct }}%</p>
@@ -189,7 +189,7 @@ function openPortal(slug: string) {
             <div class="md-panel-head__text">
               <h2>
                 可见范围分布
-                <HelpTip text="按平台内的读权限分三档，与门户发布（是否分享、是否加密）是两件事。" />
+                <HelpTip text="按平台内的读权限分三档，与首页公开（是否分享、是否加密）是两件事。" />
               </h2>
               <p class="md-panel-desc">当前账号可见的 {{ kbTotal }} 个知识库。</p>
             </div>

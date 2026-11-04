@@ -24,7 +24,7 @@ const site = useSiteStore()
           </span>
           <div v-if="!site.logoOnly" class="md-login__intro-name">
             <strong>{{ site.value.name }}</strong>
-            <small>{{ site.value.subtitle || '轻量 · 高性能的知识库平台' }}</small>
+            <small>{{ site.value.subtitle || '个人知识库与分享空间' }}</small>
           </div>
         </div>
 
@@ -44,7 +44,7 @@ const site = useSiteStore()
                   <span><MdIcon name="share" :size="13" />分享</span>
                   <div class="md-login__demo-me">
                     <i>JI</i>
-                    <span><strong>极简团队</strong><small>私有空间</small></span>
+                    <span><strong>极简智库</strong><small>个人空间</small></span>
                   </div>
                 </aside>
                 <div class="md-login__demo-main">
@@ -52,19 +52,19 @@ const site = useSiteStore()
                   <div class="md-login__demo-cards">
                     <div class="md-login__demo-card">
                       <span class="md-login__demo-cover is-a" />
-                      <strong>产品使用指南</strong>
+                      <strong>面试经验</strong>
                       <small>12 篇文档</small>
                     </div>
                     <div class="md-login__demo-card">
                       <span class="md-login__demo-cover is-b" />
-                      <strong>部署与运维</strong>
+                      <strong>简历与作品集</strong>
                       <small>8 篇文档</small>
                     </div>
                   </div>
-                  <div class="md-login__demo-row"><MdIcon name="file" :size="12" /><span>快速开始</span><em>刚刚</em></div>
-                  <div class="md-login__demo-row"><MdIcon name="file" :size="12" /><span>权限模型</span><em>昨天</em></div>
-                  <div class="md-login__demo-row"><MdIcon name="file" :size="12" /><span>团队手册</span><em>3 天前</em></div>
-                  <div class="md-login__demo-row"><MdIcon name="file" :size="12" /><span>接口鉴权</span><em>1 周前</em></div>
+                  <div class="md-login__demo-row"><MdIcon name="file" :size="12" /><span>自我介绍模板</span><em>刚刚</em></div>
+                  <div class="md-login__demo-row"><MdIcon name="file" :size="12" /><span>简历模板</span><em>昨天</em></div>
+                  <div class="md-login__demo-row"><MdIcon name="file" :size="12" /><span>面试复盘</span><em>3 天前</em></div>
+                  <div class="md-login__demo-row"><MdIcon name="file" :size="12" /><span>求职时间线</span><em>1 周前</em></div>
                   <div class="md-login__demo-foot">
                     <span class="md-login__demo-avatars"><i>Z</i><i>L</i><i>W</i></span>
                     <span>3 位成员共同维护</span>
@@ -72,7 +72,7 @@ const site = useSiteStore()
                 </div>
               </div>
             </div>
-            <span class="md-login__demo-chip is-a"><MdIcon name="edit" :size="12" />Markdown</span>
+            <span class="md-login__demo-chip is-a"><MdIcon name="edit" :size="12" />随手记录</span>
             <span class="md-login__demo-chip is-b"><MdIcon name="search" :size="12" />全文检索</span>
             <span class="md-login__demo-chip is-c"><MdIcon name="share" :size="12" />分享链接</span>
             <span class="md-login__demo-chip is-d"><MdIcon name="lock" :size="12" />权限控制</span>
@@ -90,7 +90,7 @@ const site = useSiteStore()
           </ul>
         </div>
 
-        <p class="md-login__intro-foot">单 SPA · 前后端分离 · 数据留在自己的服务器</p>
+        <p class="md-login__intro-foot">随时记录 · 分类整理 · 一键分享</p>
       </section>
 
       <section class="md-login__panel"><slot /></section>

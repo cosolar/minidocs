@@ -292,7 +292,7 @@ async function submitForm() {
   const isCreate = formMode.value === 'create'
   const cloud = form.sourceType === 'git' && (isCreate || formMode.value === 'edit')
   if (cloud && !form.gitUrl.trim()) {
-    ElMessage.warning('请填写 Git 仓库地址')
+    ElMessage.warning('请填写仓库地址')
     return
   }
   const payload: Record<string, unknown> = {
@@ -354,13 +354,13 @@ async function submitForm() {
     }
     ElMessage.success(
       repoRebound
-        ? '已保存，正在按新地址重新克隆仓库，进度可在「工作区」查看'
+        ? '已保存，正在按新地址重新同步内容，进度可在「工作区」查看'
         : isCreate && form.sourceType === 'git'
-          ? '云端知识库已创建，正在后台拉取仓库，可在工作区查看进度'
+          ? '云端知识库已创建，正在后台同步内容，可在工作区查看进度'
           : isCreate && form.maintainScope === 'members'
             ? '知识库已创建。维护名单还是空的，记得在「权限」里添加可写的人。'
             : isCreate
-              ? '知识库已创建，尚未发布到门户 —— 需要对外分享请点这一行的「分享」'
+              ? '知识库已创建，尚未公开到首页 —— 需要对外分享请点这一行的「分享」'
               : '已保存'
     )
     formVisible.value = false
@@ -615,7 +615,7 @@ watch(org, () => {
       icon="books"
       eyebrow="组织管理"
       title="知识库管理"
-      description="集中管理组织内的知识库：建库、调整可见范围、维护名单，以及把内容发布到门户。"
+      description="集中管理组织内的知识库：建库、调整可见范围、维护名单，以及把内容公开到首页。"
     >
       <template #actions>
         <el-button type="primary" @click="openCreate">
@@ -658,7 +658,7 @@ watch(org, () => {
         <p class="md-empty__desc">
           {{ hasFilter
             ? '换个关键字，或清除可见范围 / 收藏筛选后再试。'
-            : '建一个本地目录，或绑定线上 Git 仓库；内容与权限都会在这里集中管理。' }}
+            : '直接新建一个知识库，或从线上仓库同步内容；内容和权限都在这里集中管理。' }}
         </p>
         <el-button v-if="hasFilter" @click="clearFilters">
           <MdIcon name="close" :size="14" />清除筛选
@@ -696,7 +696,7 @@ watch(org, () => {
                 <strong>
                   {{ row.name }}
                   <MdIcon v-if="row.favored" name="star" :size="13" class="md-kb-cell__star" title="已收藏" />
-                  <span v-if="row.sourceType === 'git'" class="md-ad-chip md-ad-chip--cloud" title="绑定线上 Git 仓库">云端</span>
+                  <span v-if="row.sourceType === 'git'" class="md-ad-chip md-ad-chip--cloud" title="云端知识库">云端</span>
                 </strong>
                 <small v-if="row.directoryPath">{{ row.directoryPath }}</small>
               </span>
@@ -794,7 +794,7 @@ watch(org, () => {
             <span class="md-kb-card__cover-mark" aria-hidden="true"><MdIcon name="bookOpen" :size="21" /></span>
             <img v-if="kb.coverSrc" :src="kb.coverSrc" alt="" loading="lazy" @error="hideBrokenImage" />
             <div class="md-kb-card__badges">
-              <span v-if="kb.sourceType === 'git'" class="md-kb-card__badge" title="绑定线上 Git 仓库">
+              <span v-if="kb.sourceType === 'git'" class="md-kb-card__badge" title="云端知识库">
                 <MdIcon name="cloud" :size="11" />云端
               </span>
               <span
@@ -846,7 +846,7 @@ watch(org, () => {
         <button type="button" class="md-kb-create" @click="openCreate">
           <span class="md-kb-create__icon"><MdIcon name="plus" :size="20" /></span>
           <strong>新建知识库</strong>
-          <small>本地目录或云端 Git 仓库</small>
+          <small>直接创建或从线上仓库同步</small>
         </button>
       </div>
 
@@ -896,17 +896,17 @@ watch(org, () => {
           <h4 class="md-kb-group__title">内容来源</h4>
           <el-form-item>
             <el-radio-group v-model="form.sourceType">
-              <el-radio-button value="local">本地目录</el-radio-button>
-              <el-radio-button value="git">云端 Git 仓库</el-radio-button>
+              <el-radio-button value="local">直接创建</el-radio-button>
+              <el-radio-button value="git">从线上仓库同步</el-radio-button>
             </el-radio-group>
             <div class="md-form-hint">
               {{ form.sourceType === 'git'
-                ? '把线上仓库克隆到服务器作为工作副本（后台进行，创建后立刻返回）；在工作区里可以「拉取」远程更新、「提交并推送」本地改动。'
-                : '只在服务器上建一个空目录，内容全部由本平台管理。' }}
+                ? '从线上仓库同步内容（后台进行，创建后即可进入）；之后可以随时「拉取」最新内容，或把修改「提交并推送」回仓库。'
+                : '在平台上直接创建一个空知识库，内容全部在平台内管理。' }}
             </div>
           </el-form-item>
           <template v-if="form.sourceType === 'git'">
-            <el-form-item label="仓库地址（HTTPS）" required>
+            <el-form-item label="仓库地址" required>
               <el-input v-model="form.gitUrl" maxlength="512" placeholder="https://github.com/your-org/your-repo.git" />
             </el-form-item>
             <div class="md-kb-cols">
@@ -918,7 +918,7 @@ watch(org, () => {
               </el-form-item>
             </div>
             <el-form-item>
-              <template #label>访问令牌<HelpTip text="令牌加密后落库，保存后不再回显，只用于服务端访问仓库。地址里若带了 user:token@，入库时会自动剥掉。" /></template>
+              <template #label>访问令牌<HelpTip text="私有仓库才需要填写。保存后不再显示；如果仓库地址里带了账号和令牌，保存时会自动去掉。" /></template>
               <el-input v-model="form.gitToken" type="password" show-password maxlength="512" placeholder="私有仓库必填" />
             </el-form-item>
             <el-alert
@@ -926,7 +926,7 @@ watch(org, () => {
               :closable="false"
               show-icon
               style="margin-bottom: 4px"
-              title="创建后立即返回，代码在后台拉取；地址或分支填错时库仍会建好，失败原因显示在工作区顶部，点「拉取」可重试。"
+              title="创建后会立即完成，内容在后台同步；地址或分支填错时库仍会建好，失败原因显示在工作区顶部，点「拉取」可以重试。"
             />
           </template>
         </section>
@@ -937,8 +937,8 @@ watch(org, () => {
           地址或分支一变，后端会清掉旧工作副本重新克隆，所以下面给一条明确的后果提示。
         -->
         <section v-else-if="formMode === 'edit' && form.sourceType === 'git'" class="md-kb-group">
-          <h4 class="md-kb-group__title">云端仓库</h4>
-          <el-form-item label="仓库地址（HTTPS）">
+          <h4 class="md-kb-group__title">线上仓库</h4>
+          <el-form-item label="仓库地址">
             <el-input v-model="form.gitUrl" maxlength="512" placeholder="https://github.com/your-org/your-repo.git" />
           </el-form-item>
           <div class="md-kb-cols">
@@ -950,7 +950,7 @@ watch(org, () => {
             </el-form-item>
           </div>
           <el-form-item>
-            <template #label>访问令牌<HelpTip text="令牌加密后落库，保存后不再回显。留空表示沿用原来那个。" /></template>
+            <template #label>访问令牌<HelpTip text="保存后不再显示；留空表示继续使用原来的令牌。" /></template>
             <el-input
               v-model="form.gitToken"
               type="password"
@@ -963,7 +963,7 @@ watch(org, () => {
             type="warning"
             :closable="false"
             show-icon
-            title="改地址或分支会清空当前工作副本、按新地址重新克隆；工作区有未提交改动时会被拒绝。只改用户名或令牌不会重新克隆。"
+            title="修改地址或分支后，会按新地址重新同步内容；有未保存的改动时会先拒绝。只改用户名或令牌不会重新同步。"
           />
         </section>
 
@@ -971,7 +971,7 @@ watch(org, () => {
           <h4 class="md-kb-group__title">
             可见范围与维护权限
             <HelpTip :width="340">
-              以上两项都只作用于平台内。要让这个库出现在门户上、让不登录的人也能访问，还需要另外创建一份整库分享链接（卡片右侧「分享」）；链接是否设访问密码，决定它在门户上显示为「共享」还是「加密」。这两层互相独立。
+              以上两项只决定平台内谁能访问。如果希望不登录的人也能打开，需要在卡片的「分享」里另外创建整库分享链接；是否为链接设置访问密码，决定它在首页显示为「共享」还是「加密」。两层设置互不影响。
             </HelpTip>
           </h4>
           <div class="md-kb-cols">
@@ -987,7 +987,7 @@ watch(org, () => {
               <template #label>
                 {{ formMode === 'create' ? '维护档位（谁能改）' : '维护档位' }}<HelpTip
                   v-if="formMode === 'edit'"
-                  text="改档位与名单在卡片的「权限」里，那是另一项治理动作，需要单独留痕。"
+                  text="修改维护档位与名单请到卡片的「权限」，那里会单独记录操作。"
                 />
               </template>
               <el-radio-group v-if="formMode === 'create'" v-model="form.maintainScope">

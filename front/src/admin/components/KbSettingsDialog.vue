@@ -1,8 +1,8 @@
 ﻿<script setup lang="ts">
 /**
- * 知识库设置面板：基础信息 + 隐藏配置。
+ * 知识库设置面板：基础信息 + 隐藏内容。
  *
- * <p>隐藏配置那块刻意做成<b>已隐藏项照样列出、可以取消勾选</b>：树若是过滤后的，
+ * <p>隐藏内容那块刻意做成<b>已隐藏项照样列出、可以取消勾选</b>：树若是过滤后的，
  * 用户就只能加规则没法取消，配置就成了只写。接口因此单独给了一份未过滤的树。</p>
  */
 import { computed, ref, watch } from 'vue'
@@ -44,7 +44,7 @@ function fillMeta(kb: KbVO) {
   }
 }
 
-/* ---------------------------------------------------------------- 隐藏配置 */
+/* ---------------------------------------------------------------- 隐藏内容 */
 
 const config = ref<KbConfigVO | null>(null)
 const loadingConfig = ref(false)
@@ -149,7 +149,7 @@ async function saveHidden() {
   const next = [...checked.value]
   const same = JSON.stringify([...next].sort()) === JSON.stringify([...(config.value.hidden || [])].sort())
   if (same) {
-    ElMessage.info('隐藏配置没有变化')
+    ElMessage.info('隐藏内容没有变化')
     return
   }
   savingConfig.value = true
@@ -211,7 +211,7 @@ async function onDisplayChange(value: boolean) {
             <div class="md-form-hint">最多 5 个，每个不超过 12 字</div>
           </el-form-item>
           <el-form-item>
-            <template #label>可见范围（平台内谁能读）<HelpTip :width="340" text="这一层只在平台内生效。库要出现在门户上、让不登录的人也能访问，需要另行创建整库分享链接。" /></template>
+            <template #label>可见范围（平台内谁能读）<HelpTip :width="340" text="这一层只控制平台内谁能读。如果希望不登录的人也能访问，请另外创建整库分享链接。" /></template>
             <el-radio-group v-model="form.visibility">
               <el-radio-button value="private">仅维护名单</el-radio-button>
               <el-radio-button value="org">本组织成员</el-radio-button>
@@ -226,12 +226,12 @@ async function onDisplayChange(value: boolean) {
             拨动即保存（独立端点），所以不放保存按钮 —— 有保存按钮反而让人不确定到底生效没有。
           -->
           <el-form-item>
-            <template #label>目录树里的文件名<HelpTip :width="340" text="拨动立即生效。保存在数据库，Git 拉取或换仓库都不会重置 —— 团队共用一套显示方式。" /></template>
+            <template #label>显示文件名后缀<HelpTip :width="340" text="切换后立即生效，并会一直保留；更新知识库内容也不会重置。" /></template>
             <div class="md-settings__switch">
               <el-switch
                 v-model="showMdSuffix"
                 :disabled="!canEditConfig"
-                active-text="显示 .md"
+                active-text="显示"
                 inactive-text="不显示"
                 @change="onDisplayChange"
               />
@@ -246,15 +246,14 @@ async function onDisplayChange(value: boolean) {
           </div>
       </el-tab-pane>
 
-      <!-- ------------------------------------------------------ 隐藏配置 -->
+      <!-- ------------------------------------------------------ 隐藏内容 -->
       <el-tab-pane name="hidden">
         <template #label>
-          隐藏配置
+          隐藏内容
           <span v-if="hiddenCount" class="md-settings__badge">{{ hiddenCount }}</span>
           <HelpTip :width="360">
-            勾选的目录与文件将不出现在目录树、搜索与文档计数里，也不会随门户分享对外暴露。
-            勾一个目录等于藏掉整棵子树，勾某个文件只藏它自己。
-            规则保存在数据库，拉取 Git、强制覆盖或换仓库地址都不会把它重置掉。
+            勾选的目录与文件不会出现在目录树、搜索和文档数量里，也不会随公开分享对外展示。
+            勾一个目录会藏掉它下面的全部内容；规则会一直保留，更新知识库也不会重置。
           </HelpTip>
         </template>
 
@@ -296,7 +295,7 @@ async function onDisplayChange(value: boolean) {
 
         <div class="md-settings__actions">
            <el-button type="primary" :loading="savingConfig" :disabled="!canEditConfig" @click="saveHidden">
-                  保存隐藏配置
+                  保存隐藏内容
                   </el-button>
                   <el-button :disabled="loadingConfig" @click="loadConfig">重新载入</el-button>
                 </div>
@@ -326,7 +325,7 @@ async function onDisplayChange(value: boolean) {
   gap: 6px;
   min-width: 0;
 }
-/* 已勾（即已隐藏）的项压暗并划线：这一栏叫「隐藏配置」，勾 = 不给人看 */
+/* 已勾（即已隐藏）的项压暗并划线：这一栏叫「隐藏内容」，勾 = 不给人看 */
 .md-settings__node .is-hidden-now {
   color: var(--md-text-3);
   text-decoration: line-through;

@@ -182,7 +182,7 @@ onMounted(async () => {
     <AdminPageHeader
       eyebrow="个人"
       title="账号设置"
-      description="管理个人资料、登录密码与阅读偏好；偏好保存在服务端，换设备登录后自动同步。"
+      description="管理个人资料、登录密码与阅读偏好；偏好会跟随账号同步，换设备登录后自动生效。"
     />
 
     <section class="md-card-panel">
@@ -221,7 +221,7 @@ onMounted(async () => {
           <div class="md-panel-head">
             <div class="md-panel-head__text">
               <h2>账号资料</h2>
-              <p class="md-panel-desc">用户名全局唯一；邮箱在开启验证的站点上改动后需要重新验证。</p>
+              <p class="md-panel-desc">用户名不能重复；如果平台要求验证邮箱，修改后需要重新验证。</p>
             </div>
           </div>
           <div class="md-panel-body">
@@ -237,8 +237,7 @@ onMounted(async () => {
               </el-form-item>
               <el-form-item class="md-form-span-2">
                 <template #label>邮箱<HelpTip :width="360">
-                  站点开启注册邮箱验证后，改邮箱会让「已验证」作废 —— 验证过的是旧地址，新地址要重新点一次链接。
-                  没开启验证时改完即时生效，不发邮件。
+                  如果平台要求验证邮箱，修改后需要先验证新地址才能继续使用；未开启验证时会立即生效。
                 </HelpTip></template>
                 <div class="md-account-email">
                   <el-input v-model="account.email" maxlength="128" autocomplete="email" placeholder="alice@example.com" />
@@ -266,7 +265,7 @@ onMounted(async () => {
               <p class="md-panel-desc">修改后立即保存，无需再点按钮。</p>
             </div>
             <span class="md-spacer" />
-            <HelpTip text="偏好保存在服务端（user_settings），换设备登录后自动同步。" />
+            <HelpTip text="偏好会跟随账号同步，换设备登录后自动生效。" />
           </div>
           <div class="md-panel-body">
             <el-form label-position="top" class="md-form-grid">
@@ -351,7 +350,7 @@ onMounted(async () => {
 
         <section class="md-card-panel">
           <div class="md-panel-head">
-            <div class="md-panel-head__text"><h2>关于</h2><p class="md-panel-desc">当前部署的版本与入口。</p></div>
+            <div class="md-panel-head__text"><h2>关于</h2><p class="md-panel-desc">当前版本与常用入口。</p></div>
           </div>
           <div class="md-panel-body">
             <div class="md-profile__rows">
@@ -362,8 +361,8 @@ onMounted(async () => {
                 <span><a :href="appBackendHref('/swagger-ui.html')" target="_blank" class="md-text-link">/swagger-ui.html</a></span>
               </div>
               <div class="md-profile__row">
-                <span>门户首页</span>
-                <span><a :href="appHref('/')" target="_blank" class="md-text-link">打开门户</a></span>
+                <span>首页</span>
+                <span><a :href="appHref('/')" target="_blank" class="md-text-link">打开首页</a></span>
               </div>
             </div>
           </div>

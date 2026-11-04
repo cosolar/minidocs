@@ -205,11 +205,11 @@ const PORTAL_SCOPES = [
 const portalScopeHint = computed(() => {
   switch (form.portalScope) {
     case 'member':
-      return '门户列表里只有登录用户看得到；未登录的人即使拿到链接也会被引导去登录'
+      return '只有登录用户能在首页看到它；未登录访客即使拿到链接，也会先被要求登录'
     case 'maintainer':
-      return '只有本库的维护者能在门户里看到它 —— 相当于「发布给自己看」'
+      return '只有本库的维护者能在首页看到它，相当于只发布给自己'
     default:
-      return '任何人访问门户都能看到这个库'
+      return '任何人打开首页都能看到这个库'
   }
 })
 </script>
@@ -251,7 +251,7 @@ const portalScopeHint = computed(() => {
 
       <!-- 设置区：一行一项，说明与控件同排，比标签在上、控件在下的空档紧凑得多 -->
       <section class="md-share-panel">
-        <h4 class="md-share-panel__title">分享设置<HelpTip :width="340" text="拿到链接的人只能读，改不了内容；对外可读等同于一次发布，所以能维护这个库的人才给这一项。" /></h4>
+        <h4 class="md-share-panel__title">分享设置<HelpTip :width="340" text="拿到链接的人只能阅读、不能修改内容；公开分享相当于一次发布，所以只有能维护这个库的人才能设置。" /></h4>
 
         <div class="md-share-field">
           <div class="md-share-field__text">
@@ -305,7 +305,7 @@ const portalScopeHint = computed(() => {
         -->
         <div v-if="kbScope" class="md-share-field md-share-field--stack">
           <div class="md-share-field__text">
-            <span class="md-share-field__label"><MdIcon name="globe" :size="14" />门户可见范围</span>
+            <span class="md-share-field__label"><MdIcon name="globe" :size="14" />首页可见范围</span>
             <span class="md-share-field__hint">{{ portalScopeHint }}</span>
           </div>
           <el-select v-model="form.portalScope" style="width: 100%">

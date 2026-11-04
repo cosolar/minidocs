@@ -206,8 +206,8 @@ async function share() {
         :href="repoUrl"
         target="_blank"
         rel="noopener noreferrer"
-        title="查看开源仓库"
-        aria-label="查看开源仓库"
+        title="查看项目主页"
+        aria-label="查看项目主页"
       >
         <Icon name="github" :size="17" />
       </a>

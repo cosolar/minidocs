@@ -33,8 +33,8 @@ const site = useSiteStore()
 
 const POINTS = [
   { icon: 'mail', strong: '邮箱即身份', small: '验证码发到邮箱，用户名也从邮箱自动生成' },
-  { icon: 'users', strong: '个人组织', small: '注册即建，只有你一个人；需要协作再邀请成员' },
-  { icon: 'books', strong: '多知识库', small: '按主题分库，库级可见性与分享各自独立' }
+  { icon: 'users', strong: '个人组织', small: '注册后自动建立只属于你的空间，需要协作时再邀请成员' },
+  { icon: 'books', strong: '多知识库', small: '按主题整理资料，每个库的访问范围和分享都能单独设置' }
 ]
 
 const form = reactive({ username: '', displayName: '', email: '', password: '', confirm: '', code: '' })
@@ -196,7 +196,7 @@ async function submit() {
 <template>
   <AuthShell :points="POINTS">
     <template #headline>从第一篇文档开始，<br>建立你的知识库</template>
-    <template #lead>填写邮箱即可开始；需要协作时再建组织、邀请成员，第一篇文档现在就能写。</template>
+    <template #lead>填写邮箱即可开始，第一篇文档现在就能写；需要协作时再邀请成员。</template>
 
     <header class="md-login__head">
         <h2>创建账号</h2>
@@ -284,7 +284,7 @@ async function submit() {
 
       <div class="md-login__links">
         <span>已有账号？<router-link to="/login">去登录</router-link></span>
-        <a :href="appHref('/')">← 返回门户首页</a>
+        <a :href="appHref('/')">← 返回首页</a>
       </div>
   </AuthShell>
 </template>

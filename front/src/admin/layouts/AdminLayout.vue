@@ -63,7 +63,7 @@ function syncSystemDark(event: MediaQueryList | MediaQueryListEvent) {
 /**
  * 当前地址是否带组织段。
  *
- * <p>组织内的链接必须带组织段；不带组织的管理页（账号设置 / 发现组织 / 平台用户管理）
+ * <p>组织内的链接必须带组织段；不带组织的管理页（账号设置 / 发现组织 / 用户管理）
  * 不能拼出 {@code /console//kbs} 这样的空地址。{@code orgStore.org} 在没有组织段时会被
  * 守卫清空，所以判断只能用 route.params，不能用 store。</p>
  */
@@ -111,7 +111,7 @@ const navGroups = computed(() => {
   ]
   if (auth.isPlatformAdmin) {
     personal.push({
-      name: 'platform-users', label: '平台用户管理', icon: 'users', path: '/platform/users', tone: 'violet'
+      name: 'platform-users', label: '用户管理', icon: 'users', path: '/platform/users', tone: 'violet'
     })
   }
   /*
@@ -123,7 +123,7 @@ const navGroups = computed(() => {
         name: 'platform-site', label: '站点设置', icon: 'settings', path: '/platform/site', tone: 'orange'
       }]
     : []
-  const portalItem = { name: 'portal', label: '打开门户', icon: 'external', path: '/', tone: 'green' }
+  const portalItem = { name: 'portal', label: '打开首页', icon: 'external', path: '/', tone: 'green' }
   const slug = contextOrg.value
   if (!slug) {
     // 一个组织都没有时才缺这一组；此时也没有可回到的工作区
@@ -374,7 +374,7 @@ watch(() => route.fullPath, () => {
         href="https://github.com/cosolar/minidocs.git"
         target="_blank"
         rel="noopener noreferrer"
-        title="在 GitHub 上查看 MiniDocs 仓库"
+        title="查看项目主页"
       >2026@MiniDocs</a>
     </aside>
 
@@ -449,7 +449,7 @@ watch(() => route.fullPath, () => {
                 <MdIcon name="plus" :size="14" />新建组织
               </el-dropdown-item>
               <el-dropdown-item command="portal" divided>
-                <MdIcon name="external" :size="14" />打开门户
+                <MdIcon name="external" :size="14" />打开首页
               </el-dropdown-item>
               <el-dropdown-item command="logout" divided>
                 <MdIcon name="logout" :size="14" />退出登录

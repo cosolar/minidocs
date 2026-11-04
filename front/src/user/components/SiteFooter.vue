@@ -35,7 +35,7 @@ const FEATURES = [
             </span>
           </div>
           <p class="md-footer__desc">
-            轻量、可私有部署的 Markdown 知识库平台，写作、阅读、分享与权限一条线。
+            轻量好用的知识库平台，写作、整理、分享一站完成。
           </p>
         </div>
 
@@ -49,7 +49,7 @@ const FEATURES = [
       </div>
 
       <div class="md-footer__bottom">
-        <p class="md-footer__copy">© {{ year }} {{ site.value.name }} · 开源自部署 · 让知识创造更多可能</p>
+        <p class="md-footer__copy">© {{ year }} {{ site.value.name }} · 让知识创造更多可能</p>
       </div>
     </div>
   </footer>

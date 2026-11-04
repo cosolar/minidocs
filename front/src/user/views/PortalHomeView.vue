@@ -278,7 +278,7 @@ function switchView(mode: 'grid' | 'list') {
     </div>
   </div>
 
-  <StatusView v-else-if="failed || !home" code="500" title="页面加载失败" message="请稍后重试，或检查后端服务是否已启动。" />
+  <StatusView v-else-if="failed || !home" code="500" title="页面加载失败" message="请稍后重试。" />
 
   <main v-else class="md-portal">
     <div class="md-portal__inner">

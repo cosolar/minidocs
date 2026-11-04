@@ -207,7 +207,7 @@ onMounted(async () => {
       <div class="md-panel-head">
         <div class="md-panel-head__text">
           <h2>操作记录</h2>
-          <p class="md-panel-desc">超级管理员的越权访问会以 bypass=SUPER_ADMIN 标在详情里。</p>
+          <p class="md-panel-desc">超级管理员的操作会单独标注，便于和普通访问区分。</p>
         </div>
       </div>
       <div v-loading="loading" class="md-panel-body">

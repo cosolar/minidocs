@@ -141,7 +141,7 @@ async function saveBaseUrl() {
     site.apply(data)
     // 回填后端归一化过的值（补上的 https://、去掉的尾斜杠），别让输入框里留着一段需要人脑补的字符串
     form.baseUrl = data.baseUrl || ''
-    ElMessage.success('站点基址已更新')
+    ElMessage.success('分享链接前缀已更新')
   } finally {
     baseUrlSaving.value = false
   }
@@ -224,16 +224,6 @@ const mailForm = reactive({
  * <p>写在本地是为了让「自动」这一项当场说清自己是什么，不用等保存后再去猜；
  * 后端仍自己判一遍，这里只是给人看的说明。</p>
  */
-const securityAutoHint = computed(() => {
-  if (mailForm.smtpSecurity) {
-    return ''
-  }
-  if (!mailForm.smtpPort) {
-    return '未填端口时按 STARTTLS 连接'
-  }
-  return mailForm.smtpPort === 465 ? '端口 465 按 SSL 直连' : `端口 ${mailForm.smtpPort} 按 STARTTLS 升级`
-})
-
 /** 已存配置的结论：只看后端回吐的三个布尔，不由前端自己与一遍。 */
 const verificationSummary = computed(() => {
   if (!mail.value.emailVerifyEnabled) {
@@ -470,7 +460,7 @@ onMounted(() => {
     <AdminPageHeader
       eyebrow="站点"
       title="站点设置"
-      description="配置全站品牌、分享链接、邮件服务与阅读主题；所有修改对全部署生效。"
+      description="设置全站品牌、分享链接、邮件服务与阅读主题；所有修改对全站生效。"
     />
 
     <div class="md-card-panel">
@@ -479,7 +469,7 @@ onMounted(() => {
           <h2>站点品牌</h2>
           <p class="md-panel-desc">站点图标用于浏览器标签页；横版 Logo 用于顶栏、侧栏、登录页与页脚。</p>
         </div>
-        <span class="md-ad-chip">全部署生效</span>
+        <span class="md-ad-chip">全站生效</span>
       </div>
       <div class="md-panel-body">
         <div class="md-brand-assets">
@@ -539,16 +529,15 @@ onMounted(() => {
         <el-form label-position="top" class="md-brand-form">
           <div class="md-brand-form__grid">
             <el-form-item>
-              <template #label>显示名称<HelpTip text="名称与副标题出现在门户顶栏、阅读页、分享页与后台侧栏；留空则回落到内置默认品牌。" /></template>
+              <template #label>显示名称<HelpTip text="名称与副标题会显示在首页、阅读页、分享页和后台侧栏；留空则使用系统默认名称。" /></template>
               <el-input v-model="form.name" maxlength="32" show-word-limit placeholder="MiniDocs" />
             </el-form-item>
             <el-form-item label="副标题">
               <el-input v-model="form.subtitle" maxlength="48" show-word-limit placeholder="极简智库" />
             </el-form-item>
             <el-form-item>
-              <template #label>Logo 宽度（像素）<HelpTip :width="340">
-                只作用于横版 Logo，留空即跟随各品牌位默认尺寸（顶栏 34、后台侧栏 32、登录页 44）；
-                只填一边时另一边保持默认，图片按原比例完整显示。页脚固定 26px，站点图标不受影响。
+              <template #label>Logo 宽度<HelpTip :width="340">
+                只影响横版 Logo 的显示大小。留空会自动使用各处合适的尺寸；图片始终按原比例完整显示。站点图标和页脚不受影响。
               </HelpTip></template>
               <el-input-number
                 v-model="logoForm.width"
@@ -559,7 +548,7 @@ onMounted(() => {
                 placeholder="默认"
               />
             </el-form-item>
-            <el-form-item label="Logo 高度（像素）">
+            <el-form-item label="Logo 高度">
               <el-input-number
                 v-model="logoForm.height"
                 :min="16"
@@ -571,8 +560,7 @@ onMounted(() => {
             </el-form-item>
             <el-form-item>
               <template #label>显示内容<HelpTip :width="340">
-                「只显示图片」会隐藏各品牌位的名称与副标题；还没上传 Logo 或站点图标时不可开启，
-                否则品牌位什么都不剩。有横版 Logo 时显示 Logo，否则显示站点图标。
+                开启后会隐藏各处的名称与副标题，只保留图片；还没上传 Logo 或站点图标时不能开启。有横版 Logo 时显示 Logo，否则显示站点图标。
               </HelpTip></template>
               <el-switch
                 v-model="logoForm.only"
@@ -595,17 +583,15 @@ onMounted(() => {
       <div class="md-panel-head">
         <div class="md-panel-head__text">
           <h2>分享链接</h2>
-          <p class="md-panel-desc">站点基址决定新建分享链接的域名与路径前缀。</p>
+          <p class="md-panel-desc">决定新建分享链接的域名与路径前缀。</p>
         </div>
-        <span class="md-ad-chip">全部署生效</span>
+        <span class="md-ad-chip">全站生效</span>
       </div>
       <div class="md-panel-body">
         <el-form label-position="top" style="max-width: 560px">
           <el-form-item :error="baseUrlError">
-            <template #label>站点基址<HelpTip :width="360">
-              站点基址是分享链接的地址前缀（协议 + 域名，可带路径如 <code>/minidocs</code>），改完立即对所有新分享生效。
-              留空则回落到部署配置 <code>PAGE_BASE_URL</code>，再没有就按当前请求推导 ——
-              最后这一层仅适合同源部署，反向代理后面直接用会让链接指向内网地址。
+            <template #label>分享链接前缀<HelpTip :width="360">
+              分享链接的地址前缀，例如 https://docs.example.com。修改后只影响新创建的分享链接；留空时会按当前访问地址自动生成。
             </HelpTip></template>
             <el-input
               v-model="form.baseUrl"
@@ -626,12 +612,11 @@ onMounted(() => {
       <div class="md-panel-head">
         <div class="md-panel-head__text">
           <h2>邮件与邮箱验证<HelpTip :width="400">
-            填好 SMTP 参数后，这台部署就能把注册验证码发出去。
-            口令加密存库、保存后不再回显；不配 SMTP 也可以，只是没法开启邮箱验证。
+            填好发件信息后，平台就能发送注册验证码。授权码会加密保存、之后不再显示；不配置也可以，只是无法开启邮箱验证。
           </HelpTip></h2>
-          <p class="md-panel-desc">注册验证码依赖这里的发件服务器；保存后可以发一封测试信确认。</p>
+          <p class="md-panel-desc">注册验证码依赖这里的邮件设置；保存后可以发一封测试邮件确认。</p>
         </div>
-        <span class="md-ad-chip">全部署生效</span>
+        <span class="md-ad-chip">全站生效</span>
       </div>
       <div class="md-panel-body">
         <el-alert
@@ -640,7 +625,7 @@ onMounted(() => {
           type="error"
           :closable="false"
           show-icon
-          title="已存的 SMTP 口令解不开（多半是加密密钥换过）。请重新填一次口令并保存，否则验证邮件发不出去。"
+          title="已保存的授权码无法解密（可能因为平台密钥已更换）。请重新填写并保存，否则验证邮件无法发送。"
         />
 
         <!-- 先讲「要不要验证」，再讲「从哪发」：这一页最常问的是前者 -->
@@ -650,9 +635,7 @@ onMounted(() => {
               <h3>注册邮箱验证</h3>
               <span class="md-mail-mode__chip" :class="`is-${verificationChip.tone}`">{{ verificationChip.text }}</span>
               <HelpTip :width="400">
-                开启后，注册页会要求先填邮箱收到的 6 位验证码，填对才建号；平台管理员不受这条限制，以免把自己锁在门外。
-                发件参数不齐时这一项不会生效：验证码发不出去还强制验证，等于谁都注册不了。
-                之后在账号设置里改邮箱，仍然走邮件里的验证链接。
+                开启后，注册时需要填写邮箱收到的 6 位验证码，填对才能创建账号；管理员不受限制，以免无法登录。发件信息不完整时这项设置不会生效。之后在账号设置里修改邮箱，仍会通过邮件验证。
               </HelpTip>
             </div>
             <p>{{ verificationSummary }}</p>
@@ -662,17 +645,17 @@ onMounted(() => {
 
         <section class="md-mail-block">
           <header class="md-mail-block__head">
-            <h3><MdIcon name="globe" :size="14" />发送服务器</h3>
-            <p>验证邮件由这台机器直接投递；改完先保存，再往里发一封测试信确认。</p>
+            <h3><MdIcon name="globe" :size="14" />发送邮箱</h3>
+            <p>验证邮件由这里配置的邮箱发出；修改后先保存，再发一封测试邮件确认。</p>
           </header>
           <el-form label-position="top" class="md-mail-form">
             <div class="md-mail-grid">
               <el-form-item>
-                <template #label>SMTP 主机<HelpTip :width="340" text="只填域名，例如 smtp.qq.com；不要带 https:// 前缀，端口单独填在下面。" /></template>
+                <template #label>邮件服务器<HelpTip :width="340" text="填写邮箱服务商提供的服务器地址，例如 smtp.qq.com；不要带 https://，端口在下面单独填写。" /></template>
                 <el-input v-model="mailForm.smtpHost" maxlength="128" placeholder="smtp.example.com" />
               </el-form-item>
               <el-form-item>
-                <template #label>SMTP 端口<HelpTip :width="340" text="常见为 465（SSL 直连）或 587（STARTTLS 升级）；留空表示不加密中继的 25。" /></template>
+                <template #label>服务器端口<HelpTip :width="340" text="常用 465 或 587；不确定就按邮箱服务商的说明填写。" /></template>
                 <el-input-number
                   v-model="mailForm.smtpPort"
                   :min="1"
@@ -682,29 +665,27 @@ onMounted(() => {
                   placeholder="465"
                 />
               </el-form-item>
-              <el-form-item :label="securityAutoHint ? `加密方式（当前：${securityAutoHint}）` : '加密方式'">
-                <el-select v-model="mailForm.smtpSecurity" placeholder="自动（按端口推断）">
-                  <el-option label="自动（按端口推断）" value="" />
-                  <el-option label="SSL 直连" value="ssl" />
-                  <el-option label="STARTTLS 升级" value="starttls" />
+              <el-form-item label="加密方式">
+                <el-select v-model="mailForm.smtpSecurity" placeholder="自动（推荐）">
+                  <el-option label="自动（推荐）" value="" />
+                  <el-option label="SSL 加密" value="ssl" />
+                  <el-option label="STARTTLS 加密" value="starttls" />
                   <el-option label="不加密" value="none" />
                 </el-select>
               </el-form-item>
               <el-form-item>
-                <template #label>SMTP 用户名<HelpTip :width="360">
-                  登录 SMTP 的账号，多数服务商就是发件邮箱本身。<strong>要和下面的口令一起填</strong>；
-                  只有不需要认证的内网中继才把这一项留空（只填用户名不填口令，服务器会回 503 need EHLO and AUTH first）。
+                <template #label>邮箱账号<HelpTip :width="360">
+                  登录邮箱服务器的账号，通常就是发件邮箱本身；需要和下面的授权码一起填写。不需要登录的服务器才留空。
                 </HelpTip></template>
                 <el-input v-model="mailForm.smtpUsername" maxlength="128" placeholder="完整邮箱地址，可留空" />
               </el-form-item>
               <el-form-item>
-                <template #label>发件地址<HelpTip :width="360" text="验证邮件的 From。很多服务商要求它和登录用户名一致，否则会以 550 拒发。" /></template>
+                <template #label>发件邮箱<HelpTip :width="360" text="验证邮件显示的发送地址，通常与邮箱账号一致，否则可能被邮箱服务商拒发。" /></template>
                 <el-input v-model="mailForm.smtpFrom" maxlength="128" placeholder="no-reply@example.com" />
               </el-form-item>
               <el-form-item>
-                <template #label>SMTP 口令<HelpTip :width="380">
-                  这里填服务商给的<strong>授权码 / 应用专用密码</strong>，不是邮箱登录密码（QQ、163 都要先在邮箱设置里单独开）。
-                  保存后不再回显；留空即沿用已存的那一个，要删除已存口令点下面的「清除已存口令」。
+                <template #label>邮箱授权码<HelpTip :width="380">
+                  填写邮箱服务商提供的<strong>授权码 / 应用专用密码</strong>，不是邮箱登录密码（QQ、163 需要先在邮箱设置里开启）。保存后不再显示；留空表示继续使用已保存的授权码。
                 </HelpTip></template>
                 <div class="md-mail-password">
                   <el-input
@@ -712,7 +693,7 @@ onMounted(() => {
                     type="password"
                     show-password
                     maxlength="256"
-                    :placeholder="mail.smtpPasswordSet ? '已配置，留空则不修改' : '登录 SMTP 的授权码'"
+                    :placeholder="mail.smtpPasswordSet ? '已配置，留空则不修改' : '邮箱授权码'"
                   />
                   <el-button
                     v-if="mail.smtpPasswordSet && !clearMailPassword && !mailForm.smtpPassword"
@@ -748,8 +729,7 @@ onMounted(() => {
               <MdIcon name="mail" :size="14" />测试发信
             </el-button>
             <HelpTip :width="360">
-              测试用的是<strong>已经保存</strong>的参数，所以改完先点「保存邮件配置」再发。
-              发送失败时把邮件服务器给的原因原样带回，那是排查端口、证书、授权码最快的一条路。
+              测试发送会使用<strong>已经保存</strong>的设置，所以修改后先点「保存邮件配置」再测试。发送失败时会显示邮件服务器返回的原因，方便检查端口、加密方式和授权码。
             </HelpTip>
           </span>
         </div>
@@ -823,8 +803,7 @@ onMounted(() => {
             <MdIcon name="download" :size="14" />下载模板
           </el-button>
           <HelpTip :width="340">
-            主题包是只描述颜色与排版参数的 JSON，不能携带任意 CSS。每档的令牌名必须一致，
-            单个文件不超过 64KB；从「下载模板」改起最省事，令牌说明见 <code>docs/THEMES.md</code>。
+            主题包用于调整阅读页的配色与排版。安装后所有读者都能选用；单个文件不超过 64KB，从「下载模板」改起最方便。
           </HelpTip>
         </div>
         <input

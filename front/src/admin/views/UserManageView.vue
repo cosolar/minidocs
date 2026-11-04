@@ -131,8 +131,8 @@ onMounted(load)
       hero
       icon="users"
       eyebrow="站点"
-      title="平台用户管理"
-      description="管理全站账号、角色与启停状态；删除用户会连带删除其知识库与分享。"
+      title="用户管理"
+      description="管理全站账号与使用状态；删除用户会一并删除其知识库与分享内容。"
     />
 
     <div class="md-toolbar">
@@ -155,14 +155,14 @@ onMounted(load)
       </el-button>
       <span class="md-toolbar__spacer" />
       <span class="md-toolbar__hint">共 {{ total }} 位用户</span>
-      <HelpTip text="自主注册由部署配置 minidocs.register-enabled 控制：官方单镜像默认关闭，dev 配置默认开启；改动要重启后端才生效。" />
+      <HelpTip text="这里管理已有账号；新用户需从注册页自行注册，注册入口是否开放由平台统一控制。" />
     </div>
 
     <section class="md-card-panel md-table-card">
       <div class="md-panel-head">
         <div class="md-panel-head__text">
           <h2>账号列表</h2>
-          <p class="md-panel-desc">平台管理员不参与组织内权限判定，但可以在此重置密码或停用账号。</p>
+          <p class="md-panel-desc">管理员不受组织权限限制，可以在这里重置密码或停用账号。</p>
         </div>
       </div>
       <div class="md-panel-body">

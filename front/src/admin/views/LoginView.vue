@@ -20,9 +20,9 @@ const router = useRouter()
 const auth = useAuthStore()
 
 const POINTS = [
-  { icon: 'edit', strong: '写作即所得', small: 'Markdown 编辑与阅读两套渲染，表格、代码、公式、图表都齐' },
-  { icon: 'users', strong: '组织与权限', small: '成员角色、库级可见性、操作审计，各管一段' },
-  { icon: 'share', strong: '分享免登录', small: '外链即读，可设口令与有效期，浏览量可见' }
+  { icon: 'edit', strong: '写作即所得', small: '像写文档一样记录，随时回来修改，手机和电脑都能看' },
+  { icon: 'users', strong: '组织与权限', small: '按知识库整理资料，谁能看、谁能改都由你决定' },
+  { icon: 'share', strong: '分享免登录', small: '生成链接就能发给朋友，还能设置访问密码和有效期' }
 ]
 
 const form = reactive({ username: '', password: '' })
@@ -85,7 +85,7 @@ async function resend() {
 <template>
   <AuthShell :points="POINTS">
     <template #headline>把知识写下来，<br>把文档送出去</template>
-    <template #lead>Markdown 写作、实时预览、组织与权限、对外分享，一套系统走完。</template>
+    <template #lead>记录面试经验、整理求职资料、分享给朋友，一个地方完成。</template>
 
     <header class="md-login__head">
       <h2>欢迎回来</h2>
@@ -131,7 +131,7 @@ async function resend() {
 
     <div class="md-login__links">
       <span>还没有账号？<router-link to="/register">邮箱注册</router-link></span>
-      <a :href="appHref('/')">← 返回门户首页</a>
+      <a :href="appHref('/')">← 返回首页</a>
     </div>
   </AuthShell>
 </template>

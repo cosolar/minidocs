@@ -225,8 +225,8 @@ onMounted(load)
       <div class="md-panel-head">
         <div class="md-panel-head__text">
           <h2>组织资料<HelpTip v-if="detail" :width="360">
-            个人组织可以自定义标识（slug）；旧标识会自动保留为别名，已发出的链接继续可用。
-            团队组织的标识创建后不可修改 —— 它已经写进邀请与分享地址里了。
+            个人组织可以自定义访问标识；旧标识会自动保留为别名，已发出的链接继续可用。
+            团队组织的标识创建后不可修改，因为它已经写进了邀请和分享地址。
           </HelpTip></h2>
           <p class="md-panel-desc">这些信息会出现在组织列表、邀请与知识库归属中。</p>
         </div>
@@ -237,12 +237,12 @@ onMounted(load)
           <el-form-item v-if="isPersonal" class="md-form-span-2">
             <template #label>
               组织标识
-              <HelpTip text="会出现在管理地址与阅读链接里。只能使用字母、数字、中文、- 或 _；不能与任何现有或历史标识重复。保存后旧地址会自动跳转到新地址。" />
+              <HelpTip text="访问标识会出现在管理地址和阅读链接里。只能使用字母、数字、中文、- 或 _，并且不能与其他组织重复。保存后旧地址会自动跳转到新地址。" />
             </template>
-            <el-input v-model="profile.slug" maxlength="48" placeholder="例如 cosolar">
+            <el-input v-model="profile.slug" maxlength="48" placeholder="例如 zhangsan">
               <template #prepend>/console/</template>
             </el-input>
-            <p class="md-copy-hint">保存后管理地址变为 /console/{{ profile.slug.trim() || '…' }}。</p>
+            <p class="md-copy-hint">保存后旧地址会自动跳转到新地址。</p>
           </el-form-item>
           <el-form-item label="组织名称">
             <el-input v-model="profile.name" maxlength="64" show-word-limit />
@@ -461,7 +461,7 @@ onMounted(load)
       <div class="md-panel-head">
         <div class="md-panel-head__text">
           <h2>危险区</h2>
-          <p class="md-panel-desc">这些操作会改变成员关系或删除数据，执行前请确认。</p>
+          <p class="md-panel-desc">这些操作会改变成员关系或删除内容，执行前请确认。</p>
         </div>
       </div>
       <div class="md-panel-body">

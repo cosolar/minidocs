@@ -1627,7 +1627,7 @@ const headActions = computed<HeadAction[]>(() => {
         kind: 'tool',
         icon: 'upload',
         label: '导入',
-        title: '导入 Markdown、图片或压缩包（zip）',
+        title: '导入文档、图片或压缩包',
         run: () => importInput.value?.click(),
       },
     )
@@ -1727,7 +1727,7 @@ async function onImportChange(event: Event) {
   const ignored = picked.length - files.length
   if (files.length === 0) {
     input.value = ''
-    ElMessage.warning('所选内容里没有可导入的 Markdown、图片或 ZIP 文件')
+    ElMessage.warning('所选内容里没有可导入的文档、图片或压缩包')
     return
   }
   const baseDir = importBaseDir()
@@ -1737,7 +1737,7 @@ async function onImportChange(event: Event) {
     if (result.messages?.length) {
       ElMessageBox.alert(result.messages.join('\n'), '导入明细', { confirmButtonText: '知道了' })
     }
-    if (ignored > 0) ElMessage.info(`已忽略 ${ignored} 个非 Markdown / 图片 / ZIP 文件`)
+    if (ignored > 0) ElMessage.info(`已忽略 ${ignored} 个不支持的文件`)
   } finally {
     input.value = ''
   }
@@ -1862,8 +1862,8 @@ const cloning = computed(() => !!kb.value?.git && kb.value.git.lastSyncOk === nu
 
 /** 状态胶囊：把「有改动 / 落后 / 领先」合成一句话，一眼看出该点哪个按钮 */
 const gitStateText = computed(() => {
-  if (cloning.value) return '正在拉取仓库…'
-  if (cloningFailed.value) return '拉取失败'
+  if (cloning.value) return '正在同步内容…'
+  if (cloningFailed.value) return '同步失败'
   const status = gitStatus.value
   // 「读取中」与「未就绪」必须分开：状态现在是异步补的，两者混用会让用户
   // 在结果到达前就以为这个库没有远端，然后去检查绑定、去看文档
@@ -1882,7 +1882,7 @@ const gitStateTitle = computed(() => {
   const git = kb.value?.git
   const status = gitStatus.value
   if (cloningFailed.value) {
-    return git?.lastSyncStatus || '克隆失败，可在下方「拉取」重试'
+    return git?.lastSyncStatus || '同步失败，可在下方「拉取」重试'
   }
   return [
     git?.branch ? `分支 ${git.branch}` : '',
@@ -1957,11 +1957,11 @@ function startClonePolling() {
     if (cloning.value && clonePollTicks < CLONE_POLL_LIMIT) {
       startClonePolling()
     } else if (cloning.value) {
-      ElMessage.warning('拉取耗时较长，已停止自动刷新，请手动刷新页面查看结果')
+      ElMessage.warning('同步耗时较长，已停止自动刷新，请手动刷新页面查看结果')
     } else if (cloningFailed.value) {
-      ElMessage.error(kb.value?.git?.lastSyncStatus || '仓库拉取失败，可在下方「拉取」重试')
+      ElMessage.error(kb.value?.git?.lastSyncStatus || '内容同步失败，可在下方「拉取」重试')
     } else {
-      ElMessage.success('仓库拉取完成')
+      ElMessage.success('内容同步完成')
       // 终态这一次才补 git 状态：之前每轮都拉是纯浪费，此刻才是真有结果可读的时候
       refreshGitStatusSoon()
     }
@@ -2245,7 +2245,7 @@ onBeforeUnmount(() => {
               :class="publishStatusChipClass(kb?.shareStatus)"
               :title="publishStatusHint(kb?.shareStatus)"
             >{{ publishStatusLabel(kb?.shareStatus) }}</span>
-            <span v-if="isCloudKb" class="md-ad-chip md-ad-chip--cloud" :title="kb?.git?.url || '绑定线上 Git 仓库'">
+            <span v-if="isCloudKb" class="md-ad-chip md-ad-chip--cloud" :title="kb?.git?.url || '云端知识库'">
               云端
             </span>
           </div>
@@ -2323,7 +2323,7 @@ onBeforeUnmount(() => {
           v-if="kbCan('KB_EDIT_META') || kbCan('KB_SET_VISIBILITY')"
           type="button"
           class="md-ws__btn md-ws__btn--indigo"
-          title="知识库设置：基本信息与隐藏配置"
+          title="知识库设置：基本信息与隐藏内容"
           @click="openSettings"
         >
           <MdIcon name="settings" :size="14" />
@@ -2360,8 +2360,8 @@ onBeforeUnmount(() => {
             class="md-ws__btn md-ws__btn--teal"
             :disabled="gitBusy || cloning"
             :title="cloning
-              ? '仓库正在后台拉取，完成后才能拉取'
-              : '把远程仓库的新提交拉到工作副本；本地有未提交改动时会拒绝'"
+              ? '内容正在后台同步，完成后才能再次拉取'
+              : '把线上仓库的最新内容同步过来；有未保存的改动时会先拒绝'"
             @click="openPullDialog"
           >
             <MdIcon name="cloud" :size="14" />
@@ -2372,7 +2372,7 @@ onBeforeUnmount(() => {
             type="button"
             class="md-ws__btn md-ws__btn--primary"
             :disabled="gitBusy || cloning"
-            title="查看将要提交的文件并填写提交说明，然后提交并推送"
+            title="查看本次改动的文件，填写说明后提交并上传"
             @click="openCommitDialog"
           >
             <MdIcon name="arrow-up" :size="14" />
@@ -2394,10 +2394,10 @@ onBeforeUnmount(() => {
           <template #dropdown>
             <el-dropdown-menu>
               <el-dropdown-item command="markdown">
-                <MdIcon name="download" :size="14" />下载 Markdown 原文
+                <MdIcon name="download" :size="14" />下载原文
               </el-dropdown-item>
               <el-dropdown-item command="copy" divided>
-                <MdIcon name="copy" :size="14" />复制正文 Markdown
+                <MdIcon name="copy" :size="14" />复制正文
               </el-dropdown-item>
             </el-dropdown-menu>
           </template>
@@ -2665,7 +2665,7 @@ onBeforeUnmount(() => {
             <div class="md-ws__blank-card">
               <span class="md-ws__blank-icon"><MdIcon name="file" :size="22" /></span>
               <h3>选择一篇文档开始编辑</h3>
-              <p>从左侧目录选择文档，或新建一篇 Markdown 文档。</p>
+              <p>从左侧目录选择文档，或新建一篇文档。</p>
               <el-button type="primary" @click="() => createDoc('')">
                 <MdIcon name="plus" :size="14" />新建文档
               </el-button>
