@@ -114,10 +114,10 @@ docker run -d --name minidocs -p 9098:9098 \
   -e ADMIN_PASS='换成强密码' \
   -e JWT_SECRET='至少32个字符的随机串' \
   -v minidocs-data:/data \
-  cosolar/minidocs:latest
+  minimscn/minidocs:latest
 ```
 
-镜像发布在 Docker Hub：<https://hub.docker.com/r/cosolar/minidocs>，
+镜像发布在 Docker Hub：<https://hub.docker.com/r/minimscn/minidocs>，
 标签随 git tag 走（`latest` / `X.Y` / `X.Y.Z`），只提供 `linux/amd64`。
 需要外部 MySQL 时，把 compose 里的 `SPRING_PROFILES_ACTIVE` 改成 `prod` 并补 `DB_URL` / `DB_USER` / `DB_PASSWORD`。
 

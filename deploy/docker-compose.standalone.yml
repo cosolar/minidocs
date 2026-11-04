@@ -17,7 +17,7 @@ name: minidocs
 
 services:
   minidocs:
-    image: ${MINIDOCS_IMAGE:-cosolar/minidocs:latest}
+    image: ${MINIDOCS_IMAGE:-minimscn/minidocs:latest}
     container_name: minidocs
     restart: unless-stopped
     ports:

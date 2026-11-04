@@ -48,37 +48,12 @@ jobs:
     env:
       # 只在「推版本 tag」或「手动勾选推送」时真正发布；main 上的构建与手动关闭推送时只验证。
       PUSH_IMAGE: ${{ (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) || (github.event_name == 'workflow_dispatch' && inputs.push) }}
-      IMAGE_NAME: ${{ secrets.DOCKERHUB_USERNAME || 'cosolar' }}/minidocs
+      IMAGE_NAME: ${{ secrets.DOCKERHUB_USERNAME || 'minimscn' }}/minidocs
     steps:
       - uses: actions/checkout@v4
 
-      # 测试不过就不发镜像：防止坏代码覆盖 Docker Hub 上的 latest。
-      - uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '17'
-          cache: maven
-
-      - name: Run backend tests
-        working-directory: backend
-        run: mvn -B -ntp test
-
-      # Docker 构建会重新打包前端；这里先单独构建一次，让编译错误在登录/推送之前暴露。
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: npm
-          cache-dependency-path: front/package-lock.json
-
-      - name: Build frontend
-        working-directory: front
-        run: |
-          npm config set registry https://registry.npmjs.org
-          npm config set replace-registry-host always
-          npm ci --include=dev
-          # 与镜像内一致：单 jar 形态后端 context-path 为空
-          VITE_BACKEND_BASE= npm run build
-
+      # 不再在这里重复跑测试和前端构建：main 上的 CI 已经覆盖，
+      # Dockerfile 本身也会把前端与 jar 各构建一次。这里只做一次镜像构建。
       - uses: docker/setup-buildx-action@v3
 
       # 缺少 Secrets 时在这里就给出可执行的提示，而不是让 login-action 报一句
@@ -139,9 +114,10 @@ jobs:
           push: ${{ env.PUSH_IMAGE == 'true' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          # 构建机在海外：npm/ Maven 都走官方源，别用国内镜像拖慢下载
+          # 构建机在海外：npm/Maven 都走官方源，别用国内镜像拖慢下载
           build-args: |
             NPM_REGISTRY=https://registry.npmjs.org
+            MAVEN_SETTINGS=
           cache-from: type=gha
           cache-to: type=gha,mode=max
 

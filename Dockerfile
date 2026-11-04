@@ -53,12 +53,15 @@ RUN VITE_BACKEND_BASE= npm run build
 FROM maven:${MAVEN_VERSION} AS backend-builder
 WORKDIR /build/backend
 
-# 只把 central 镜像到阿里云，详见文件内注释；海外构建可去掉 -s
+# 只把 central 镜像到阿里云，详见文件内注释。
+# 海外构建（如 GitHub Actions）传 --build-arg MAVEN_SETTINGS= 关掉镜像，
+# 直连 Maven Central；阿里云对海外 runner 反而更慢。
+ARG MAVEN_SETTINGS=/build/maven-settings.xml
 COPY deploy/maven-settings.xml /build/maven-settings.xml
 
-# pom 单独一层：只改依赖版本时才需要重新解析依赖
+# pom 单独一层：只改依赖版本时才需要重新解析依赖（镜像层缓存命中时这几分钟可省掉）
 COPY backend/pom.xml ./
-RUN mvn -B -q -s /build/maven-settings.xml dependency:go-offline
+RUN mvn -B -ntp -q ${MAVEN_SETTINGS:+-s $MAVEN_SETTINGS} dependency:go-offline
 
 COPY backend/src ./src
 # 仓库工作区里可能残留上一轮的前端产物（该目录被 .gitignore 排除），
@@ -67,7 +70,8 @@ RUN rm -rf src/main/resources/static
 COPY --from=front-builder /build/front/dist ./src/main/resources/static
 
 # 纯 Docker 构建里 dist 已就绪，测试交给 CI 工作流先行执行
-RUN mvn -B -s /build/maven-settings.xml clean package -DskipTests \
+# maven.test.skip 连测试源码都不编译：镜像不需要测试类，测试已由 CI 跑过
+RUN mvn -B -ntp ${MAVEN_SETTINGS:+-s $MAVEN_SETTINGS} clean package -Dmaven.test.skip=true \
     && mv target/minidocs.jar target/app.jar
 
 

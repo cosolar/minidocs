@@ -747,7 +747,7 @@ docker run -d --name minidocs -p 9098:9098 \
   -e ADMIN_PASS='换成强密码' \
   -e JWT_SECRET='至少32个字符的随机串' \
   -v minidocs-data:/data \
-  cosolar/minidocs:latest
+  minimscn/minidocs:latest
 ```
 
 打开 `http://服务器IP:9098`，用 `admin` + 你设置的 `ADMIN_PASS` 登录。
@@ -799,7 +799,7 @@ environment:
 
 ### 13.5 标签与发布
 
-镜像地址 `cosolar/minidocs`，标签跟着 git tag 走：
+镜像地址 `minimscn/minidocs`，标签跟着 git tag 走：
 
 | 标签 | 含义 |
 | --- | --- |
@@ -811,12 +811,13 @@ environment:
 
 发布由 GitHub Actions 完成：`.github/workflows/docker-publish.yml`，推送 `v*` 标签或手动触发。
 仓库需配置两个 Secrets：`DOCKERHUB_USERNAME`、`DOCKERHUB_TOKEN`（Docker Hub Access Token，
-不是登录密码）。工作流会先跑后端测试和前端构建，任一失败都不会覆盖 `latest`。
+不是登录密码）。测试与前端构建由 `main` 上的 CI 完成；发布工作流只做一次 Docker 构建
+（Dockerfile 内部再构建前端与 jar），构建失败不会覆盖 `latest`。
 
 本地想自己构建同一个镜像：
 
 ```bash
-docker build -t cosolar/minidocs:dev .
+docker build -t minimscn/minidocs:dev .
 ```
 
 默认 profile 是 `standalone`（SQLite），容器内以非 root 用户运行；用 bind mount 挂 `/data` 时
