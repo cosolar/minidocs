@@ -1,4 +1,4 @@
-# 官方单镜像（Docker Hub minidocs）的默认 profile。
+# 官方单镜像（Docker Hub minimscn/minidocs）的默认 profile。
 #
 # 数据库参数不在这里重复：profile group 把 dev 一并引入，SQLite 连接沿用 application-dev.yml。
 # 本文件只覆盖「开箱即面向公网」时该改的默认值。
