@@ -46,7 +46,7 @@ const keyword = ref('')
 const viewMode = ref<'grid' | 'list'>('grid')
 
 /** 搜索框旁的示例词：点一下直接当关键词查，比对着空框想词更省事 */
-const HOT_TAGS = ['使用指南', '部署', 'API', '主题']
+const HOT_TAGS = ['技术面试', '简历', 'AI Agent', '大模型']
 
 /** 一次取一批卡片；卡片区滚到底就再取一批，直到没有更多 */
 const BATCH = 20
@@ -470,7 +470,7 @@ function switchView(mode: 'grid' | 'list') {
           </li>
           <li class="md-feature">
             <span class="md-feature__icon"><Icon name="bookshelf" :size="24" /></span>
-            <span class="md-feature__text"><strong>多库管理</strong><small>独立知识库，灵活配置</small></span>
+            <span class="md-feature__text"><strong>多库管理</strong><small>按主题分库，整理更清楚</small></span>
           </li>
           <li class="md-feature">
             <span class="md-feature__icon"><Icon name="tagSolid" :size="24" /></span>
@@ -478,11 +478,11 @@ function switchView(mode: 'grid' | 'list') {
           </li>
           <li class="md-feature">
             <span class="md-feature__icon"><Icon name="shieldCheck" :size="24" /></span>
-            <span class="md-feature__text"><strong>权限控制</strong><small>安全可控，放心使用</small></span>
+            <span class="md-feature__text"><strong>权限控制</strong><small>分享范围由你决定，放心使用</small></span>
           </li>
           <li class="md-feature">
-            <span class="md-feature__icon"><Icon name="githubBadge" :size="24" /></span>
-            <span class="md-feature__text"><strong>开源共建</strong><small>开源项目，携手共建</small></span>
+            <span class="md-feature__icon"><Icon name="share" :size="24" /></span>
+            <span class="md-feature__text"><strong>分享便捷</strong><small>生成链接，随时发给朋友</small></span>
           </li>
         </ul>
       </section>

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import Icon from '@/user/components/Icon.vue'
 import type { PortalStatsVO } from '@/user/api/types'
 
 const props = defineProps<{ stats: PortalStatsVO }>()
@@ -30,30 +31,35 @@ const items = computed(() => {
     {
       key: 'kb',
       label: '知识库',
+      icon: 'books',
       value: fmt(s.kbTotal),
       hint: s.kbTotalDelta > 0 ? `本月发布 ${s.kbTotalDelta}` : ''
     },
     {
       key: 'public',
       label: '共享',
+      icon: 'share',
       value: fmt(s.kbPublic),
       hint: s.kbTotal > 0 ? `占比 ${publicPercent.value}%` : ''
     },
     {
       key: 'private',
       label: '加密',
+      icon: 'lock',
       value: fmt(s.kbPrivate),
       hint: '需访问密码'
     },
     {
       key: 'docs',
       label: '文档',
+      icon: 'file',
       value: fmt(s.docTotal),
       hint: s.docTotalDelta > 0 ? `本月新增 ${s.docTotalDelta}` : ''
     },
     {
       key: 'views',
       label: '访问量',
+      icon: 'eye',
       value: fmt(s.viewTotal),
       hint: s.viewDelta > 0 ? `本月 ${s.viewDelta}` : ''
     }
@@ -63,8 +69,17 @@ const items = computed(() => {
 
 <template>
   <section class="md-statsline" aria-label="统计概览">
-    <span v-for="item in items" :key="item.key" class="md-stat" :title="item.hint || undefined">
-      <b>{{ item.value }}</b>{{ item.label }}
+    <span
+      v-for="item in items"
+      :key="item.key"
+      class="md-stat"
+      :class="`is-${item.key}`"
+      :title="item.hint || undefined"
+      :aria-label="`${item.label} ${item.value}${item.hint ? '，' + item.hint : ''}`"
+    >
+      <span class="md-stat__icon" aria-hidden="true"><Icon :name="item.icon" :size="13" /></span>
+      <b>{{ item.value }}</b>
+      <span class="md-stat__label">{{ item.label }}</span>
     </span>
   </section>
 </template>
