@@ -416,7 +416,7 @@
 
 .md-browse__head {
   display: flex;
-  align-items: flex-end;
+  align-items: center;
   justify-content: space-between;
   gap: 18px;
   margin-bottom: clamp(14px, 1.4vw, 20px);
@@ -445,33 +445,30 @@
   letter-spacing: -.02em;
 }
 
-/* 标题右侧的统计：一组轻量胶囊，图标负责一眼分辨，数字仍是视觉重心 */
+/* 标题右侧的统计条：与标题同高的一整条，五格用细线分开，不做五张独立卡 */
 .md-statsline {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  flex-wrap: wrap;
-  gap: 6px;
+  flex-shrink: 0;
+  height: 36px;
+  padding: 0 3px;
+  border: 1px solid color-mix(in srgb, var(--md-primary) 12%, var(--md-border));
+  border-radius: 11px;
+  background: color-mix(in srgb, var(--md-surface) 82%, transparent);
+  box-shadow: 0 10px 24px -24px rgba(8, 64, 55, .5);
 }
 .md-stat {
   --st: var(--md-primary);
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  height: 30px;
-  padding: 0 10px 0 5px;
-  border: 1px solid color-mix(in srgb, var(--md-primary) 10%, var(--md-border));
-  border-radius: 9px;
-  background: color-mix(in srgb, var(--md-surface) 74%, transparent);
-  color: var(--md-text-3);
-  font-size: 11.5px;
-  white-space: nowrap;
-  transition: border-color .16s ease, background .16s ease, transform .16s ease;
+  height: 100%;
+  padding: 0 11px;
+  border-radius: 8px;
+  transition: background .16s ease;
 }
-.md-stat:hover {
-  border-color: color-mix(in srgb, var(--st) 32%, var(--md-border));
-  background: var(--md-surface);
-  transform: translateY(-1px);
-}
+.md-stat + .md-stat { border-left: 1px solid color-mix(in srgb, var(--md-primary) 10%, var(--md-border)); }
+.md-stat:hover { background: color-mix(in srgb, var(--md-primary) 5%, transparent); }
 .md-stat__icon {
   width: 22px;
   height: 22px;
@@ -480,16 +477,16 @@
   display: grid;
   place-items: center;
   background: color-mix(in srgb, var(--st) 13%, transparent);
-  color: color-mix(in srgb, var(--st) 82%, var(--md-text));
+  color: color-mix(in srgb, var(--st) 84%, var(--md-text));
 }
 .md-stat b {
   color: var(--md-text);
-  font-size: 13.5px;
+  font-size: 15px;
   font-weight: 750;
   letter-spacing: -.01em;
   font-variant-numeric: tabular-nums;
 }
-.md-stat__label { line-height: 1; }
+.md-stat__label { color: var(--md-text-3); font-size: 11.5px; line-height: 1; }
 .md-stat.is-public { --st: #0284c7; }
 .md-stat.is-private { --st: #d97706; }
 .md-stat.is-docs { --st: #4f46e5; }
@@ -1124,8 +1121,11 @@
   .md-features { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .md-feature + .md-feature::before { display: none; }
 
-  .md-statsline { gap: 4px; }
-  .md-stat { padding-right: 8px; }
+  .md-statsline { height: 32px; }
+  .md-stat { gap: 5px; padding: 0 9px; }
+  .md-stat__icon { width: 20px; height: 20px; }
+  .md-stat b { font-size: 14px; }
+  .md-stat__label { font-size: 11px; }
 }
 
 @media (max-width: 900px) {

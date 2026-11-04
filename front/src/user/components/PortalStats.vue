@@ -77,7 +77,7 @@ const items = computed(() => {
       :title="item.hint || undefined"
       :aria-label="`${item.label} ${item.value}${item.hint ? '，' + item.hint : ''}`"
     >
-      <span class="md-stat__icon" aria-hidden="true"><Icon :name="item.icon" :size="13" /></span>
+      <span class="md-stat__icon" aria-hidden="true"><Icon :name="item.icon" :size="14" /></span>
       <b>{{ item.value }}</b>
       <span class="md-stat__label">{{ item.label }}</span>
     </span>
