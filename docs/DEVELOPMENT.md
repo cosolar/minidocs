@@ -286,8 +286,9 @@ ReaderService.build(kb, ReadRequest)
 
 ### 5.5 浏览器端渲染增强
 
-`shared/enhanceMarkdown.ts` 提供两个入口：全量增强（阅读页 / 分享页）与预览增强（后台 bytemd 预览区），
+`shared/enhanceMarkdown.ts` 是正文增强的**唯一入口**：阅读页、分享页与后台 bytemd 预览区都调它，
 覆盖代码高亮、代码工具条、Admonition、Mermaid、KaTeX、图片灯箱、表格外壳。
+不要为预览再开第二个入口 —— 省掉的增强会让「预览」不再等于成品，两套逻辑也必然漂移。
 
 **每个增强函数都必须幂等**：后台预览一次加载会跑好几轮后处理，靠 `dataset` 标记或「父节点 / 兄弟节点
 已存在」判断去重，否则会重复包壳、重复绑定监听。
@@ -429,7 +430,9 @@ npm run dev                  # 热更新
 npm run build                # 产出 front/dist
 ```
 
-CI 尚未接入（仓库暂无 `.github/workflows`），所以上面这两条命令就是门禁。
+CI 已接入：`.github/workflows/ci.yml` 在 `main` push 与 PR 上跑「后端测试 + 前端构建」，
+`.github/workflows/docker-publish.yml` 在推送 `v*` tag 时构建并发布 `minimscn/minidocs` 镜像。
+本地上面两条命令与 CI 等价；**CI 红不要发版**。
 
 ---
 
