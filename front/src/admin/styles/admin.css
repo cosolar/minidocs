@@ -2353,10 +2353,7 @@ body.is-col-resizing .md-ws__bytemd-resizer::after { background: var(--md-primar
   .el-pagination__sizes { display: none; }
   .md-ad-pager { justify-content: center; }
 
-  /* 统计卡两列、知识库卡单列 */
-  .md-ov-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
-  .md-ov-stat { padding: 14px; }
-  .md-ov-stat__value { font-size: 24px; }
+  /* 统计卡两列、知识库卡单列（两列规则在文件末尾，见源序说明） */
   .md-ov-side { grid-template-columns: 1fr; }
   .md-recent-item { flex-wrap: wrap; }
   .md-recent-item__actions { width: 100%; justify-content: flex-end; }
@@ -2374,13 +2371,55 @@ body.is-col-resizing .md-ws__bytemd-resizer::after { background: var(--md-primar
   }
   .md-ad-item__actions .el-button .md-icon { margin-right: 5px; }
 
+  /*
+   * 窄屏卡片流改行式列表（分享 / 审计 / 用户共用）。
+   * 一卡一边框在 375px 上一屏只装得下 2 条，而且状态胶囊、链接串会跟着卡片一起被切。
+   * 改成「整块容器 + 行间分隔线」后一屏 4~5 条，视觉上与知识库列表的行式一致。
+   */
+  .md-ad-cards {
+    display: flex; flex-direction: column;
+    background: var(--md-surface);
+    border: 1px solid var(--md-border); border-radius: 14px;
+    overflow: hidden;
+  }
+  .md-ad-item {
+    border: 0; border-radius: 0;
+    padding: 11px 12px; gap: 7px;
+  }
+  .md-ad-item + .md-ad-item { border-top: 1px solid var(--md-border); }
+  .md-ad-item__title strong { font-size: 14px; }
+  /* 状态胶囊在窄屏是右上角的固定位：宽度不够就整体缩，不能把标题挤没、也不能自己被裁 */
+  .md-ad-item__chips { flex-shrink: 1; min-width: 0; justify-content: flex-end; }
+  .md-ad-item__meta { gap: 3px 10px; font-size: 11.5px; }
+  .md-ad-item__actions {
+    gap: 6px; padding-top: 8px;
+    border-top: 1px dashed var(--md-border);
+  }
+
+  /* 列表页筛选：下拉两列并排，日期跨度横跨整行，计数让位到右下 */
+  .md-ad-toolbar {
+    display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 8px; padding: 10px;
+  }
+  .md-ad-toolbar > * { width: 100% !important; min-width: 0; }
+  .md-ad-toolbar > .el-input { grid-column: 1 / -1; }
+  .md-ad-toolbar > .el-date-editor { grid-column: 1 / -1; }
+  .md-ad-toolbar .md-toolbar__spacer { display: none; }
+  .md-ad-toolbar .md-toolbar__hint { grid-column: 1 / -1; margin: 0; text-align: right; }
+  /* 帮助问号只占内容宽度：上面的 width:100% 会把它拉成一条长条 */
+  .md-ad-toolbar > .md-help {
+    grid-column: 1 / -1; justify-self: end;
+    width: auto !important; height: auto;
+  }
+
   /* 页面级两栏栅格一律并成单列 */
   .md-page-stack { grid-template-columns: 1fr !important; }
 }
 
 @media (max-width: 560px) {
   .md-content { padding: 12px 10px; }
-  .md-ov-stats { grid-template-columns: 1fr; }
+  /* 统计卡两列的规则在文件末尾（基础定义 .md-ov-stats 在 2775 行，
+     写在这里会被它按源序覆盖），这里不再重复。 */
   .el-pagination__total { display: none; }
   /* 顶栏窄到放不下组织名时只留图标，胶囊不撑破整行 */
   .md-header__org-name { display: none; }
@@ -2436,6 +2475,80 @@ body.is-col-resizing .md-ws__bytemd-resizer::after { background: var(--md-primar
   /* 底部状态栏指标折行；作者与更新时间先让位，别把「回到顶部」挤出去 */
   .md-ws__status { height: auto; flex-wrap: wrap; padding: 6px 12px; gap: 4px 12px; }
   .md-ws__status .md-ws__metric:nth-child(n + 5) { display: none; }
+}
+
+/* ---------------------------------------------------------- 工作区（编辑页）手机档 */
+/*
+ * ≤620 收成一条应用栏 + 一条编辑工具条：
+ *
+ *   [←]  面试手册 ● 共享              [保存] [⋯]
+ *   [目录]      [预览│编辑]                [大纲]
+ *
+ * 桌面那排动作（设置 / 分享 / 预览 / 导出 / 云同步）整体进「⋯」，三枚状态胶囊合并成
+ * 一颗带色点的胶囊。为什么断点是 620 而不是 900：621–900 是平板横宽，动作区折成第二行
+ * 仍放得下；再往下才是「谁把谁挤没」的临界点，也就是顶栏出现横向滚动、预览/编辑被挤成
+ * 竖排两个字的那一档。
+ */
+
+/* 只有手机档才出现的控件，桌面上不渲染 */
+.md-ws__back--mobile { display: none; }
+.md-ws__more { display: none; }
+.md-ws__icon-btn--lg { width: 34px; height: 34px; }
+
+.md-ws__status-dot {
+  display: none; align-items: center; gap: 5px; flex-shrink: 0;
+  height: 22px; padding: 0 8px 0 7px; margin-left: 2px;
+  border: 1px solid var(--md-border); border-radius: 999px;
+  background: var(--md-surface-2); color: var(--md-text-2);
+  font-family: inherit; font-size: 11.5px; line-height: 1; cursor: pointer;
+}
+/* 色点承担「发布态」：灰=未发布、绿=共享、蓝=加密，与桌面三枚胶囊同一套配色 */
+.md-ws__status-dot i { width: 6px; height: 6px; border-radius: 50%; background: var(--md-text-3); }
+.md-ws__status-dot.is-public i { background: var(--md-success); }
+.md-ws__status-dot.is-private i { background: var(--md-ink-blue, #3b6cf6); }
+
+/* 状态浮层：Teleport 到 body，样式写在这里而不是组件里 */
+.md-ws-status-pop__head { margin-bottom: 6px; color: var(--md-text-3); font-size: 12px; }
+.md-ws-status-pop__row {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 18px;
+  padding: 4px 0; font-size: 12.5px;
+}
+.md-ws-status-pop__row span { flex-shrink: 0; color: var(--md-text-3); }
+.md-ws-status-pop__row strong { color: var(--md-text); font-weight: 600; text-align: right; }
+
+@media (max-width: 620px) {
+  /* 顶栏一行：返回 · 库名 + 状态点 · 保存 · 更多 */
+  .md-ws__top {
+    height: 52px; min-height: 52px; flex-wrap: nowrap;
+    padding: 0 10px; gap: 8px;
+  }
+  .md-ws__identity { flex: 1 1 auto; min-width: 0; gap: 0; }
+  .md-ws__name { gap: 6px; min-width: 0; }
+  .md-ws__name-text { max-width: 40vw; font-size: 14px; }
+  /* 三枚状态胶囊合并成一颗状态点，三条轴的完整说法点开看 */
+  .md-ws__name > .md-ad-chip { display: none; }
+  .md-ws__status-dot { display: inline-flex; }
+
+  .md-ws__back--mobile {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 34px; height: 34px; padding: 0; margin-right: 0; border-radius: 9px;
+  }
+
+  /* 动作区只留保存与「更多」：其余进菜单，不再需要一条横向滚动的隐形容器 */
+  .md-ws__actions { width: auto; overflow: visible; flex-shrink: 0; gap: 6px; }
+  .md-ws__actions > * { display: none; }
+  .md-ws__actions > .md-ws__btn--primary,
+  .md-ws__actions > .md-ws__more { display: inline-flex; }
+
+  /* 编辑工具条：面包屑已有底部状态栏承担，切换标签不再换行 */
+  .md-ws__bar { height: 44px; gap: 8px; padding: 0 10px; }
+  .md-ws__bar-sep, .md-ws__crumbs { display: none; }
+  .md-ws__seg, .md-ws__seg-item { flex-shrink: 0; }
+  .md-ws__seg-item span { white-space: nowrap; }
+
+  /* 底部状态栏收成一行：标题吃剩余宽度，指标各占一格 */
+  .md-ws__status { height: 34px; flex-wrap: nowrap; padding: 0 10px; gap: 10px; overflow: hidden; }
+  .md-ws__status-title { max-width: none; flex: 1 1 auto; min-width: 0; }
 }
 
 /* 暗色下色相换 300–400 浅色档：600 色阶那组压在深底上会发暗、边界发糊；悬停底色 7% → 12% */
@@ -3260,4 +3373,187 @@ body.is-col-resizing .md-ws__bytemd-resizer::after { background: var(--md-primar
   .md-kb-card__cover { height: 100px; }
   .md-kb-card__body { padding: 12px; }
   .md-kb-card__actions { padding: 7px 10px; }
+}
+
+/* ==================================================================
+ * 管理端窄屏：知识库列表
+ *
+ * <p>手机上三处浪费：筛选条被逐件撑成整行，五条控件吃掉首屏三分之一，还没看到第一个
+ * 知识库；卡片外面又套一层白面板，横向白白让出 32px；顶栏昵称被压成「超级管…」，
+ * 看着像坏了。</p>
+ *
+ * <p>这一档把筛选收成「搜索 + 开关」，展开后两个下拉并排；面板在手机上卸掉框架，
+ * 卡片动作抬到 40px 触控目标。宽屏（>900）的排布一行不动。</p>
+ * ================================================================== */
+
+/* 折叠开关与折叠容器：宽屏隐形 / 透明，>900px 的布局与改动前完全一致 */
+.md-toolbar__filter-btn { display: none; }
+.md-toolbar__filters { display: contents; }
+.md-toolbar__filter-count {
+  min-width: 17px; height: 17px; padding: 0 5px;
+  display: grid; place-items: center;
+  border-radius: 999px; background: var(--md-primary); color: #fff;
+  font-size: 11px; font-weight: 700; line-height: 1;
+}
+
+@media (max-width: 900px) {
+  /* ------------------------------------------------------------------ 筛选条 */
+  .md-toolbar {
+    display: grid; grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px; padding: 10px;
+  }
+  .md-toolbar__search { grid-column: 1; width: 100% !important; }
+  .md-toolbar__filter-btn {
+    grid-column: 2;
+    display: inline-flex; align-items: center; gap: 6px;
+    height: 40px; padding: 0 12px;
+    border: 1px solid var(--md-border); border-radius: 10px;
+    background: var(--md-surface); color: var(--md-text-2);
+    font: inherit; font-size: 13px; font-weight: 600;
+    white-space: nowrap; cursor: pointer;
+    transition: color .15s ease, background-color .15s ease, border-color .15s ease;
+  }
+  .md-toolbar__filter-btn:active { background: var(--md-surface-2); }
+  /* 有筛选项在生效时常亮：否则「列表短了」会被当成数据没了 */
+  .md-toolbar__filter-btn.is-on {
+    color: var(--md-primary);
+    border-color: color-mix(in srgb, var(--md-primary) 34%, var(--md-border));
+    background: var(--md-primary-soft);
+  }
+  /* 展开后两列并排：可见范围与排序都是短标签，各占半行比各占一行省一整行 */
+  .md-toolbar__filters {
+    grid-column: 1 / -1; display: none;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 8px;
+  }
+  .md-toolbar__filters.is-open { display: grid; }
+  .md-toolbar__filters .el-checkbox { grid-column: 1 / -1; height: 26px; margin-right: 0; }
+  .md-toolbar__hint { grid-column: 1 / -1; margin: 0; text-align: right; }
+  .md-toolbar .el-radio-group { grid-column: 1 / -1; }
+
+  /* ------------------------------------------------------- 卡片面板：卸掉外层框架 */
+  /* 「卡外套卡」在手机上既吃掉两边的 32px，又垒出三层白底；内容直接落在页面上更清爽 */
+  .md-kb-panel { background: transparent; border: 0; border-radius: 0; box-shadow: none; }
+  .md-kb-panel > .md-panel-body { padding: 0; }
+  .md-kb-panel .md-table-foot { padding: 14px 0 2px; border-top: 0; }
+
+  /* ------------------------------------------------------------------ 顶栏 */
+  /* 昵称在 375px 只剩「超级管…」，与其露半截，不如让位给头像与主题开关 */
+  .md-header__user-name { display: none; }
+  .md-header__icon-btn { width: 36px; height: 36px; }
+}
+
+@media (max-width: 720px) {
+  /* 水彩头部是首屏最大的固定支出：收小、描述限两行、主按钮整行好点 */
+  .md-page-head.md-page-head--hero {
+    gap: 12px; padding: 16px; border-radius: 14px;
+  }
+  .md-page-head--hero .md-page-head__icon { width: 42px; height: 42px; border-radius: 12px; }
+  .md-page-head--hero .md-page-head__icon .md-icon { width: 20px; height: 20px; }
+  .md-page-head--hero .md-page-head__title { font-size: 20px; }
+  .md-page-head--hero .md-page-head__desc {
+    margin-top: 4px; font-size: 12.5px; line-height: 1.55;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+  }
+  .md-page-head--hero .md-page-head__actions { width: 100%; }
+  .md-page-head--hero .md-page-head__actions .el-button { width: 100%; height: 42px; }
+
+  /* 手机不再渲染卡片（见 .md-kb-row），原来那组「卡片收窄」的规则已随之作废，别再加回来 */
+
+  /* ------------------------------------------------------------- 行式列表（手机） */
+  /*
+   * 手机不套卡片：一库一行，靠分隔线分开，整块是「一个列表」而不是「一叠卡」。
+   * 一条行约 64px（卡片是 260px+），一屏从「不到 3 个」变成「6~7 个」。
+   * 外层仍给一层白底 + 圆角，否则一堆文字直接铺在灰底上会散。
+   */
+  .md-kb-rows {
+    display: flex; flex-direction: column;
+    background: var(--md-surface);
+    border: 1px solid var(--md-border);
+    border-radius: 14px;
+    overflow: hidden;
+  }
+  .md-kb-row {
+    display: flex; align-items: center; gap: 11px;
+    padding: 10px 10px 10px 12px;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    transition: background-color .15s ease;
+  }
+  .md-kb-row + .md-kb-row { border-top: 1px solid var(--md-border); }
+  .md-kb-row:active { background: var(--md-surface-2); }
+  .md-kb-row:focus-visible { outline: 2px solid var(--md-primary); outline-offset: -2px; }
+
+  .md-kb-row__thumb {
+    width: 30px; height: 30px; border-radius: 9px; flex-shrink: 0;
+    font-size: 13.5px; font-weight: 700; line-height: 1; letter-spacing: 0;
+    /* 首字块不需要卡片封面那种投影，扁平一点更像列表图标 */
+    box-shadow: none;
+  }
+
+  .md-kb-row__main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+  .md-kb-row__title { display: flex; align-items: center; gap: 5px; min-width: 0; }
+  .md-kb-row__name {
+    min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    color: var(--md-text); font-size: 15px; font-weight: 650; letter-spacing: -.01em;
+  }
+  .md-kb-row__fav { flex-shrink: 0; color: #f59e0b; fill: currentColor; }
+  .md-kb-row__cloud { flex-shrink: 0; color: #0ea5e9; }
+
+  /* 第二行：状态 · 可见范围 · 篇数 · 时间。分隔点用 ::before 生成，模板里不塞符号 */
+  .md-kb-row__meta {
+    display: flex; align-items: center; gap: 6px;
+    min-width: 0; overflow: hidden; white-space: nowrap;
+    color: var(--md-text-3); font-size: 11.5px; line-height: 1.2;
+  }
+  .md-kb-row__meta > span { flex-shrink: 0; }
+  .md-kb-row__meta > span + span::before {
+    content: '·'; margin-right: 6px; color: var(--md-border-strong);
+  }
+  /* 时间最不重要：宽度不够时让它先被裁掉，而不是把「篇数」挤没 */
+  .md-kb-row__meta > .md-kb-row__time { flex-shrink: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+
+  .md-kb-row__state { display: inline-flex; align-items: center; gap: 4px; }
+  .md-kb-row__state i {
+    width: 5px; height: 5px; border-radius: 50%; flex-shrink: 0;
+    background: var(--md-border-strong);
+  }
+  .md-kb-row__state.is-public { color: var(--md-vis-public); }
+  .md-kb-row__state.is-public i { background: var(--md-vis-public); }
+  .md-kb-row__state.is-private { color: var(--md-vis-org); }
+  .md-kb-row__state.is-private i { background: var(--md-vis-org); }
+
+  .md-kb-rows__create {
+    display: flex; align-items: center; justify-content: center; gap: 6px;
+    width: 100%; height: 46px;
+    border: 0; border-top: 1px solid var(--md-border);
+    background: transparent; color: var(--md-primary);
+    font: inherit; font-size: 13.5px; font-weight: 600;
+    cursor: pointer; -webkit-tap-highlight-color: transparent;
+  }
+  .md-kb-rows__create:active { background: var(--md-primary-soft); }
+
+  /* 分页：总数上面已经说过一次（工具栏右下的「共 N 个知识库」），这里只留翻页 */
+  .md-kb-panel .md-table-foot { flex-wrap: wrap; row-gap: 10px; }
+  .md-kb-panel .md-table-foot__summary { display: none; }
+  .md-kb-panel .md-table-foot .el-pagination {
+    width: 100%; margin-left: 0; justify-content: center;
+  }
+}
+
+/* 320 这类极窄屏：日期已经只剩一个「…」，不如整段拿掉，把宽度留给篇数 */
+@media (max-width: 350px) {
+  .md-kb-row__meta > .md-kb-row__time { display: none; }
+}
+
+/* ------------------------------------------------------------------ 统计卡窄屏（源序最后） */
+/*
+ * 这组规则必须写在文件末尾：`.md-ov-stats` 的基础定义在 2775 行（auto-fit + minmax(212px)），
+ * 写在它前面的媒体查询会被同特异度的基础规则按源序覆盖，两列永远不生效 —— 375px 上
+ * auto-fit 只放得下一列，八张卡要滚一整屏。这里写在末尾才能真正两列。
+ */
+@media (max-width: 560px) {
+  .md-ov-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .md-ov-stat { padding: 12px; gap: 10px; }
+  .md-ov-stat__value { font-size: 21px; }
 }

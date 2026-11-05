@@ -294,6 +294,19 @@ const visibleTree = computed(() => {
 })
 
 const visibilityText = computed(() => (kb.value ? visibilityLabel(kb.value.visibility) : ''))
+
+/**
+ * 手机顶栏那颗状态点上的两个字。
+ *
+ * <p>完整说法是「已发布 · 共享」—— 六七个字在一行 390px 的顶栏里会先把库名挤没。
+ * 这里只留动作性最强的一档（共享 / 加密 / 未发布），三条轴的完整说法放在点开的浮层里。</p>
+ */
+const mobileStatusText = computed(() => {
+  const status = kb.value?.shareStatus
+  if (status === 'public') return '共享'
+  if (status === 'private') return '加密'
+  return '未发布'
+})
 const crumbs = computed(() => (currentPath.value ? currentPath.value.split('/') : []))
 const displayTitle = computed(() => docInfo.value?.title || crumbs.value[crumbs.value.length - 1] || '')
 const authorLabel = computed(() => frontmatterValue(content.value, 'author') || kb.value?.ownerName || '—')
@@ -1785,6 +1798,21 @@ function onExportCommand(command: string) {
   else if (command === 'copy') void copyText(content.value, '正文已复制到剪贴板')
 }
 
+/**
+ * 手机顶栏「更多」里的一堆动作。
+ *
+ * <p>与桌面那排按钮走同一批函数，只是换了个入口：不复制逻辑，也就不会出现
+ * 「菜单里的导出和工具条上的导出行为不一样」。</p>
+ */
+function onMobileMore(command: string) {
+  if (command === 'settings') openSettings()
+  else if (command === 'share') openSharePanel()
+  else if (command === 'preview') openPortal()
+  else if (command === 'pull') openPullDialog()
+  else if (command === 'commit') openCommitDialog()
+  else onExportCommand(command)
+}
+
 function backToTop() {
   previewHost()?.scrollTo({ top: 0, behavior: 'smooth' })
   const scroller = editorRef.value?.querySelector<HTMLElement>('.CodeMirror-scroll')
@@ -2223,11 +2251,56 @@ onBeforeUnmount(() => {
   <div v-loading="loading" class="md-ws">
     <!-- 顶部操作区 -->
     <header class="md-ws__top">
+      <!--
+        手机上的返回键。桌面端它排在右侧动作区里（与设置 / 分享同类），
+        手机整条动作区收进了「⋯」，导航要留在最左 —— 那是它在移动端的固定位置。
+      -->
+      <button
+        type="button"
+        class="md-ws__back md-ws__back--mobile"
+        title="返回知识库列表"
+        aria-label="返回知识库列表"
+        @click="backToList"
+      >
+        <MdIcon name="back" :size="16" />
+      </button>
       <div class="md-ws__identity">
         <span class="md-ws__logo"><KbGlyph :size="19" /></span>
         <div class="md-ws__identity-text">
           <div class="md-ws__name">
             <span class="md-ws__name-text">{{ kb?.name || '知识库' }}</span>
+            <!--
+              手机上的状态点：三枚胶囊（登录范围 / 可写 / 发布态）在 390px 里排不下，
+              合并成一颗带色点的胶囊，点开看三条详情。桌面仍是三枚并排 —— 那边一眼看全。
+            -->
+            <el-popover
+              placement="bottom-start"
+              :width="252"
+              trigger="click"
+              popper-class="md-ws-status-pop"
+            >
+              <template #reference>
+                <button
+                  type="button"
+                  class="md-ws__status-dot"
+                  :class="`is-${kb?.shareStatus || 'unpublished'}`"
+                  :title="publishStatusHint(kb?.shareStatus)"
+                >
+                  <i aria-hidden="true" />
+                  <span>{{ mobileStatusText }}</span>
+                </button>
+              </template>
+              <div class="md-ws-status-pop__head">这个库的权限与发布状态</div>
+              <div class="md-ws-status-pop__row">
+                <span>登录范围</span><strong>{{ visibilityText }}</strong>
+              </div>
+              <div class="md-ws-status-pop__row">
+                <span>可写</span><strong>{{ maintainScopeLabel(kb?.maintainScope) }}</strong>
+              </div>
+              <div class="md-ws-status-pop__row">
+                <span>发布态</span><strong>{{ publishStatusLabel(kb?.shareStatus) }}</strong>
+              </div>
+            </el-popover>
             <span class="md-ad-chip" :class="visibilityChipClass(kb?.visibility)" :title="visibilityHint(kb?.visibility)">
               {{ visibilityText }}
             </span>
@@ -2399,6 +2472,51 @@ onBeforeUnmount(() => {
               <el-dropdown-item command="copy" divided>
                 <MdIcon name="copy" :size="14" />复制正文
               </el-dropdown-item>
+            </el-dropdown-menu>
+          </template>
+        </el-dropdown>
+
+        <!--
+          手机上的「更多」：桌面动作区在这一档整条收起，设置 / 分享 / 预览 / 导出 /
+          云端同步都从这里进。保存留在外面 —— 它是编辑态唯一的主操作，不该藏进菜单。
+        -->
+        <el-dropdown
+          trigger="click"
+          placement="bottom-end"
+          class="md-ws__more"
+          @command="onMobileMore"
+        >
+          <button type="button" class="md-ws__icon-btn md-ws__icon-btn--lg" title="更多" aria-label="更多操作">
+            <MdIcon name="more" :size="18" />
+          </button>
+          <template #dropdown>
+            <el-dropdown-menu>
+              <el-dropdown-item
+                v-if="kbCan('KB_EDIT_META') || kbCan('KB_SET_VISIBILITY')"
+                command="settings"
+              >
+                <MdIcon name="settings" :size="14" />知识库设置
+              </el-dropdown-item>
+              <el-dropdown-item v-if="kbCan('SHARE_CREATE')" command="share" :disabled="!currentPath">
+                <MdIcon name="share" :size="14" />分享
+              </el-dropdown-item>
+              <el-dropdown-item command="preview">
+                <MdIcon name="external" :size="14" />预览门户页
+              </el-dropdown-item>
+              <el-dropdown-item command="download" :disabled="!currentPath" divided>
+                <MdIcon name="download" :size="14" />下载原文
+              </el-dropdown-item>
+              <el-dropdown-item command="copy" :disabled="!currentPath">
+                <MdIcon name="copy" :size="14" />复制正文
+              </el-dropdown-item>
+              <template v-if="isCloudKb && canWriteKb">
+                <el-dropdown-item command="pull" :disabled="gitBusy || cloning" divided>
+                  <MdIcon name="cloud" :size="14" />拉取
+                </el-dropdown-item>
+                <el-dropdown-item command="commit" :disabled="gitBusy || cloning">
+                  <MdIcon name="arrow-up" :size="14" />提交推送
+                </el-dropdown-item>
+              </template>
             </el-dropdown-menu>
           </template>
         </el-dropdown>

@@ -949,6 +949,11 @@ button { font-family: inherit; }
   .md-only-outline-mobile { display: grid; }
   .md-reading { grid-template-columns: var(--md-aside-width) minmax(0, 1fr); }
   .md-reading__outline { display: none; }
+  /*
+   * 抽屉必须是实底：门户侧栏的玻璃底特异度更高（见下方 ≤900 那段注释），
+   * 不盖一层的话正文会从大纲行之间透出来。
+   */
+  .md-main-outline-open .md-reading[data-mode='portal'] .md-reading__outline { background: var(--md-surface); }
   .md-main-outline-open .md-reading__outline {
     display: block; position: fixed; top: var(--md-topbar-height); right: 0; bottom: 0;
     width: min(320px, 82vw); z-index: 50; background: var(--md-surface);
@@ -962,6 +967,16 @@ button { font-family: inherit; }
     display: none; position: fixed; top: var(--md-topbar-height); left: 0; bottom: 0;
     width: min(320px, 84vw); z-index: 50; background: var(--md-surface); border-right: 1px solid var(--md-border);
   }
+  /*
+   * 抽屉必须是实底。
+   *
+   * <p>上面那条 {@code background: var(--md-surface)} 特异度低于门户侧栏的玻璃底
+   * （{@code .md-reading[data-mode='portal'] .md-reading__aside { background: var(--md-glass) }}），
+   * 结果手机上抽屉是 68% 不透明的白，正文从目录行之间透出来，两层字叠在一起谁都读不清。
+   * 玻璃只对「背后是页面底色」的常驻侧栏成立；抽屉背后是正文，这里必须盖死。</p>
+   */
+  .md-reading[data-mode='portal'] .md-reading__aside,
+  .md-reading[data-mode='portal'] .md-reading__outline { background: var(--md-surface); }
   .md-main-tree-open .md-reading__aside { display: block; }
   .md-reading__main { padding: 0 16px 60px; }
   .md-reading__bar { padding: 0 16px; }
@@ -1697,6 +1712,372 @@ button { font-family: inherit; }
   .md-share__status-main > :nth-child(n + 4) { display: none; }
 }
 
+/* ==================================================================
+ * 分享页窄屏：沉浸式阅读
+ *
+ * <p>截图里的问题不是「字号没调好」，是**首屏根本没给正文**：目录卡片在 ≤900 直接
+ * 落进文档流、独占近半屏，正文被挤到折叠线以下；顶栏六组控件挤成一行，谁都看不清；
+ * 底部状态栏 sticky 常驻，永远压住正文最末一行。</p>
+ *
+ * <p>这一档改成「一条正文柱 + 按需唤出的两个抽屉」：目录与大纲退出栅格变成 fixed 抽屉，
+ * 顶栏只留目录入口 / 库名 / 设置 / 大纲 / 分享，状态栏回到文档流末尾，回到顶部改成
+ * 滚过一屏才出现的悬浮按钮，顶栏底沿补一条阅读进度线。宽屏（≥1181）三栏独滚那套一行不动。</p>
+ *
+ * <p>放在文件最末、print 之前：同特异度下源序靠后才盖得过前面的桌面规则，
+ * 以及那些散在中段的 ≤620 / ≤480 分享顶栏规则。</p>
+ * ================================================================== */
+
+/* 新控件默认全部不出现，只在下面的窄屏媒体查询里打开 */
+.md-drawer__head,
+.md-drawer__slot,
+.md-share__nav-toggle,
+.md-share__totop-fab { display: none; }
+
+/* 阅读进度：宽度由 ShareView 写在 .md-share 上，桌面三栏独滚时同样成立 */
+.md-share__top::after {
+  content: '';
+  position: absolute; left: 0; bottom: -1px;
+  height: 2px; width: var(--md-read-progress, 0%);
+  border-radius: 0 2px 2px 0;
+  background: var(--md-primary);
+  pointer-events: none;
+  transition: width .12s linear;
+}
+
+/*
+ * 901–1180（平板竖屏）：左栏还在栅格里，大纲不该堆到正文下面再占一屏。
+ * 先把它收进右侧抽屉；同时修一件旧账 —— .md-page--read .md-view 的 overflow:hidden
+ * 本是为「宽屏正文栏独滚」写的，却也命中了分享页，这一档的正文栏是 visible，
+ * 于是页面既不能滚、又被裁掉一截。窄屏一律把滚动权还给 #md-view。
+ */
+@media (min-width: 901px) and (max-width: 1180px) {
+  body.md-page--share .md-view { overflow-y: auto; overflow-x: hidden; }
+  .md-reading[data-mode='share'] .md-reading__main { overflow: visible; }
+  .md-share__nav-toggle--outline { display: grid; }
+  .md-reading[data-mode='share'] .md-reading__outline {
+    position: fixed; top: 0; bottom: 0; right: 0; left: auto;
+    width: min(320px, 82vw); height: auto; max-height: none;
+    padding: 0; background: var(--md-surface);
+    border-left: 1px solid var(--md-border);
+    z-index: 50; overflow: hidden;
+    transform: translateX(102%);
+    transition: transform .26s cubic-bezier(.22, .61, .36, 1);
+  }
+  body.md-main-outline-open .md-reading[data-mode='share'] .md-reading__outline {
+    transform: translateX(0);
+  }
+}
+
+/* ------------------------------------------------------------------ ≤900 主档 */
+@media (max-width: 900px) {
+  /* 顶栏 52px、状态栏不再占位、卡片间隙归零：正文通栏，不浪费一寸横向空间 */
+  body.md-page--share {
+    --md-share-top: 52px;
+    --md-share-status: 0px;
+    --md-share-gap: 0px;
+    /* 菜单坞搬进抽屉后拿不到 .md-share__top 上的局部变量，在这里补一份 */
+    --share-fg: var(--md-text);
+    --share-fg-2: var(--md-text-3);
+    --share-line: var(--md-border);
+    --share-hover: var(--md-surface-2);
+    --share-accent: var(--md-primary);
+  }
+  body.md-page--share .md-view { overflow-y: auto; overflow-x: hidden; }
+
+  /* 顶栏：从「身份+位置+导航+四颗动作」收成「目录 · 库名 · 设置/大纲/分享」 */
+  .md-share__top { gap: 6px; padding: 0 8px; height: var(--md-share-top); }
+  /*
+   * 站点 logo 是后台上传的横版图（实测 150×48，含圆形徽标 + 站名），内联宽高写死了。
+   * 原样带上手机顶栏会吃掉 150px，把「我在哪个库」挤到只剩一个字。
+   * 这里裁成 34px 方形、从左侧取景只留徽标：身份由紧跟着的库名说清楚，
+   * 品牌回到一个不抢空间的记号。logoOnly=false 的站点另有 .md-brand__text，照样隐藏。
+   */
+  .md-share__top .md-brand { flex-shrink: 0; }
+  .md-share__top .md-brand__logo.is-image {
+    width: 34px !important; height: 34px !important;
+    border-radius: 9px; overflow: hidden;
+  }
+  .md-share__top .md-brand__logo.is-image img {
+    width: 100%; height: 100%;
+    object-fit: cover; object-position: left center;
+  }
+  .md-share__nav-toggle {
+    display: grid; place-items: center; flex-shrink: 0;
+    width: 38px; height: 38px; padding: 0;
+    border: 0; border-radius: 10px; background: none;
+    color: var(--md-text-2); cursor: pointer;
+    transition: background-color .15s ease, color .15s ease;
+  }
+  .md-share__nav-toggle:hover,
+  .md-share__nav-toggle:active { background: var(--md-primary-soft); color: var(--md-primary); }
+  /* 这些是「桌面才需要」的信息：有效期、浏览量、仓库入口、品牌文字、顶栏菜单坞 */
+  .md-share__top .md-brand__text,
+  .md-share__expiry,
+  .md-share__views,
+  .md-share__actions > a.md-share__action,
+  .md-share__top .md-share__menu { display: none; }
+  .md-share__actions { margin-left: 0; gap: 2px; flex-shrink: 0; }
+  .md-share__action { width: 38px; height: 38px; border: 0; background: none; }
+  .md-share__action:hover { background: var(--md-primary-soft); }
+  /* 库名吃掉中间的弹性空间，长名字截断而不是把动作按钮顶出屏幕 */
+  .md-share__kb {
+    flex: 1 1 auto; min-width: 0; max-width: none; height: 38px;
+    padding: 0 6px; border: 0; background: none; gap: 7px;
+  }
+  .md-share__kb-text { display: flex; }
+  .md-share__kb-caret { display: none; }
+
+  /* 单栏：三张卡片不再有间隙，正文整块贴住视口两边 */
+  .md-reading[data-mode='share'] {
+    grid-template-columns: minmax(0, 1fr);
+    padding: 0; row-gap: 0; column-gap: 0;
+  }
+  .md-reading[data-mode='share'] .md-reading__main {
+    padding: 22px 18px 40px;
+    min-height: 0; overflow: visible;
+    border: 0; border-radius: 0; box-shadow: none;
+    background: var(--md-surface);
+  }
+  /* 手机上「收窄正文宽度」没有意义，只会白白少读几个字 */
+  .md-reading[data-mode='share'] .md-doc { max-width: none; }
+  /* 上一篇 / 下一篇改成拇指点得中的高度，两行小字挤在一起太难点 */
+  .md-doc__nav { gap: 10px; }
+  .md-doc__nav-item { min-height: 56px; padding: 12px 14px; }
+
+  /*
+   * 两个抽屉：常驻在 DOM 里、靠 transform 移出视口（比 display 来回切更顺滑，
+   * 也让抽屉里那份菜单坞始终有几何尺寸，ShareMenu 的滑块能算对位置）。
+   * fixed + top:0 盖住顶栏，打开时就是一整屏的目录，没有「上半截被顶栏切掉」的割裂感。
+   */
+  .md-reading[data-mode='share'] .md-reading__aside,
+  .md-reading[data-mode='share'] .md-reading__outline {
+    display: flex; flex-direction: column;
+    position: fixed; top: 0; bottom: 0; left: 0; right: auto;
+    width: min(340px, 88vw); height: auto; max-height: none;
+    padding: 0; border: 0; background: var(--md-surface);
+    overflow: hidden; overscroll-behavior: contain;
+    z-index: 50;
+    box-shadow: 2px 0 18px rgba(15, 17, 23, .16);
+    transform: translateX(-102%);
+    transition: transform .26s cubic-bezier(.22, .61, .36, 1);
+  }
+  .md-reading[data-mode='share'] .md-reading__outline {
+    left: auto; right: 0;
+    border-left: 1px solid var(--md-border);
+    box-shadow: -2px 0 18px rgba(15, 17, 23, .16);
+    transform: translateX(102%);
+  }
+  body.md-main-tree-open .md-reading[data-mode='share'] .md-reading__aside,
+  body.md-main-outline-open .md-reading[data-mode='share'] .md-reading__outline {
+    transform: translateX(0);
+  }
+
+  /* 卡片在抽屉里不再「浮起」：去边框圆角，内部自己滚 */
+  .md-reading[data-mode='share'] .md-aside__card,
+  .md-reading[data-mode='share'] .md-outline__card {
+    flex: 1; min-height: 0; height: auto;
+    border: 0; border-radius: 0; box-shadow: none;
+    background: var(--md-surface);
+  }
+  .md-reading[data-mode='share'] .md-aside__tree {
+    flex: 1; min-height: 0; max-height: none;
+    padding: 0 10px calc(16px + env(safe-area-inset-bottom));
+  }
+  .md-reading[data-mode='share'] .md-outline__body {
+    padding-bottom: calc(16px + env(safe-area-inset-bottom));
+  }
+  /* 抽屉头已经有「大纲」两个大字，右栏原有那一行标题重复 */
+  .md-reading[data-mode='share'] .md-outline__head { display: none; }
+
+  /* 抽屉头 / 栏目菜单：桌面隐藏，这里整行铺开 */
+  .md-drawer__head {
+    display: flex; align-items: center; gap: 8px; flex-shrink: 0;
+    min-height: 52px;
+    padding: calc(8px + env(safe-area-inset-top)) 8px 8px 14px;
+    border-bottom: 1px solid var(--md-border);
+  }
+  .md-drawer__title {
+    display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0;
+    font-size: 14px; font-weight: 600; color: var(--md-text);
+  }
+  .md-drawer__title > span:last-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .md-drawer__title .md-icon { flex-shrink: 0; color: var(--md-primary); }
+  .md-drawer__close {
+    display: grid; place-items: center; flex-shrink: 0;
+    width: 38px; height: 38px; padding: 0;
+    border: 0; border-radius: 10px; background: none;
+    color: var(--md-text-3); cursor: pointer;
+  }
+  .md-drawer__close:hover { background: var(--md-surface-2); color: var(--md-text); }
+  .md-drawer__slot {
+    display: block; flex-shrink: 0;
+    padding: 6px 10px; border-bottom: 1px solid var(--md-border);
+  }
+  .md-drawer__slot:empty { display: none; }
+  .md-drawer__slot .md-share__menu { width: 100%; max-width: 100%; }
+
+  /* 手指点选：目录行与搜索框都放大到 ≥42px，输入框 16px 防 iOS 自动缩放 */
+  .md-reading[data-mode='share'] .md-tree__link,
+  .md-reading[data-mode='share'] .md-tree__label { min-height: 42px; padding: 9px 12px; }
+  .md-reading[data-mode='share'] .md-outline__link { min-height: 40px; padding: 9px 10px; }
+  .md-reading[data-mode='share'] .md-aside__search { height: 42px; margin: 12px; }
+  .md-reading[data-mode='share'] .md-aside__search input { font-size: 16px; }
+
+  /* 状态栏退出常驻，跟着正文走完再出现，不再压住最后一行 */
+  .md-share__status {
+    position: static; height: auto; min-height: 0;
+    padding: 14px 18px calc(18px + env(safe-area-inset-bottom));
+    background: transparent; backdrop-filter: none;
+    border-top: 1px solid var(--md-border);
+  }
+  .md-share__status-main { flex-wrap: wrap; gap: 6px 12px; font-size: 12px; }
+  .md-share__crumb > span:first-child { max-width: 38vw; }
+  .md-share__crumb strong { max-width: 44vw; }
+  .md-share__totop { display: none; }
+
+  /* 回到顶部：拇指够得到的右下角，滚过一屏才出现 */
+  .md-share__totop-fab {
+    display: grid; place-items: center;
+    position: fixed; right: 16px;
+    bottom: calc(16px + env(safe-area-inset-bottom));
+    width: 44px; height: 44px; border-radius: 50%;
+    border: 1px solid var(--md-border-strong);
+    background: color-mix(in srgb, var(--md-surface) 92%, transparent);
+    backdrop-filter: blur(8px);
+    color: var(--md-text-2); box-shadow: var(--md-shadow);
+    cursor: pointer; z-index: 35;
+    transition: transform .18s ease, color .15s ease;
+  }
+  .md-share__totop-fab:active { transform: scale(.94); color: var(--md-primary); }
+}
+
+/* 极窄屏再收一档留白，别让 320px 机器上正文只剩 15 个字一行 */
+@media (max-width: 480px) {
+  .md-share__top { gap: 3px; padding: 0 6px; }
+  .md-share__actions { gap: 0; }
+  .md-reading[data-mode='share'] .md-reading__main { padding: 18px 16px 36px; }
+  .md-share__status { padding-inline: 16px; }
+}
+
+/* ==================================================================
+ * ≤620（手机）：一条底栏接管全部文档操作
+ *
+ * <p>这一档此前的形状是「顶部两条 + 底部一条」：站点顶栏之下再压一条 46px 的阅读条，
+ * 条里挤着目录、返回、设置、编辑、分享、大纲六颗钮；面包屑被挤成一小截，最先看不见的
+ * 恰好是「我在读哪篇」。底部那条 65px 则是纯元信息（发布于 / 字数 / 行数 / 时长），
+ * 既点不动也不常看。</p>
+ *
+ * <p>现在上下各自只做一件事：顶部是身份（站点顶栏）与位置（面包屑），底部是动作
+ * （等宽分段、图标在上两字标签在下）。元信息跟着正文走到末尾再出现 —— 读完才需要
+ * 确认「这篇多长、什么时候写的」，读的时候不必一直占着一行。</p>
+ *
+ * <p>为什么断点是 620 而不是 900：621–900 之间面包屑仍有一百多像素的余量，六颗图标钮
+ * 排得下；再往下才是「谁把谁挤没」的临界点。分段数最多 7 格（维护者），此时每格仍有
+ * 55px 左右，两字标签不会断行。</p>
+ * ================================================================== */
+
+.md-actionbar {
+  /* 桌面与平板不出现，只在下面的手机媒体查询里打开 */
+  display: none;
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 44;
+  align-items: stretch;
+  padding-bottom: env(safe-area-inset-bottom);
+  background: color-mix(in srgb, var(--md-surface) 92%, transparent);
+  backdrop-filter: blur(12px);
+  border-top: 1px solid var(--md-border);
+}
+.md-actionbar__item {
+  flex: 1 1 0; min-width: 0;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
+  height: 56px; padding: 0 2px; margin: 0;
+  border: 0; border-radius: 0; background: none;
+  color: var(--md-text-2); font-family: inherit; font-size: 10.5px; line-height: 1;
+  text-decoration: none; cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: color .15s ease, background-color .15s ease;
+}
+.md-actionbar__item:active { background: var(--md-surface-2); }
+.md-actionbar__item.is-on { color: var(--md-primary); }
+.md-actionbar__item:focus-visible { outline: 2px solid var(--md-primary); outline-offset: -3px; }
+.md-actionbar__label {
+  max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  color: var(--md-text-3); letter-spacing: .01em;
+}
+.md-actionbar__item.is-on .md-actionbar__label,
+.md-actionbar__item:active .md-actionbar__label { color: var(--md-primary); }
+/*
+ * 「设置」外面包着 ReaderPrefsMenu 自己的 .md-prefs。让它 display: contents：
+ * 触发按钮直接成为这条栏的 flex 子项，六格才是真正等宽 —— 留着那层包裹盒时，
+ * 它分到的那一份会比别格窄 4px（浏览器按各自的 flex 基准分配，包裹层与按钮各算一次）。
+ * 面板本身 Teleport 到 body，不依赖这层盒子的定位。
+ */
+.md-actionbar .md-prefs { display: contents; }
+
+/* 本文信息默认不渲染；桌面上底部状态栏已经在说这件事 */
+.md-doc__meta { display: none; }
+
+@media (max-width: 620px) {
+  .md-actionbar { display: flex; }
+
+  /* 顶部阅读条只留面包屑：动作全部下沉到下面的操作条 */
+  .md-reading[data-mode='portal'] .md-reading__bar-actions > :not(.md-reading__switching) { display: none; }
+  .md-reading[data-mode='portal'] .md-reading__bar > .md-only-mobile { display: none; }
+  .md-reading[data-mode='portal'] .md-reading__bar { padding: 0 16px; }
+
+  /* 本文信息：正文读完、上一篇/下一篇之前的一行小字 */
+  .md-doc__meta {
+    display: flex; flex-wrap: wrap; gap: 6px 14px;
+    margin-top: 30px;
+    color: var(--md-text-3); font-size: 12px;
+  }
+  .md-doc__meta span { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+  .md-doc__nav { margin-top: 24px; }
+
+  /* 底部状态栏让位：同一批信息已经跟着正文走了 */
+  .md-read-status { display: none; }
+  /* 操作条浮在滚动区上，最后一行要靠这层留白才露得出来 */
+  .md-reading[data-mode='portal'] .md-reading__main {
+    padding-bottom: calc(76px + env(safe-area-inset-bottom));
+  }
+
+  /* 分享页顶栏只留品牌与库名；动作区整块搬进底栏 */
+  .md-share__top .md-share__nav-toggle,
+  .md-share__top .md-share__actions { display: none; }
+  /* 分享页最后一块是状态栏，同样要给它让出操作条的高度 */
+  .md-share__status { padding-bottom: calc(74px + env(safe-area-inset-bottom)); }
+  /* 底栏已经有「回到顶部」，右上角那颗悬浮球不再重复 */
+  .md-share__totop-fab { display: none; }
+
+  /*
+   * 站点顶栏：横版 Logo（实测 150×48）会把注册/登录挤出屏幕，整页因此可以左右拖 ——
+   * 手机上把它裁成方形只看徽标，与分享页顶栏同一处理。身份由站点名（logoOnly=false 时）
+   * 与底下的内容说明，一个记号足够。
+   */
+  .md-topbar .md-brand__logo.is-image {
+    width: 34px !important; height: 34px !important;
+    border-radius: 9px; overflow: hidden;
+  }
+  .md-topbar .md-brand__logo.is-image img {
+    width: 100%; height: 100%;
+    object-fit: cover; object-position: left center;
+  }
+  .md-topbar__actions { gap: 6px; }
+  .md-topbar__actions .md-btn { padding: 0 10px; }
+}
+
+/* 极窄屏：7 格时分给每格的宽度只够 10px 的四个字 */
+@media (max-width: 380px) {
+  .md-actionbar__item { font-size: 10px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .md-reading[data-mode='share'] .md-reading__aside,
+  .md-reading[data-mode='share'] .md-reading__outline,
+  .md-share__top::after,
+  .md-share__totop-fab,
+  .md-actionbar__item { transition: none; }
+}
+
 @media print {
   /* 屏幕上是「视口高度 + 内部滚动」，打印必须整个退回文档流：
      否则一篇长文只会印出滚动区当前那一屏，其余部分既不在页面上也印不出来 */
@@ -1711,12 +2092,17 @@ button { font-family: inherit; }
 
   .md-topbar, .md-reading__aside, .md-reading__outline, .md-reading__bar,
   .md-share__top, .md-share__status,
-  .md-footer, .md-doc__nav, .md-search-panel, .md-drawer-mask { display: none !important; }
+  .md-footer, .md-doc__nav, .md-search-panel, .md-drawer-mask,
+  .md-share__nav-toggle, .md-share__totop-fab, .md-actionbar,
+  .md-drawer__head, .md-drawer__slot { display: none !important; }
+  /* 屏幕上的本文信息由底部状态栏承担；纸上要让状态栏回到那一行，别两处都印或都不印 */
+  .md-doc__meta { display: none !important; }
   .md-share { display: block; height: auto; }
   .md-reading { display: block; }
   .md-reading__main { padding: 0; }
   /* 状态栏在纸上去掉常驻栏的底色与「回到顶部」，只留那行文章信息收尾 */
   .md-read-status {
+    display: flex;
     height: auto; padding: 12px 0 0;
     background: none; backdrop-filter: none; border-top: 1px solid var(--md-border);
   }

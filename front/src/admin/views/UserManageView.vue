@@ -135,7 +135,7 @@ onMounted(load)
       description="管理全站账号与使用状态；删除用户会一并删除其知识库与分享内容。"
     />
 
-    <div class="md-toolbar">
+    <div class="md-toolbar md-ad-toolbar">
       <el-input
         v-model="query.keyword"
         placeholder="搜索用户名 / 邮箱 / 显示名"

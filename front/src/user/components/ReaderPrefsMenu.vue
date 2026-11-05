@@ -62,7 +62,12 @@ const props = withDefaults(defineProps<{
    * 宿主。分享页多一项「正文宽度」；门户阅读条的栏宽归拖拽手柄管，这一项在那儿无从解释。
    */
   context?: Host
-}>(), { context: 'share' })
+  /**
+   * 触发按钮的形态。{@code segment} 是手机底栏那一格：图标在上、两字标签在下，
+   * 与底栏其他动作同一套排布 —— 面板本身就比较窄，按钮比别处矮一截会很显眼。
+   */
+  variant?: 'icon' | 'segment'
+}>(), { context: 'share', variant: 'icon' })
 
 const THEMES: { value: ThemeMode; label: string; icon: 'sun' | 'moon' | 'monitor' }[] = [
   { value: 'light', label: '明亮', icon: 'sun' },
@@ -86,7 +91,11 @@ const triggerRef = ref<HTMLElement | null>(null)
  * {@code variables.css} 的 {@code --md-ink-*}（亮暗两档都备好了）。</p>
  */
 const triggerClass = computed(() =>
-  props.context === 'portal' ? 'md-icon-btn md-icon-btn--blue' : 'md-share__action'
+  props.variant === 'segment'
+    ? 'md-actionbar__item'
+    : props.context === 'portal'
+      ? 'md-icon-btn md-icon-btn--blue'
+      : 'md-share__action'
 )
 
 const hint = computed(() =>
@@ -169,14 +178,39 @@ const fontModel = computed({
   set: (value: string) => pickFont(value)
 })
 
-/** 面板贴着按钮下沿展开，右缘与按钮对齐，并兜住视口两侧与底边（主题多了以后面板更高） */
+/**
+ * 面板贴着按钮展开，并兜住视口四边（主题多了以后面板更高）。
+ *
+ * <p>哪一侧有地方就开哪一侧：桌面触发钮在顶部，面板往下展开；手机底栏那一格贴在视口
+ * 底部，往下只剩几十像素，必须翻到按钮上方 —— 否则面板会被底边夹住、盖住触发它的那颗按钮，
+ * 读者点开设置后看到的是一片被截断的内容。</p>
+ *
+ * <p>横向：桌面按钮右缘对齐（与下拉菜单一致），底栏那一格居中 —— 底栏是等宽分段，
+ * 让面板居中在触发格上，读者才看得出这东西是「从这一格长出来的」。</p>
+ */
 function place() {
   const panel = panelRef.value
   const trigger = triggerRef.value
   if (!panel || !trigger) return
   const rect = trigger.getBoundingClientRect()
-  const left = Math.max(8, Math.min(rect.right - panel.offsetWidth, window.innerWidth - panel.offsetWidth - 8))
-  const top = Math.max(8, Math.min(rect.bottom + 8, window.innerHeight - panel.offsetHeight - 8))
+  const vw = window.innerWidth
+  const vh = window.innerHeight
+  const gap = 8
+  const pw = panel.offsetWidth
+  const ph = panel.offsetHeight
+
+  const left =
+    props.variant === 'segment'
+      ? Math.max(gap, Math.min(rect.left + rect.width / 2 - pw / 2, vw - pw - gap))
+      : Math.max(gap, Math.min(rect.right - pw, vw - pw - gap))
+
+  const below = vh - rect.bottom - gap
+  const above = rect.top - gap
+  let top: number
+  if (ph <= below) top = rect.bottom + gap
+  else if (ph <= above) top = rect.top - gap - ph
+  else top = Math.max(gap, Math.min(rect.bottom + gap, vh - ph - gap))
+
   panel.style.top = `${top}px`
   panel.style.left = `${left}px`
 }
@@ -254,7 +288,8 @@ onBeforeUnmount(() => {
       aria-haspopup="dialog"
       @click="toggle"
     >
-      <Icon name="settings" :size="17" />
+      <Icon name="settings" :size="variant === 'segment' ? 19 : 17" />
+      <span v-if="variant === 'segment'" class="md-actionbar__label">设置</span>
     </button>
 
     <Teleport to="body">

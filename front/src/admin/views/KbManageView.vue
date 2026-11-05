@@ -37,6 +37,13 @@ const org = computed(() => String(route.params.org || ''))
  */
 const isCompact = useIsMobile('(max-width: 1440px)')
 
+/**
+ * 手机单独一档：卡片在 375px 上每条要吃掉 260px 以上（封面带 + 描述 + 动作栏），
+ * 一屏见不到三条，翻七次才看完七个库。手机改用行式列表 —— 一屏能扫到六七条，
+ * 动作收进「⋯」。断点与 KbRowActions / admin.css 的 720 严格一致。
+ */
+const isPhone = useIsMobile('(max-width: 720px)')
+
 const loading = ref(false)
 const list = ref<KbVO[]>([])
 const total = ref(0)
@@ -138,6 +145,26 @@ const grantCandidates = computed(() => {
 
 const viewMode = computed(() => settings.value.kbView)
 const hasFilter = computed(() => Boolean(query.keyword.trim() || query.visibility || query.favored))
+
+/**
+ * 手机上的筛选条默认折叠。
+ *
+ * <p>桌面是「搜索 + 可见范围 + 排序 + 收藏」并排一行；到了 375px 每一件都被撑成整行，
+ * 五条控件（含计数）把首屏吃掉三分之一，还没看到第一个知识库。窄屏只留搜索与一颗开关，
+ * 展开后两个下拉并排、收藏单独一行。</p>
+ *
+ * <p>折叠容器在宽屏用 {@code display: contents} 退化回原来的排布，两套布局共用同一份 DOM，
+ * 筛选项不用两边各写一遍。</p>
+ */
+const filtersOpen = ref(false)
+/** 收起时也得让人知道「列表为什么变短了」：把生效的筛选项数挂在开关上 */
+const activeFilterCount = computed(() => {
+  let count = 0
+  if (query.visibility) count += 1
+  if (query.sort !== 'updated') count += 1
+  if (query.favored) count += 1
+  return count
+})
 
 function clearFilters() {
   query.keyword = ''
@@ -506,6 +533,33 @@ function splitTime(value?: string) {
   return { date: date || '—', time: time || '' }
 }
 
+/**
+ * 行式列表的状态只用两三个字。
+ *
+ * <p>{@link publishStatusLabel} 给的是「已发布 · 共享」—— 在卡片封面上单独一行读着清楚，
+ * 挤进 375px 的第二行就会把「篇数 / 时间」顶出去。口径不变（仍是那一档），只是缩写。</p>
+ */
+const PUBLISH_SHORT: Record<string, string> = {
+  unpublished: '未发布',
+  public: '已共享',
+  private: '已加密'
+}
+function publishShortLabel(value?: string) {
+  return PUBLISH_SHORT[value || 'unpublished'] || PUBLISH_SHORT.unpublished
+}
+
+/** "2026-11-05" → "11-05"：行内只关心近况，年份挤在 375px 里没有信息量 */
+function shortDate(value?: string) {
+  const { date } = splitTime(value)
+  return /^\d{4}-\d{2}-\d{2}$/.test(date) ? date.slice(5) : date
+}
+
+/** 行首方块里的那一个字：中文取首字，英文取首字母大写（"AI Agent" → "A"） */
+function initialOf(name?: string) {
+  const first = (name || '').trim().charAt(0)
+  return first ? first.toUpperCase() : '·'
+}
+
 /** 知识库的身份色：按 slug 固定，列表里同一个库每次都是同一块颜色 */
 function tileTone(kb: KbVO) {
   const key = kb.slug || kb.name || ''
@@ -625,18 +679,39 @@ watch(org, () => {
     </AdminPageHeader>
 
     <div class="md-toolbar">
-      <el-input v-model="query.keyword" placeholder="搜索名称 / 描述 / 标签" clearable style="width: 240px" />
-      <el-select v-model="query.visibility" placeholder="全部可见范围" clearable style="width: 160px" @change="load">
-        <el-option label="所有登录用户" value="public" />
-        <el-option label="本组织成员" value="org" />
-        <el-option label="仅维护名单" value="private" />
-      </el-select>
-      <el-select v-model="query.sort" style="width: 140px" @change="load">
-        <el-option label="最近更新" value="updated" />
-        <el-option label="创建时间" value="created" />
-        <el-option label="名称" value="name" />
-      </el-select>
-      <el-checkbox v-model="query.favored" @change="load">仅看收藏</el-checkbox>
+      <el-input
+        v-model="query.keyword"
+        class="md-toolbar__search"
+        placeholder="搜索名称 / 描述 / 标签"
+        clearable
+        style="width: 240px"
+      />
+      <!-- 只在窄屏出现：把三个筛选项收进抽屉，换来一整屏的内容 -->
+      <button
+        type="button"
+        class="md-toolbar__filter-btn"
+        :class="{ 'is-on': activeFilterCount > 0 }"
+        :aria-expanded="filtersOpen"
+        aria-controls="md-kb-filters"
+        @click="filtersOpen = !filtersOpen"
+      >
+        <MdIcon name="checklist" :size="15" />
+        <span>筛选</span>
+        <span v-if="activeFilterCount" class="md-toolbar__filter-count">{{ activeFilterCount }}</span>
+      </button>
+      <div id="md-kb-filters" class="md-toolbar__filters" :class="{ 'is-open': filtersOpen }">
+        <el-select v-model="query.visibility" placeholder="全部可见范围" clearable style="width: 160px" @change="load">
+          <el-option label="所有登录用户" value="public" />
+          <el-option label="本组织成员" value="org" />
+          <el-option label="仅维护名单" value="private" />
+        </el-select>
+        <el-select v-model="query.sort" style="width: 140px" @change="load">
+          <el-option label="最近更新" value="updated" />
+          <el-option label="创建时间" value="created" />
+          <el-option label="名称" value="name" />
+        </el-select>
+        <el-checkbox v-model="query.favored" @change="load">仅看收藏</el-checkbox>
+      </div>
       <span class="md-toolbar__spacer" />
       <span class="md-toolbar__hint">共 {{ total }} 个知识库</span>
       <el-radio-group
@@ -650,7 +725,7 @@ watch(org, () => {
       </el-radio-group>
     </div>
 
-    <section class="md-card-panel" :class="{ 'md-table-card': viewMode === 'list' && !isCompact }">
+    <section class="md-card-panel md-kb-panel" :class="{ 'md-table-card': viewMode === 'list' && !isCompact }">
     <div class="md-panel-body" v-loading="loading">
       <div v-if="!loading && list.length === 0" class="md-empty">
         <span class="md-empty__icon"><MdIcon name="books" :size="22" /></span>
@@ -786,6 +861,76 @@ watch(org, () => {
           </template>
         </el-table-column>
       </el-table>
+
+      <!--
+        手机：行式列表，一条一行。
+
+        卡片那套规矩在 375px 上是纯支出：封面带 84px 只负责氛围、描述长度不可控会把行撑到
+        三行、底部整条动作栏再占 40px —— 一条就吃掉 260px 以上，一屏见不到三条。
+        这里只留「缩略块 + 名称 + 一行事实 + ⋯」，整行可点进工作区，动作收进菜单。
+        仍然用一个整体容器装所有行（内部靠分隔线分开），不是一库一卡。
+      -->
+      <div v-else-if="isPhone" class="md-kb-rows">
+        <article
+          v-for="kb in list"
+          :key="kb.id"
+          class="md-kb-row"
+          tabindex="0"
+          @click="openWorkspace(kb)"
+          @keydown.enter="openWorkspace(kb)"
+        >
+          <!--
+            首字色块，不是封面缩略：这里的封面几乎都是竖版海报（标题 + 副标题），
+            压到 30px 只剩一团糊字，认不出库、还要多发 7 个图片请求。
+            首字 + 按 slug 固定的身份色，一眼能区分，也不依赖 /cover 接口。
+          -->
+          <span class="md-kb-row__thumb md-tile" :class="`md-tile--t${tileTone(kb)}`" aria-hidden="true">
+            {{ initialOf(kb.name) }}
+          </span>
+
+          <div class="md-kb-row__main">
+            <div class="md-kb-row__title">
+              <span class="md-kb-row__name">{{ kb.name }}</span>
+              <MdIcon v-if="kb.favored" name="star" :size="12" class="md-kb-row__fav" title="已收藏" />
+              <MdIcon
+                v-if="kb.sourceType === 'git'"
+                name="cloud"
+                :size="13"
+                class="md-kb-row__cloud"
+                title="云端知识库"
+              />
+            </div>
+            <div class="md-kb-row__meta">
+              <span
+                class="md-kb-row__state"
+                :class="`is-${kb.shareStatus || 'unpublished'}`"
+                :title="publishStatusHint(kb.shareStatus)"
+              >
+                <i />{{ publishShortLabel(kb.shareStatus) }}
+              </span>
+              <span :title="visibilityHint(kb.visibility)">{{ visibilityLabel(kb.visibility) }}</span>
+              <span>{{ kb.docCount }} 篇</span>
+              <span class="md-kb-row__time">{{ shortDate(kb.updatedText) }}</span>
+            </div>
+          </div>
+
+          <KbRowActions
+            :kb="kb"
+            sheet
+            @workspace="openWorkspace(kb)"
+            @share="openShare(kb)"
+            @edit="openEdit(kb)"
+            @perms="openPerms(kb)"
+            @favorite="toggleFavorite(kb)"
+            @copy="copyUrl(portalUrl(kb))"
+            @remove="remove(kb)"
+          />
+        </article>
+
+        <button type="button" class="md-kb-rows__create" @click="openCreate">
+          <MdIcon name="plus" :size="16" />新建知识库
+        </button>
+      </div>
 
       <div v-else class="md-kb-grid">
         <article v-for="kb in list" :key="kb.id" class="md-kb-card">

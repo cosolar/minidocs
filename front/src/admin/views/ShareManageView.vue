@@ -194,7 +194,7 @@ onMounted(async () => {
       </template>
     </AdminPageHeader>
 
-    <div class="md-toolbar">
+    <div class="md-toolbar md-ad-toolbar">
       <el-select v-model="query.status" placeholder="全部状态" clearable style="width: 158px" @change="load">
         <template #prefix>
           <span class="md-filter-mark"><MdIcon name="grid" :size="13" /></span>

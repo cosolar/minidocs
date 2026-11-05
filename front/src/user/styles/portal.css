@@ -1151,9 +1151,14 @@
   .md-search input { font-size: 14px; }
   .md-search__submit { height: 44px; padding: 0 19px; border-radius: 12px; font-size: 13.5px; }
 
-  /* 能力条两列，第五格占满一行收尾；窄格子里允许说明换行，别用省略号切掉后半句 */
+  /*
+   * 能力条两列，第五格占满一行收尾；窄格子里允许说明换行，别用省略号切掉后半句。
+   *
+   * <p>第五格跨了两列，若仍左对齐，右半边的空白会像「没排满」；
+   * 把图标与文字整组居中，这一行就成了有意为之的收尾，而不是断掉的第三行。</p>
+   */
   .md-features { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .md-feature:last-child { grid-column: 1 / -1; }
+  .md-feature:last-child { grid-column: 1 / -1; justify-content: center; }
   .md-feature__text strong { font-size: 13px; }
   .md-feature__text small { font-size: 11.5px; white-space: normal; }
 
@@ -1162,20 +1167,98 @@
   .md-browse__head { align-items: center; }
 
   .md-toolbar { top: 8px; border-radius: 14px; }
-  /* 窄屏把页签铺满一行、排序与视图铺第二行，工具条不出现半截空位 */
-  .md-tabs { flex: 1 1 100%; }
-  .md-tab { flex: 1; justify-content: center; }
-  .md-toolbar__right { width: 100%; justify-content: space-between; }
+  /*
+   * 窄屏工具条收成一行：页签按内容宽、排序与视图靠右。
+   * 原来是「页签铺满第一行、下面再铺一行」，吸顶条白白高出一倍；
+   * 一行放不下（≤620）时页签才改成等分铺开，见下面那一档。
+   */
+  .md-tabs { flex: 0 1 auto; min-width: 0; max-width: 300px; }
+  .md-toolbar__right { width: auto; margin-left: auto; }
 
   .md-footer__features { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px 24px; }
+}
+
+/*
+ * 手机（≤620）：知识库卡片改成横排紧凑卡，工具条收成一行。
+ *
+ * <p>竖版卡在 390 宽的屏上一张要 270px 高，一屏只看得见一张半，翻库全靠滑；
+ * 2.35:1 的水彩封面在小屏上又占掉近一半高度。这里把封面收成左侧约 100px 的缩略图，
+ * 标题、描述、文档数排到右边，一张卡约 120px —— 一屏能扫到四本库，水彩封面仍然在。</p>
+ *
+ * <p>两种视图都走这套横排版：手机上「网格 / 列表」本来就都是单列宽卡，
+ * 再留一颗切换钮，点下去毫无变化，只会让人以为坏了，所以工具条里把它收掉。</p>
+ */
+@media (max-width: 620px) {
+  /* 横排卡：封面是 flex 项，宽由这里定、高跟着正文走（align-self: stretch） */
+  .md-cards,
+  .md-cards.is-list { grid-template-columns: 1fr; gap: 12px; }
+  .md-cards .md-card,
+  .md-cards.is-list .md-card { flex-direction: row; align-items: stretch; }
+  .md-cards .md-card__cover,
+  .md-cards.is-list .md-card__cover {
+    flex: 0 0 clamp(84px, 26vw, 108px);
+    width: auto;
+    aspect-ratio: auto;
+    align-self: stretch;
+    border-radius: 12px;
+  }
+  .md-cards .md-card__body,
+  .md-cards.is-list .md-card__body { flex: 1; padding: 12px 10px 10px 14px; justify-content: center; }
+  /* 右上角那颗「更多」压在正文头上，标题给它让出宽度 */
+  .md-cards .md-card__head,
+  .md-cards.is-list .md-card__head { padding-right: 34px; }
+  /* 标题给两行：库名常带副标题，一行截断会把区别最大的那半句切掉 */
+  .md-cards .md-card__title a { -webkit-line-clamp: 2; }
+  .md-cards .md-card__desc,
+  .md-cards.is-list .md-card__desc { margin-top: 5px; -webkit-line-clamp: 1; }
+  .md-cards .md-card__foot,
+  .md-cards.is-list .md-card__foot { padding-top: 8px; gap: 8px; }
+  .md-cards .md-card__more,
+  .md-cards.is-list .md-card__more { top: 10px; right: 10px; }
+
+  /* 手指比鼠标粗：「更多」与箭头各放大一档，还不至于把卡片撑胖 */
+  .md-more { width: 32px; height: 32px; }
+  .md-card__go { width: 34px; height: 34px; }
+
+  /* 工具条一行：页签铺开、排序靠右；吸顶条矮一半，滚卡片时少挡内容 */
+  .md-viewswitch { display: none; }
+  .md-toolbar { gap: 8px; }
+  .md-tabs { flex: 1 1 auto; min-width: 0; }
+  .md-tab { flex: 1 1 0; min-height: 36px; padding: 6px 8px; font-size: 13px; }
+  .md-toolbar__right { width: auto; margin-left: auto; flex: 0 0 auto; }
+  .md-sort { height: 36px; }
+  .md-sort__select { padding: 0 26px 0 11px; }
+
+  /* 骨架卡跟着变矮：数据回来时页面不该往下缩一大截 */
+  .md-skel-grid { grid-template-columns: 1fr; gap: 12px; }
+  .md-skel--card { height: 134px; border-radius: 16px; }
+
+  /*
+   * iOS 在输入框字号小于 16px 时，聚焦会把整页放大并停在放大状态：
+   * 用户点一下搜索框，整页就「跳」一下，退不回来。所以输入框必须给到 16px。
+   * 占位符仍按 14px 排 —— 提示语比正文小一号是常态，挤在窄框里也放得下。
+   */
+  .md-search input { font-size: 16px; }
+  .md-search input::placeholder { font-size: 14px; }
+
+  /* 热门词是拇指目标，30px 的胶囊太薄 */
+  .md-hot { height: 34px; }
+
+  /* 底部那条 Home 指示器会压住版权行 */
+  .md-footer__inner { padding-bottom: calc(14px + env(safe-area-inset-bottom)); }
 }
 
 @media (max-width: 560px) {
   .md-hero__eyebrow { font-size: 11.5px; }
   .md-hero__title { font-size: clamp(28px, 8.6vw, 36px); line-height: 1.18; }
   .md-hero__lead { font-size: 13.5px; }
-  .md-search { height: 54px; }
-  .md-search__submit { height: 40px; padding: 0 16px; font-size: 13px; }
+  .md-search { height: 54px; padding: 0 6px 0 14px; gap: 8px; }
+  /*
+   * 占位符再收一号：16px 的输入框在 320 宽时只剩 170px，13 个字的提示语按 14px
+   * 排会从「标签」中间切断。输入框字号仍保持 16px（iOS 聚焦不放大），只让提示语小一档。
+   */
+  .md-search input::placeholder { font-size: 13px; }
+  .md-search__submit { height: 40px; padding: 0 14px; font-size: 13px; }
   .md-hero__hot-label { flex-basis: 100%; margin-bottom: 2px; }
 
   .md-feature { gap: 9px; padding: 10px 8px; }
@@ -1191,6 +1274,24 @@
   .md-footer__text strong { font-size: 17px; }
   .md-footer__desc { font-size: 12px; }
   .md-footer__copy { font-size: 11px; line-height: 1.7; }
+}
+
+/*
+ * 触摸屏点一下就会带上 :hover，而且一直留到下一次点击：
+ * 卡片会浮在半空、封面保持放大、箭头变成实心青绿，看起来像「选中了」。
+ * 触摸端只留颜色与阴影的细微变化，位移和缩放一律关掉。
+ */
+@media (hover: none) {
+  .md-card:hover { transform: none; }
+  .md-card:hover .md-card__cover-img { transform: none; }
+  .md-card:hover .md-card__go {
+    border-color: color-mix(in srgb, var(--md-primary) 20%, var(--md-border));
+    background: var(--md-surface);
+    color: var(--md-primary);
+  }
+  .md-card:hover .md-card__go .md-icon { transform: none; }
+  .md-search__submit:hover,
+  .md-hot:hover { transform: none; }
 }
 
 @media (prefers-reduced-motion: reduce) {

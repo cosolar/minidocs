@@ -852,3 +852,64 @@ body.md-lightbox-open { overflow: hidden; }
 @media (max-width: 720px) {
   .md-lightbox__hint { display: none; }
 }
+
+/* ==================================================================
+ * 前台正文的窄屏排版（放文件末尾：同特异度下要盖过上面那些桌面值）
+ *
+ * <p>手机上一行只有二十来个字，桌面 1.8 的行高会把一屏切成没几句话，标题上下
+ * 1.9em 的留白更是把章节切得七零八落。这里只收紧「尺度」——行高、段距、标题留白、
+ * 缩进，字族、颜色、装饰一律继续吃主题包的令牌，装了新主题也不会被这套规则抹平。</p>
+ *
+ * <p>标题字号用「令牌 × 系数」等比缩，而不是写死 24px：读者换了主题包把 h1 调到 2.2em，
+ * 手机上仍然按同一比例收敛，不会突然退回默认尺寸。</p>
+ *
+ * <p>选择器必须沿用 :is(.md-markdown, .md-ws__editor .markdown-body)：:is() 的特异度
+ * 取参数里最大的那个（.md-ws__editor .markdown-body = 0,2,0），只写 .md-markdown（0,1,0）
+ * 会静默输给上面的桌面规则 —— 一度整段都没生效，靠计算样式才发现。</p>
+ * ================================================================== */
+@media (max-width: 640px) {
+  :is(.md-markdown, .md-ws__editor .markdown-body) {
+    /* 保留 --md-read-scale 的字体视觉补偿（宋体 / 楷体会调它） */
+    line-height: calc(1.72 / var(--md-read-scale, 1));
+    /* 长 URL、长英文标识符在 20 字宽的行里不能把整段撑出去 */
+    overflow-wrap: anywhere;
+  }
+  :is(.md-markdown, .md-ws__editor .markdown-body) p { margin: 0.85em 0; }
+  :is(.md-markdown, .md-ws__editor .markdown-body) :is(h1, h2, h3, h4, h5, h6) {
+    margin: 1.5em 0 0.6em;
+    /* 分享页窄屏顶栏是 52px，锚点跳转要给它留位置 */
+    scroll-margin-top: 68px;
+  }
+  :is(.md-markdown, .md-ws__editor .markdown-body) h1 {
+    font-size: calc(var(--md-theme-h1-size, 1.85em) * 0.86);
+    padding-bottom: 0.34em;
+  }
+  :is(.md-markdown, .md-ws__editor .markdown-body) h1::after { height: 2px; }
+  :is(.md-markdown, .md-ws__editor .markdown-body) h2 {
+    font-size: calc(var(--md-theme-h2-size, 1.42em) * 0.9);
+    padding-left: 12px;
+  }
+  :is(.md-markdown, .md-ws__editor .markdown-body) h3 {
+    font-size: calc(var(--md-theme-h3-size, 1.18em) * 0.95);
+    padding-left: 14px;
+  }
+
+  /* 左缩进每省 2px，窄屏每行就多读一个字 */
+  :is(.md-markdown, .md-ws__editor .markdown-body) :is(ul, ol) { padding-left: 1.25em; margin: 0.85em 0; }
+  :is(.md-markdown, .md-ws__editor .markdown-body) blockquote { margin: 1em 0; padding: 0.65em 0.9em 0.65em 1em; }
+
+  /* 宽流程图 / 截图：不拉伸、不裁切，看不清就点已有的灯箱放大 */
+  :is(.md-markdown, .md-ws__editor .markdown-body) img { height: auto; }
+  .md-markdown p > img { display: block; margin-inline: auto; }
+
+  /* 代码块与表格的横向滚动留在块内，别把整页带着左右晃 */
+  :is(.md-markdown, .md-ws__editor .markdown-body) pre code {
+    font-size: calc(var(--md-read-size, 15.5px) * var(--md-theme-code-scale, 0.87) * 0.94);
+    padding: 12px 14px;
+    -webkit-overflow-scrolling: touch;
+  }
+  .md-markdown .md-table-wrap { margin: 1.2em 0; overscroll-behavior-x: contain; }
+  :is(.md-markdown, .md-ws__editor .markdown-body) table {
+    font-size: calc(var(--md-read-size, 15.5px) * 0.9);
+  }
+}

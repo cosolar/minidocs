@@ -10,6 +10,7 @@ import { appHref, stripAppBase } from '@/shared/appBase'
 import { flattenOutline, useScrollSpy } from '@/user/composables/useScrollSpy'
 import { isTreeAllExpanded, setTreeExpanded } from '@/user/composables/useTreeExpand'
 import ImagePreview from '@/user/components/ImagePreview.vue'
+import MobileActionBar from '@/user/components/MobileActionBar.vue'
 import ReaderPrefsMenu from '@/user/components/ReaderPrefsMenu.vue'
 import type { DocNode, OutlineNode, ReadView } from '@/user/api/types'
 
@@ -57,6 +58,27 @@ const markdownEl = ref<HTMLElement | null>(null)
 const treeEl = ref<HTMLElement | null>(null)
 const keyword = ref('')
 const drawer = ref<'tree' | 'outline' | null>(null)
+
+/**
+ * 窄屏抽屉的开合入口。分享页把阅读工具条整条隐藏了（见 reader.css 的
+ * `.md-reading[data-mode='share'] .md-reading__bar`），那两颗按钮随之不可见，
+ * 于是由 ShareTopBar 直接调这里；body 上的状态类仍由下面那个 watch 单点维护，
+ * 宿主不需要知道抽屉是怎么实现的。
+ */
+function openDrawer(type: 'tree' | 'outline') {
+  drawer.value = type
+  if (type === 'tree') void nextTick(revealActive)
+}
+function closeDrawer() {
+  drawer.value = null
+}
+defineExpose({ openDrawer, closeDrawer })
+
+/** Esc 关抽屉：手机外接键盘、以及桌面把窗口拉窄时都用得上 */
+function onDrawerKeydown(event: KeyboardEvent) {
+  if (event.key === 'Escape' && drawer.value) drawer.value = null
+}
+onMounted(() => window.addEventListener('keydown', onDrawerKeydown))
 
 /**
  * 把左栏里的当前文档滚进视野。
@@ -173,6 +195,13 @@ watch(() => props.view.currentPath, () => { previewAsset.value = null })
 
 function onTreeSelect(node: DocNode) {
   previewAsset.value = node.type === 'image' ? node : null
+  // 手机上抽屉是盖在正文上的，选完就该回到文章；宽屏 drawer 恒为 null，无副作用
+  if (drawer.value) drawer.value = null
+}
+
+/** 大纲里点标题跳转后同样收起抽屉，别让读者还得再点一次遮罩 */
+function onOutlineClick(event: MouseEvent) {
+  if ((event.target as HTMLElement | null)?.closest?.('a')) drawer.value = null
 }
 
 /**
@@ -230,6 +259,7 @@ onMounted(() => void decorate())
 watch(() => [props.view.html, props.view.currentPath], () => void decorate())
 
 onBeforeUnmount(() => {
+  window.removeEventListener('keydown', onDrawerKeydown)
   document.body.classList.remove('md-main-tree-open', 'md-main-outline-open')
 })
 
@@ -271,6 +301,29 @@ function routerTo(link?: string) {
     <!-- 目录树 -->
     <aside class="md-reading__aside">
       <div class="md-aside__card">
+        <!--
+          窄屏抽屉头：只在 ≤900 显示（样式表控制）。桌面三栏里栏头已有面包屑 / 卡片，
+          再挂一行纯属重复，所以默认 display:none。
+          <p>栏目菜单由分享页通过 drawer-head 插槽塞进来 —— 顶栏那颗菜单坞在手机上
+          让位给了「目录」按钮，但「全库 / 栏目」这个切换不能因此消失。</p>
+        -->
+        <div class="md-drawer__head">
+          <span class="md-drawer__title">
+            <Icon name="folder" :size="16" />
+            <span>{{ view.kbName }}</span>
+          </span>
+          <button
+            type="button"
+            class="md-drawer__close"
+            aria-label="关闭目录"
+            title="关闭目录"
+            @click="closeDrawer"
+          >
+            <Icon name="close" :size="18" />
+          </button>
+        </div>
+        <!-- 栏目菜单单独占一行：抽屉只有 340px，塞进上面那行会把库名挤成两个字 -->
+        <div class="md-drawer__slot"><slot name="drawer-head" /></div>
         <!--
           分享页左栏顶部：一行「目录 + 全部展开/折叠」。原先这里是一条范围说明
           「全部文档 · 56 篇」，两个字都删掉了：
@@ -481,6 +534,25 @@ function routerTo(link?: string) {
             <small>下一篇</small><strong>{{ view.nextName }}</strong>
           </router-link>
         </nav>
+
+        <!--
+          手机上的「本文信息」：桌面那行常驻在底部状态栏，手机上底部让给了操作条，
+          这行信息就跟着正文走完再出现。它属于文章而不是页面框架 —— 读完才需要确认
+          「这篇多长、什么时候写的」，读的时候不必一直占着一行高度。
+
+          分享页不渲染：那边底部状态栏本来就在文档流末尾，已经有同样的信息。
+        -->
+        <div v-if="!isShare" class="md-doc__meta">
+          <span v-if="view.publishedText">
+            <Icon name="calendar" :size="13" />发布于 {{ view.publishedText }}
+          </span>
+          <span>{{ view.wordCount }} 字</span>
+          <span>{{ view.lineCount }} 行</span>
+          <span>约 {{ view.readingMinutes }} 分钟</span>
+          <span v-if="view.updatedText">
+            <Icon name="refresh" :size="13" />更新于 {{ view.updatedText }}
+          </span>
+        </div>
       </article>
 
       <div v-else class="md-empty">
@@ -508,8 +580,23 @@ function routerTo(link?: string) {
     />
 
     <!-- 大纲 -->
-    <aside class="md-reading__outline">
+    <aside class="md-reading__outline" @click="onOutlineClick">
       <div class="md-outline__card">
+        <div class="md-drawer__head">
+          <span class="md-drawer__title">
+            <Icon name="list" :size="16" />
+            <span>大纲</span>
+          </span>
+          <button
+            type="button"
+            class="md-drawer__close"
+            aria-label="关闭大纲"
+            title="关闭大纲"
+            @click="closeDrawer"
+          >
+            <Icon name="close" :size="18" />
+          </button>
+        </div>
         <div v-if="isShare" class="md-outline__head">
           <Icon name="list" :size="15" />
           <span>目录</span>
@@ -526,6 +613,60 @@ function routerTo(link?: string) {
         <p v-else class="md-outline__empty">本文没有标题结构</p>
       </div>
     </aside>
+
+    <!--
+      手机底栏（≤620 才出现）：顶栏只留面包屑，动作全部下沉到拇指够得到的位置。
+      分享页不放这一条 —— 那边由 ShareView 自己拼一条（没有返回与编辑，分享是复制链接）。
+    -->
+    <MobileActionBar v-if="!isShare" label="文档操作">
+      <button type="button" class="md-actionbar__item" @click="goBack">
+        <Icon name="arrowLeft" :size="19" />
+        <span class="md-actionbar__label">返回</span>
+      </button>
+      <button
+        v-if="view.showTree"
+        type="button"
+        class="md-actionbar__item"
+        :class="{ 'is-on': drawer === 'tree' }"
+        @click="drawer = 'tree'"
+      >
+        <Icon name="folder" :size="19" />
+        <span class="md-actionbar__label">目录</span>
+      </button>
+      <button
+        v-if="view.outline.length"
+        type="button"
+        class="md-actionbar__item"
+        :class="{ 'is-on': drawer === 'outline' }"
+        @click="drawer = 'outline'"
+      >
+        <Icon name="list" :size="19" />
+        <span class="md-actionbar__label">大纲</span>
+      </button>
+      <ReaderPrefsMenu variant="segment" context="portal" />
+      <router-link
+        v-if="manageLink"
+        class="md-actionbar__item"
+        :to="manageLink"
+        title="编辑"
+        aria-label="编辑"
+      >
+        <Icon name="edit" :size="19" />
+        <span class="md-actionbar__label">编辑</span>
+      </router-link>
+      <a
+        v-if="shareLink"
+        class="md-actionbar__item"
+        :href="shareLink"
+        target="_blank"
+        rel="noopener"
+        title="打开分享页"
+        aria-label="打开分享页"
+      >
+        <Icon name="externalLink" :size="19" />
+        <span class="md-actionbar__label">分享页</span>
+      </a>
+    </MobileActionBar>
 
     <div v-if="drawer" class="md-drawer-mask" @click="drawer = null" />
   </div>

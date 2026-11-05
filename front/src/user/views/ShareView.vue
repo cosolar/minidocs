@@ -1,14 +1,20 @@
 <script setup lang="ts">
-import { computed, nextTick, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import Icon from '@/user/components/Icon.vue'
+import MobileActionBar from '@/user/components/MobileActionBar.vue'
 import ReadBody from '@/user/components/ReadBody.vue'
+import ReaderPrefsMenu from '@/user/components/ReaderPrefsMenu.vue'
+import ShareMenu from '@/user/components/ShareMenu.vue'
 import ShareStatusBar from '@/user/components/ShareStatusBar.vue'
 import ShareTopBar from '@/user/components/ShareTopBar.vue'
 import StatusView from '@/user/views/StatusView.vue'
 import LockView from '@/user/views/LockView.vue'
+import { scrollEl, viewEl } from '@/shared/scrollRegion'
 import { shareApi } from '@/user/api'
 import { toApiErrorInfo } from '@/shared/api/http'
 import { useBodyClasses } from '@/user/composables/useBodyClasses'
+import { useShareLink } from '@/user/composables/useShareLink'
 import type { DocNode, NavMenuItem, ReadView } from '@/user/api/types'
 
 type State = 'loading' | 'password' | 'ok' | 'notfound' | 'expired'
@@ -215,6 +221,74 @@ function pickMenu(item: NavMenuItem) {
   if (!target || target === view.value?.currentPath) return
   openDoc(target)
 }
+
+/* ------------------------------------------------------- 窄屏阅读辅助（抽屉 / 进度 / 回顶） */
+
+/** 分享页把阅读工具条隐藏了，抽屉入口改由顶栏两颗按钮调 ReadBody 暴露出来的开合 */
+const readBody = ref<InstanceType<typeof ReadBody> | null>(null)
+function openDrawer(type: 'tree' | 'outline') {
+  readBody.value?.openDrawer(type)
+}
+
+/** 顶栏底沿的 2px 进度线；比值而不是像素，换字体、换文章都不用改 */
+const progress = ref(0)
+/** 滚过约一屏才给回到顶部，刚打开时别在正文上压一颗没用的按钮 */
+const showTotop = ref(false)
+let scrollBound: HTMLElement[] = []
+
+function measure() {
+  const el = scrollEl()
+  if (!el) return
+  const max = el.scrollHeight - el.clientHeight
+  const top = el.scrollTop
+  progress.value = max > 0 ? Math.min(100, Math.max(0, (top / max) * 100)) : 0
+  showTotop.value = top > 480
+}
+
+/**
+ * 滚动区在宽窄屏之间会换人（宽屏是正文栏，窄屏退回 #md-view）。两个都挂监听，
+ * 读数时按 scrollEl() 的计算样式判定取当前生效的那个，拉窗口不用重新拆装也能算对。
+ */
+function bindScroll() {
+  scrollBound.forEach((el) => el.removeEventListener('scroll', measure))
+  scrollBound = [viewEl(), document.querySelector<HTMLElement>('[data-md-scroll]')].filter(
+    (el): el is HTMLElement => !!el,
+  )
+  scrollBound.forEach((el) => el.addEventListener('scroll', measure, { passive: true }))
+  measure()
+}
+
+onMounted(() => {
+  bindScroll()
+  window.addEventListener('resize', bindScroll)
+})
+onBeforeUnmount(() => {
+  window.removeEventListener('resize', bindScroll)
+  scrollBound.forEach((el) => el.removeEventListener('scroll', measure))
+})
+// 切文档 / 从加载态进阅读态时正文高度变了，进度和容器都要重算
+watch(
+  () => [view.value?.currentPath, state.value],
+  () => void nextTick(() => { bindScroll(); measure() }),
+)
+
+function toTop() {
+  scrollEl()?.scrollTo({ top: 0, behavior: 'smooth' })
+}
+
+/**
+ * 手机底栏那颗「分享」。
+ *
+ * <p>与顶栏同一份实现（{@link useShareLink}）：手机上顶栏的动作区让位给底栏，
+ * 分享是访客最可能做的事，不能因为腾地方而消失。</p>
+ */
+const shareUrl = computed(
+  () => `${view.value?.siteBase || window.location.origin}${route.fullPath}`,
+)
+const { copied: shareCopied, share } = useShareLink(
+  () => shareUrl.value,
+  () => view.value?.kbName || '',
+)
 </script>
 
 <template>
@@ -250,7 +324,7 @@ function pickMenu(item: NavMenuItem) {
       知识库名与导航菜单都交给顶栏渲染，紧挨品牌右侧，不再另起一行；
       顶栏那颗知识库按钮是「左栏看全库」的唯一开关（见 asideTree）。
     -->
-    <div class="md-share">
+    <div class="md-share" :style="{ '--md-read-progress': `${progress}%` }">
       <ShareTopBar
         :kb-name="view.kbName"
         :site-base="view.siteBase"
@@ -264,12 +338,25 @@ function pickMenu(item: NavMenuItem) {
         :active-path="activeMenuPath"
         @pick="pickMenu"
         @all="toggleAll"
+        @tree="openDrawer('tree')"
+        @outline="openDrawer('outline')"
       />
       <ReadBody
+        ref="readBody"
         :view="view"
         :switching="switching"
         :tree="asideTree"
-      />
+      >
+        <!-- 顶栏菜单坞在手机上让位给目录按钮，这份住进抽屉头，全库 / 栏目切换不丢 -->
+        <template #drawer-head>
+          <ShareMenu
+            v-if="menu.length"
+            :items="menu"
+            :active-path="activeMenuPath"
+            @pick="pickMenu"
+          />
+        </template>
+      </ReadBody>
       <ShareStatusBar
         :kb-name="view.kbName"
         :doc-name="view.currentName"
@@ -279,6 +366,56 @@ function pickMenu(item: NavMenuItem) {
         :published-text="view.publishedText"
         :updated-text="view.updatedText"
       />
+
+      <!--
+        手机底栏（≤620 才出现）：顶栏此时只剩品牌与库名，目录 / 大纲 / 设置 / 分享
+        下沉到这里。访客没有「返回」与「编辑」—— 退出去是浏览器的事，编辑要登录。
+      -->
+      <MobileActionBar label="文档操作">
+        <button
+          v-if="view.showTree"
+          type="button"
+          class="md-actionbar__item"
+          @click="openDrawer('tree')"
+        >
+          <Icon name="folder" :size="19" />
+          <span class="md-actionbar__label">目录</span>
+        </button>
+        <button
+          v-if="view.outline.length"
+          type="button"
+          class="md-actionbar__item"
+          @click="openDrawer('outline')"
+        >
+          <Icon name="list" :size="19" />
+          <span class="md-actionbar__label">大纲</span>
+        </button>
+        <ReaderPrefsMenu variant="segment" context="share" />
+        <button
+          type="button"
+          class="md-actionbar__item"
+          :title="shareCopied ? '链接已复制' : '分享'"
+          @click="share"
+        >
+          <Icon :name="shareCopied ? 'check' : 'share'" :size="19" />
+          <span class="md-actionbar__label">{{ shareCopied ? '已复制' : '分享' }}</span>
+        </button>
+      </MobileActionBar>
+
+      <!--
+        回到顶部改成「滚过一屏才出现」的悬浮按钮：常驻状态栏里那颗既占高度又压住正文末行，
+        手机上更顺手的是右下角拇指够得着的位置。
+      -->
+      <button
+        v-if="showTotop"
+        type="button"
+        class="md-share__totop-fab"
+        aria-label="回到顶部"
+        title="回到顶部"
+        @click="toTop"
+      >
+        <Icon name="arrowUp" :size="18" />
+      </button>
     </div>
   </template>
 </template>

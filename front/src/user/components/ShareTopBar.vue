@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref } from 'vue'
+import { computed } from 'vue'
 import { useRoute } from 'vue-router'
 import Icon from '@/user/components/Icon.vue'
 import ShareMenu from '@/user/components/ShareMenu.vue'
 import ReaderPrefsMenu from '@/user/components/ReaderPrefsMenu.vue'
 import KbGlyph from '@/shared/components/KbGlyph.vue'
+import { useShareLink } from '@/user/composables/useShareLink'
 import { useSiteStore } from '@/shared/stores/site'
 import type { NavMenuItem } from '@/shared/api/types'
 
@@ -49,14 +50,16 @@ const props = defineProps<{
   allMode?: boolean
 }>()
 
-const emit = defineEmits<{ pick: [item: NavMenuItem]; all: [] }>()
+const emit = defineEmits<{
+  pick: [item: NavMenuItem]
+  all: []
+  /** 窄屏才出现的两颗导航入口：打开目录 / 大纲抽屉 */
+  tree: []
+  outline: []
+}>()
 
 const site = useSiteStore()
 const route = useRoute()
-const copied = ref(false)
-let timer: number | undefined
-
-onBeforeUnmount(() => window.clearTimeout(timer))
 
 /** 没配导航菜单就没有「更窄的范围」可切回来，按钮只作身份标识，置灰 */
 const canToggle = computed(() => (props.menu?.length || 0) > 0)
@@ -78,61 +81,28 @@ const kbTitle = computed(() => {
  */
 const shareUrl = computed(() => `${props.siteBase || window.location.origin}${route.fullPath}`)
 
-/**
- * 复制文本。
- *
- * <p>异步剪贴板 API 带 {@code [SecureContext]} 门：http 非 localhost 部署下
- * {@code navigator.clipboard} 压根不存在，权限被拒时也会抛错。少了兜底，
- * 这些环境里点「分享」毫无反应，读者只会以为按钮坏了。</p>
- */
-async function copy(text: string): Promise<boolean> {
-  if (navigator.clipboard?.writeText) {
-    try {
-      await navigator.clipboard.writeText(text)
-      return true
-    } catch {
-      // 权限被拒，落到下面的兜底
-    }
-  }
-  const area = document.createElement('textarea')
-  area.value = text
-  area.setAttribute('readonly', '')
-  area.style.position = 'fixed'
-  area.style.top = '-1000px'
-  area.style.opacity = '0'
-  document.body.appendChild(area)
-  area.select()
-  let ok = false
-  try {
-    ok = document.execCommand('copy')
-  } catch {
-    ok = false
-  }
-  area.remove()
-  return ok
-}
-
-async function share() {
-  // 系统分享优先（移动端能直接进微信/邮件），用户取消就安静收场
-  if (typeof navigator.share === 'function') {
-    try {
-      await navigator.share({ title: props.kbName, url: shareUrl.value })
-      return
-    } catch {
-      // 取消分享不是错误，但也不该接着弹「已复制」，直接返回
-      return
-    }
-  }
-  if (await copy(shareUrl.value)) {
-    copied.value = true
-    window.clearTimeout(timer)
-    timer = window.setTimeout(() => (copied.value = false), 1600)
-  }
-}
+/** 动作与手机底栏那颗分享共用一份实现（系统分享 → 复制链接的降级链只写一次） */
+const { copied, share } = useShareLink(() => shareUrl.value, () => props.kbName)
 </script>
 
 <template>
   <header class="md-share__top">
+    <!--
+      手机顶栏的目录入口。分享页没有阅读工具条（那条 bar 整个被隐藏），
+      所以门户阅读页用的 .md-only-mobile 按钮在这里没有落脚处，必须自带一颗。
+      桌面隐藏，样式表按 ≤900 打开。
+    -->
+    <button
+      type="button"
+      class="md-share__nav-toggle"
+      aria-label="打开目录"
+      title="打开目录"
+      @click="emit('tree')"
+    >
+      <!-- 文件夹 = 整库目录；books 那个「四根竖线」在 38px 里像装饰线，认不出是入口 -->
+      <Icon name="folder" :size="19" />
+    </button>
+
     <router-link class="md-brand" to="/">
       <span class="md-brand__logo is-image" :style="site.logoStyle" aria-hidden="true">
         <img :src="site.brandSrc" alt="" />
@@ -192,6 +162,17 @@ async function share() {
 
       <!-- 阅读设置：外观（明亮/暗黑）+ 正文字体 + 正文宽度，只存在访客这台浏览器上 -->
       <ReaderPrefsMenu context="share" />
+
+      <!-- 大纲入口与目录成对出现，但放在右侧动作区：一个管「去哪篇」，一个管「读到哪」 -->
+      <button
+        type="button"
+        class="md-share__nav-toggle md-share__nav-toggle--outline"
+        aria-label="打开大纲"
+        title="打开大纲"
+        @click="emit('outline')"
+      >
+        <Icon name="list" :size="18" />
+      </button>
 
       <!--
         开源仓库：放在设置之后、分享之前。位置有讲究 —— 它与设置一样是「关于这一页」

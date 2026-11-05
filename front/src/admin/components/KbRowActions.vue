@@ -13,7 +13,7 @@ import type { KbActionName, KbVO } from '@/shared/api/types'
  *
  * <p>{@code dense} 只改外观：表格里用链接式按钮，一行塞得下；卡片里用普通按钮，点击目标更大。</p>
  */
-const props = defineProps<{ kb: KbVO; dense?: boolean }>()
+const props = defineProps<{ kb: KbVO; dense?: boolean; sheet?: boolean }>()
 
 defineEmits<{
   workspace: []
@@ -31,14 +31,46 @@ const showPerms = computed(() => kbCan('KB_MEMBER_MANAGE') || kbCan('KB_SET_VISI
 
 <template>
   <!--
-    包一层：Element 给相邻 .el-button 加 margin-left:12px，与容器的 gap 叠起来会把五个动作
-    挤到折行。这里统一归零，间距只由 .md-row-actions 的 gap 决定。
+    手机行式列表（sheet）：一条 375px 宽的列表行塞不下五个动作，所以这里只留一颗「⋯」，
+    点开是完整菜单。动作集合与门禁和另外两种形态完全同源，不存在「手机上没有删除入口」。
 
-    两种形态各自一套皮肤：表格里是链接式文字（一行塞得下、不抢视觉），卡片里是
-    「实心主行动 + 一排幽灵图标按钮」—— 五颗带文字的按钮并排会把四列卡片挤到折行，
-    而图标按钮高度仍是 30px，点击目标没有变小，含义由 title / aria-label 兜底。
+    按钮自带 @click.stop：外层的行整体可点（进入工作区），不加的话点「⋯」会同时把页面带走。
+    同元素上的其他监听器不受影响，dropdown 照常展开。
   -->
-  <div class="md-row-actions" :class="dense ? 'is-dense' : 'is-card'">
+  <div v-if="sheet" class="md-row-actions is-sheet">
+    <el-dropdown placement="bottom-end" trigger="click">
+      <button type="button" class="md-sheet-trigger" title="更多操作" aria-label="更多操作" @click.stop>
+        <MdIcon name="more" :size="18" />
+      </button>
+      <template #dropdown>
+        <el-dropdown-menu>
+          <el-dropdown-item @click="$emit('workspace')">
+            <MdIcon name="arrow-right" :size="14" />进入工作区
+          </el-dropdown-item>
+          <el-dropdown-item v-if="kbCan('SHARE_CREATE')" @click="$emit('share')">
+            <MdIcon name="share" :size="14" />分享
+          </el-dropdown-item>
+          <el-dropdown-item v-if="kbCan('KB_EDIT_META')" @click="$emit('edit')">
+            <MdIcon name="edit" :size="14" />编辑知识库
+          </el-dropdown-item>
+          <el-dropdown-item v-if="showPerms" @click="$emit('perms')">
+            <MdIcon name="key" :size="14" />权限与名单
+          </el-dropdown-item>
+          <el-dropdown-item divided @click="$emit('favorite')">
+            <MdIcon name="star" :size="14" />{{ kb.favored ? '取消收藏' : '收藏' }}
+          </el-dropdown-item>
+          <el-dropdown-item @click="$emit('copy')">
+            <MdIcon name="link" :size="14" />复制阅读页链接
+          </el-dropdown-item>
+          <el-dropdown-item v-if="kbCan('KB_DELETE')" divided @click="$emit('remove')">
+            <MdIcon name="trash" :size="14" />删除
+          </el-dropdown-item>
+        </el-dropdown-menu>
+      </template>
+    </el-dropdown>
+  </div>
+
+  <div v-else class="md-row-actions" :class="dense ? 'is-dense' : 'is-card'">
     <el-button :link="dense" size="small" type="primary" @click="$emit('workspace')">
       <MdIcon name="arrow-right" :size="14" />进入
     </el-button>
@@ -183,5 +215,40 @@ const showPerms = computed(() => kbCan('KB_MEMBER_MANAGE') || kbCan('KB_SET_VISI
   box-shadow: 0 3px 9px color-mix(in srgb, var(--md-primary) 40%, transparent);
 }
 .md-row-actions.is-card :deep(.el-button--primary .md-icon) { margin-right: 5px; }
+
+/*
+ * 手机上卡片底栏：36px 的方图标在 375px 屏幕上偏小，拇指容易点偏；
+ * 「进入」拉满剩余宽度，成为整张卡唯一的主行动。
+ */
+@media (max-width: 720px) {
+  .md-row-actions.is-card { gap: 6px; }
+  .md-row-actions.is-card :deep(.el-button) { height: 40px; }
+  .md-row-actions.is-card :deep(.el-button:not(.el-button--primary)) {
+    width: 40px; border-radius: 11px;
+  }
+  .md-row-actions.is-card :deep(.el-button--primary) {
+    flex: 1; justify-content: center; padding: 0 12px;
+    font-size: 13.5px; border-radius: 11px;
+  }
+}
+
+/* ---------------------------------------------------------------- 行式形态（手机） */
+/*
+ * 只剩一颗「⋯」。用原生 button 而不是 el-button：这里不需要 Element 的间距、禁用态与
+ * 尺寸体系，一颗 36px 的方按钮自己写更省事，也不会被相邻按钮的 margin 规则牵动。
+ */
+.md-row-actions.is-sheet { gap: 0; flex-wrap: nowrap; }
+.md-sheet-trigger {
+  width: 36px; height: 36px; flex-shrink: 0;
+  display: grid; place-items: center;
+  border: 0; border-radius: 10px; background: transparent;
+  color: var(--md-text-3);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color .15s ease, color .15s ease;
+}
+.md-sheet-trigger:hover,
+.md-sheet-trigger:active { background: var(--md-surface-2); color: var(--md-text); }
+.md-sheet-trigger:focus-visible { outline: 2px solid var(--md-primary); outline-offset: 1px; }
 </style>
 

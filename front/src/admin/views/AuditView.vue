@@ -164,10 +164,11 @@ onMounted(async () => {
       description="记录组织内的重要操作，保留 180 天；筛选条件会同步到地址栏，方便把同一批记录发给同事。"
     />
 
-    <div class="md-toolbar">
+    <div class="md-toolbar md-ad-toolbar">
       <el-select
         :model-value="query.action"
         style="width: 190px"
+        placeholder="全部操作"
         @change="(value: unknown) => pickAction(String(value))"
       >
         <template #prefix>
