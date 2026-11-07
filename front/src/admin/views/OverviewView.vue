@@ -140,8 +140,8 @@ function openPortal(slug: string) {
             <p class="md-panel-desc">按最后修改时间排序，最多显示 6 个知识库。</p>
           </div>
           <span class="md-spacer" />
-          <el-button size="small" @click="router.push({ name: 'kbs', params: { org } })">
-            <MdIcon name="arrow-right" :size="14" />查看全部
+          <el-button size="small" link class="md-ov-all" @click="router.push({ name: 'kbs', params: { org } })">
+            查看全部<MdIcon name="arrow-right" :size="14" />
           </el-button>
         </div>
         <div class="md-panel-body">
@@ -171,10 +171,10 @@ function openPortal(slug: string) {
                 </div>
               </div>
               <div class="md-recent-item__actions">
-                <el-button size="small" type="primary" @click="openWorkspace(kb)">
-                  <MdIcon name="arrow-right" :size="14" />进入
+                <el-button size="small" type="primary" class="md-ov-go" @click="openWorkspace(kb)">
+                  进入<MdIcon name="arrow-right" :size="14" />
                 </el-button>
-                <el-button size="small" @click="openPortal(kb.slug)">
+                <el-button size="small" type="primary" plain class="md-ov-peek" @click="openPortal(kb.slug)">
                   <MdIcon name="eye" :size="14" />预览
                 </el-button>
               </div>
@@ -265,3 +265,94 @@ function openPortal(slug: string) {
     </div>
   </div>
 </template>
+
+<style scoped>
+/*
+ * 「最近更新」每行两颗按钮是一对主 / 次：进入是整行唯一的实心重色，预览退成低饱和蓝底。
+ * 原来两颗默认小描边按钮并排，重量一样、边框一样，视线不知道落在哪颗上。
+ */
+.md-recent-item__actions { gap: 6px; }
+.md-recent-item__actions :deep(.el-button.md-ov-go),
+.md-recent-item__actions :deep(.el-button.md-ov-peek) {
+  height: 32px; padding: 0 13px; border-radius: 10px;
+  font-size: 12.5px;
+}
+.md-recent-item__actions :deep(.el-button + .el-button) { margin-left: 0; }
+
+/* 进入：品牌渐变实心，箭头尾随表示「往里走」；悬停只加投影与一点亮度，不换底色 */
+.md-recent-item__actions :deep(.el-button.md-ov-go) {
+  font-weight: 600;
+  background: var(--md-brand-gradient);
+  box-shadow: 0 2px 6px color-mix(in srgb, var(--md-primary) 30%, transparent);
+  --el-button-bg-color: transparent;
+  --el-button-border-color: transparent;
+  --el-button-text-color: #fff;
+  --el-button-hover-bg-color: transparent;
+  --el-button-hover-border-color: transparent;
+  --el-button-hover-text-color: #fff;
+  --el-button-active-bg-color: transparent;
+  --el-button-active-border-color: transparent;
+  --el-button-active-text-color: #fff;
+}
+.md-recent-item__actions :deep(.el-button.md-ov-go:hover) {
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--md-primary) 34%, transparent);
+  filter: brightness(1.05);
+}
+.md-recent-item__actions :deep(.md-ov-go .md-icon) { margin-right: 0; margin-left: 6px; }
+
+/*
+ * 预览：低饱和天蓝底 + 同色图标，与知识库卡片底栏的次级动作同一套配色语言。
+ * 用 plain 是为了避开 admin.css 里那条「无 type 描边按钮悬停转主色」的全局规则
+ * （它的特异性高到页面级覆盖压不住），颜色仍由这里的变量说了算。
+ */
+.md-recent-item__actions :deep(.el-button.md-ov-peek) {
+  --act: #0ea5e9;
+  font-weight: 550;
+  --el-button-bg-color: color-mix(in srgb, var(--act) 12%, transparent);
+  --el-button-border-color: color-mix(in srgb, var(--act) 26%, transparent);
+  --el-button-text-color: color-mix(in srgb, var(--act) 82%, var(--md-text));
+  --el-button-hover-bg-color: color-mix(in srgb, var(--act) 20%, transparent);
+  --el-button-hover-border-color: color-mix(in srgb, var(--act) 42%, transparent);
+  --el-button-hover-text-color: color-mix(in srgb, var(--act) 92%, var(--md-text));
+  --el-button-active-bg-color: color-mix(in srgb, var(--act) 26%, transparent);
+  --el-button-active-border-color: color-mix(in srgb, var(--act) 50%, transparent);
+  --el-button-active-text-color: color-mix(in srgb, var(--act) 96%, var(--md-text));
+}
+.md-recent-item__actions :deep(.el-button.md-ov-peek:focus-visible) {
+  outline: 2px solid color-mix(in srgb, var(--act) 70%, transparent);
+  outline-offset: 1px;
+}
+
+/*
+ * 面板头的「查看全部」是导航不是动作：幽灵胶囊，平时只有灰字，悬停才染一层主色底，
+ * 箭头尾随并轻轻右移。原来那颗描边白底小按钮和行内动作抢重量，放在标题旁显得突兀。
+ * 用 link 形态避开 admin.css 那条「无 type 描边按钮悬停转主色边框」的全局规则。
+ */
+.md-panel-head :deep(.el-button.md-ov-all) {
+  height: 30px; padding: 0 12px; border-radius: 999px;
+  font-size: 12.5px; font-weight: 600;
+  --el-button-bg-color: transparent;
+  --el-button-border-color: transparent;
+  --el-button-text-color: var(--md-text-2);
+}
+/*
+ * EP 的 link 形态悬停时写的是字面量 background-color: transparent 与
+ * --el-button-hover-link-text-color，改 --el-button-hover-* 变量压不住它，
+ * 所以这里直接给 hover / active 写字面色，特异性也要高过它那条 :not(.is-disabled):hover。
+ */
+.md-panel-head :deep(.el-button.md-ov-all:hover) {
+  color: var(--md-primary);
+  background-color: var(--md-primary-soft);
+  border-color: transparent;
+}
+.md-panel-head :deep(.el-button.md-ov-all:active) {
+  color: var(--md-primary-hover);
+  background-color: color-mix(in srgb, var(--md-primary) 16%, transparent);
+  border-color: transparent;
+}
+.md-panel-head :deep(.md-ov-all .md-icon) {
+  margin-right: 0; margin-left: 6px;
+  transition: transform .15s ease;
+}
+.md-panel-head :deep(.md-ov-all:hover .md-icon) { transform: translateX(2px); }
+</style>
