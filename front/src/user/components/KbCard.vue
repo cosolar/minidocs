@@ -60,7 +60,18 @@ const statusClass = computed(() => `is-${shareStatus.value}`)
 const shareIcon = computed(() => (shareStatus.value === 'private' ? 'lock' : 'globe'))
 const shareLabel = computed(() => (shareStatus.value === 'private' ? '加密' : '共享'))
 const isMine = computed(() => !!session.user && session.user.id === props.kb.ownerId)
-const link = computed(() => portalKbUrl(props.kb.tenantSlug, props.kb.slug))
+const sharePath = computed(() => (props.kb.shareToken ? `/share/${encodeURIComponent(props.kb.shareToken)}` : ''))
+/**
+ * 卡片跳转按登录态分流：游客进分享页，登录用户进阅读页。
+ *
+ * <p>游客走分享链才拿得到「这条链接有没有加密」的那道门，阅读页的门户地址对陌生人只会
+ * 回一个需要口令的空壳；登录用户有自己的读权与目录树，阅读页才是完整体验。</p>
+ *
+ * <p>缺 token（理论上不会：门户只列已发布的库）时退回阅读页，好过跳 {@code /share/undefined}。</p>
+ */
+const link = computed(() => (!session.loggedIn && sharePath.value
+  ? sharePath.value
+  : portalKbUrl(props.kb.tenantSlug, props.kb.slug)))
 /** 管理入口落在工作区：单 SPA 后组织段照样带上，缺组织信息时退回 /console 让落地页去解析 */
 const manageUrl = computed(() => appHref(props.kb.tenantSlug
   ? `/console/${encodeURIComponent(props.kb.tenantSlug)}/kbs/${encodeURIComponent(props.kb.slug)}`
@@ -124,18 +135,13 @@ let copyTimer: number | undefined
 onBeforeUnmount(() => window.clearTimeout(copyTimer))
 
 /**
- * 「复制链接」给的是<b>分享短链</b>（{@code /share/{token}}），不是卡片的跳转地址。
+ * 「复制链接」给的始终是<b>分享短链</b>（{@code /share/{token}}），与登录态无关。
  *
  * <p>差在三处，而且都指向门户以外的读者：短链不把组织名和库名一起抖出去；
  * 库改名后短链照样有效；以及最要紧的一条 —— 短链可以在「分享」面板里撤销，
  * 而 {@code /kb/{org}/{slug}} 抄出去就再也收不回来了。</p>
- *
- * <p>token 理论上不会缺（门户只列已发布的库，必有整库分享），仍然留了降级：
- * 缺 token 时给门户地址，好过复制出一段 {@code /share/undefined}。</p>
  */
-const shareLink = computed(() => (props.kb.shareToken
-  ? appHref(`/share/${encodeURIComponent(props.kb.shareToken)}`)
-  : link.value))
+const shareLink = computed(() => (sharePath.value ? appHref(sharePath.value) : link.value))
 
 async function copyLink(event: MouseEvent) {
   const trigger = event.currentTarget as HTMLElement | null
