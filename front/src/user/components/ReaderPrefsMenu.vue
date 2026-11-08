@@ -83,6 +83,60 @@ const panelRef = ref<HTMLElement | null>(null)
 const triggerRef = ref<HTMLElement | null>(null)
 
 /**
+ * 窄屏（≤620，与底栏的断点一致）把面板换成底部抽屉。
+ *
+ * <p>触发钮在手机底栏，浮层只能挤在按钮上方那点缝里：宽度顶着视口两侧、没有关闭按钮、
+ * 主题卡与滑杆的触控高度都只有 24–38px。换成底部抽屉后，遮罩明确「点这里退出」，
+ * 头部固定、内容自己滚，控件也能按手指的尺寸放大。</p>
+ */
+const narrowQuery = window.matchMedia('(max-width: 620px)')
+const narrow = ref(narrowQuery.matches)
+
+/** 抽屉打开时锁页面滚动：否则手指在遮罩上划，正文会跟着滚，读者会以为面板也在动 */
+let bodyScrollLocked = false
+let previousBodyOverflow = ''
+
+function syncBodyScroll() {
+  if (open.value && narrow.value) {
+    if (bodyScrollLocked) return
+    // 原值可能是空串（从未写过 overflow），所以用独立布尔记录「锁没锁」而不是看这个值
+    previousBodyOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    bodyScrollLocked = true
+    return
+  }
+  if (!bodyScrollLocked) return
+  document.body.style.overflow = previousBodyOverflow
+  previousBodyOverflow = ''
+  bodyScrollLocked = false
+}
+
+function onNarrowChange() {
+  narrow.value = narrowQuery.matches
+  syncBodyScroll()
+  if (!open.value) return
+  void nextTick(() => {
+    if (narrow.value) {
+      // 抽屉由样式表定位，清掉桌面浮层留下的内联坐标，避免两者打架
+      if (panelRef.value) {
+        panelRef.value.style.top = ''
+        panelRef.value.style.left = ''
+      }
+      return
+    }
+    /*
+     * 从抽屉切回浮层：面板挂在手机底栏那颗「设置」上，视口宽过 900 之后那颗钮已经藏起来，
+     * 再按它的位置摆只会把面板丢到左上角。此时直接收起，读者改从顶栏的齿轮重新打开。
+     */
+    if (!triggerRef.value?.offsetParent) {
+      close()
+      return
+    }
+    place()
+  })
+}
+
+/**
  * 触发按钮跟宿主走：分享页的动作区是一圈描边药丸，门户阅读条上是无底描边的图标钮。
  * 各按所在工具条的口径来，面板挪过去才不会像一个贴上去的补丁。
  *
@@ -192,6 +246,12 @@ function place() {
   const panel = panelRef.value
   const trigger = triggerRef.value
   if (!panel || !trigger) return
+  // 窄屏是底部抽屉：位置交给样式表，别再写内联坐标
+  if (narrow.value) {
+    panel.style.top = ''
+    panel.style.left = ''
+    return
+  }
   const rect = trigger.getBoundingClientRect()
   const vw = window.innerWidth
   const vh = window.innerHeight
@@ -222,6 +282,7 @@ async function toggle() {
     return
   }
   open.value = true
+  syncBodyScroll()
   document.addEventListener('pointerdown', onDocPointerDown, true)
   document.addEventListener('keydown', onKeydown)
   await nextTick()
@@ -230,9 +291,13 @@ async function toggle() {
 
 /** 关闭只走这一条路径：改状态与摘监听绑在一起，再打开不会挂上第二份监听 */
 function close() {
+  const wasOpen = open.value
   open.value = false
+  syncBodyScroll()
   document.removeEventListener('pointerdown', onDocPointerDown, true)
   document.removeEventListener('keydown', onKeydown)
+  // 焦点还给触发钮：键盘用户关掉面板后不该落回文档开头
+  if (wasOpen) triggerRef.value?.focus({ preventScroll: true })
 }
 
 function onDocPointerDown(event: PointerEvent) {
@@ -267,10 +332,14 @@ function onSystemThemeChange() {
 
 onMounted(() => {
   darkQuery.addEventListener('change', onSystemThemeChange)
+  narrowQuery.addEventListener('change', onNarrowChange)
 })
 
 onBeforeUnmount(() => {
   darkQuery.removeEventListener('change', onSystemThemeChange)
+  narrowQuery.removeEventListener('change', onNarrowChange)
+  open.value = false
+  syncBodyScroll()
   document.removeEventListener('pointerdown', onDocPointerDown, true)
   document.removeEventListener('keydown', onKeydown)
 })
@@ -293,11 +362,35 @@ onBeforeUnmount(() => {
     </button>
 
     <Teleport to="body">
-      <div v-if="open" ref="panelRef" class="md-menu md-menu--fixed md-prefs__panel" role="dialog" aria-label="阅读设置">
-        <div class="md-menu__head">
-          <strong>阅读设置</strong>
-          <small>{{ hint }}</small>
+      <!-- 窄屏抽屉的遮罩：点空白处退出，手机上没有 Esc，也没有「点外部」的宽裕空地 -->
+      <div v-if="open && narrow" class="md-prefs__scrim" @click="close" />
+      <div
+        v-if="open"
+        ref="panelRef"
+        class="md-menu md-menu--fixed md-prefs__panel"
+        :class="{ 'md-prefs__panel--sheet': narrow }"
+        role="dialog"
+        :aria-modal="narrow ? 'true' : undefined"
+        aria-label="阅读设置"
+      >
+        <div class="md-menu__head md-prefs__head">
+          <div class="md-prefs__head-text">
+            <strong>阅读设置</strong>
+            <small>{{ hint }}</small>
+          </div>
+          <button
+            v-if="narrow"
+            type="button"
+            class="md-prefs__close"
+            aria-label="关闭阅读设置"
+            title="关闭"
+            @click="close"
+          >
+            <Icon name="close" :size="18" />
+          </button>
         </div>
+
+        <div class="md-prefs__body">
 
         <div class="md-prefs__row">
           <span class="md-prefs__label">主题</span>
@@ -423,6 +516,7 @@ onBeforeUnmount(() => {
 
         <p v-if="themeNote" class="md-prefs__hint">{{ themeNote }}</p>
         <p class="md-prefs__hint md-prefs__hint--follow">{{ font.note }}</p>
+        </div>
       </div>
     </Teleport>
   </div>

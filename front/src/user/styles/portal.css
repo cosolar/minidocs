@@ -1083,13 +1083,28 @@
 
 .md-footer__features {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: clamp(14px, 2vw, 28px);
   margin: 8px 0 0;
   padding: 0;
   list-style: none;
 }
 .md-footer__feature { display: grid; gap: 5px; align-content: start; justify-items: start; }
+/*
+ * 第五格是唯一的外链（GitHub）。整格可点，但排布必须与前四格完全一致 ——
+ * 一排五个里只要有一格自己缩了一号，看起来就像没对齐。
+ */
+.md-footer__feature--link { display: block; }
+.md-footer__repo {
+  display: grid; gap: 5px; align-content: start; justify-items: start;
+  border-radius: 10px; color: inherit; text-decoration: none;
+}
+.md-footer__repo:hover .md-footer__feature-icon {
+  color: var(--md-primary);
+  background: color-mix(in srgb, var(--md-primary) 16%, var(--md-surface));
+}
+.md-footer__repo:hover strong { color: var(--md-primary); }
+.md-footer__repo:focus-visible { outline: 2px solid var(--md-primary); outline-offset: 4px; }
 .md-footer__feature-icon {
   width: 40px;
   height: 40px;
@@ -1100,6 +1115,7 @@
   background: color-mix(in srgb, var(--md-primary) 9%, var(--md-surface));
   color: var(--md-primary);
   box-shadow: 0 8px 18px -14px rgba(9, 74, 63, .55);
+  transition: color .16s ease, background-color .16s ease;
 }
 [data-theme='dark'] .md-footer__feature-icon {
   background: color-mix(in srgb, var(--md-primary) 16%, var(--md-surface));
@@ -1152,15 +1168,24 @@
   .md-search__submit { height: 44px; padding: 0 19px; border-radius: 12px; font-size: 13.5px; }
 
   /*
-   * 能力条两列，第五格占满一行收尾；窄格子里允许说明换行，别用省略号切掉后半句。
+   * 能力条收成一行五格：图标在上、标题在下，说明整句去掉。
    *
-   * <p>第五格跨了两列，若仍左对齐，右半边的空白会像「没排满」；
-   * 把图标与文字整组居中，这一行就成了有意为之的收尾，而不是断掉的第三行。</p>
+   * <p>两列布局在手机上会把五格折成三行，每条说明还要再折两行，整块吃掉近半屏；
+   * 而这一段回答的只是「这个平台能做什么」，一句话标题就够，细节留给下面的知识库列表。
+   * 五格等宽之后，32px 图标 + 四字标题在 320px 屏上也不会换行。</p>
    */
-  .md-features { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .md-feature:last-child { grid-column: 1 / -1; justify-content: center; }
-  .md-feature__text strong { font-size: 13px; }
-  .md-feature__text small { font-size: 11.5px; white-space: normal; }
+  .md-features { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+  .md-feature {
+    flex-direction: column;
+    gap: 6px;
+    padding: 10px 2px;
+    text-align: center;
+  }
+  /* 上一档给第五格写的「跨两列收尾」在这里不再需要 */
+  .md-feature:last-child { grid-column: auto; }
+  .md-feature__icon { width: 32px; height: 32px; }
+  .md-feature__text strong { font-size: 12px; line-height: 1.25; }
+  .md-feature__text small { display: none; }
 
   /* 标题右侧的数字行在窄屏让位给标题本身 */
   .md-statsline { display: none; }
@@ -1175,7 +1200,30 @@
   .md-tabs { flex: 0 1 auto; min-width: 0; max-width: 300px; }
   .md-toolbar__right { width: auto; margin-left: auto; }
 
-  .md-footer__features { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px 24px; }
+  /*
+   * 五个功能点排成一行，只留图标。
+   *
+   * <p>手机上一列只有 60–70px，沿用两列布局会把五格折成三行，页脚白白高出一倍，
+   * 而每一格里真正被读到的只有那枚圆形图标。这里改成一排五格、图标居中。</p>
+   *
+   * <p>标题与说明不删，改成「只给读屏」的文本：图标一排五个之后，没有可读名称
+   * 对读屏用户就等于五个没有标签的圆圈。</p>
+   */
+  .md-footer__features {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 8px;
+    margin-top: 2px;
+  }
+  .md-footer__feature,
+  .md-footer__repo { position: relative; }
+  .md-footer__feature { justify-items: center; gap: 0; }
+  .md-footer__repo { justify-items: center; gap: 0; }
+  .md-footer__feature-icon { width: 40px; height: 40px; margin-bottom: 0; }
+  .md-footer__feature strong,
+  .md-footer__feature small {
+    position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+    overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap;
+  }
 }
 
 /*

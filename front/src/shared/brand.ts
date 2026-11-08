@@ -15,3 +15,11 @@ export const DEFAULT_LOGO = `${PAGE_BASE}/logo-mark.png`
  * 不跟随横版 Logo —— 组合图压进 16px 的标签页只剩一条色带。</p>
  */
 export const DEFAULT_FAVICON = `${PAGE_BASE}/favicon.png`
+
+/**
+ * 项目开源仓库。页脚的 GitHub 图标指向这里。
+ *
+ * <p>与 {@code 分享设置} 里那个「开源仓库」是两件事：那个是库主为某个分享填的地址，
+ * 这里固定的是一整套 MiniDocs 的源码地址。两者都出现时不要混用。</p>
+ */
+export const PROJECT_REPO = 'https://github.com/cosolar/minidocs'

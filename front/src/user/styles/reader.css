@@ -1081,9 +1081,14 @@ button { font-family: inherit; }
 .md-prefs { position: relative; }
 .md-prefs__panel {
   min-width: 286px; padding: 6px;
+  /* 头部固定、内容自己滚：手机上抽屉里的标题与关闭按钮不该跟着列表滚走 */
+  display: flex; flex-direction: column;
   /* 主题卡片把面板撑高了一截：给个上限，避免在小屏上顶到视口外 */
-  max-height: min(78vh, 640px); overflow-y: auto; overscroll-behavior: contain;
+  max-height: min(78vh, 640px); overflow: hidden;
 }
+.md-prefs__head { display: flex; align-items: flex-start; gap: 10px; }
+.md-prefs__head-text { flex: 1; min-width: 0; }
+.md-prefs__body { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
 .md-prefs__row { padding: 7px 8px; }
 .md-prefs__label { display: block; margin-bottom: 7px; color: var(--md-text-3); font-size: 11.5px; letter-spacing: .02em; }
 
@@ -1207,9 +1212,70 @@ button { font-family: inherit; }
 /* 主题说明与字体说明连着排：第二条不再画一条分隔线，否则两条细线挨在一起像排版事故 */
 .md-prefs__hint--follow { margin-top: -4px; padding-top: 0; border-top: 0; }
 
-@media (max-width: 480px) {
-  .md-prefs__panel { min-width: 232px; }
-  .md-prefs__theme-swatch { width: 38px; height: 26px; }
+/*
+ * 窄屏：阅读设置换成底部抽屉。
+ *
+ * <p>旧版是桌面浮层直接贴着底栏那颗按钮展开：手机宽度被挤到两侧顶死、没有关闭按钮，
+ * 主题卡 38px、分段开关 30px、滑杆可视高度只有 4px —— 都够不上手指的尺寸。
+ * 抽屉让「退出」有了明确落点（遮罩 / 关闭按钮），内容独立滚动，控件按 44px 上下重排。</p>
+ */
+.md-prefs__scrim {
+  position: fixed; inset: 0; z-index: 49;
+  background: rgba(15, 17, 23, .42);
+  animation: md-prefs-fade .16s ease-out;
+}
+.md-prefs__close {
+  flex-shrink: 0; width: 40px; height: 40px; margin: -6px -6px 0 0;
+  display: grid; place-items: center; border: 0; border-radius: 10px;
+  background: none; color: var(--md-text-2); cursor: pointer;
+  transition: background-color .14s ease, color .14s ease;
+}
+.md-prefs__close:hover { background: var(--md-surface-2); color: var(--md-text); }
+.md-prefs__close:focus-visible { outline: 2px solid var(--md-primary); outline-offset: 2px; }
+
+@keyframes md-prefs-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes md-prefs-sheet-in { from { transform: translateY(14px); opacity: .6; } to { transform: none; opacity: 1; } }
+
+@media (max-width: 620px) {
+  .md-prefs__panel--sheet {
+    top: auto; left: 0; right: 0; bottom: 0;
+    width: auto; min-width: 0; max-width: none;
+    max-height: min(88vh, 760px);
+    border-radius: 20px 20px 0 0; border-bottom: 0;
+    padding: 0;
+    box-shadow: 0 -18px 48px rgba(15, 17, 23, .24);
+    animation: md-prefs-sheet-in .18s ease-out;
+  }
+  .md-prefs__panel--sheet .md-prefs__head {
+    padding: 16px 18px 12px; margin: 0;
+    border-bottom: 1px solid var(--md-border);
+  }
+  .md-prefs__panel--sheet .md-prefs__head strong { font-size: 15.5px; }
+  .md-prefs__panel--sheet .md-prefs__head small { margin-top: 3px; font-size: 12px; line-height: 1.55; }
+  .md-prefs__panel--sheet .md-prefs__body {
+    padding: 4px 14px calc(18px + env(safe-area-inset-bottom));
+  }
+  .md-prefs__panel--sheet .md-prefs__row { padding: 10px 2px; }
+  .md-prefs__panel--sheet .md-prefs__label { font-size: 12.5px; margin-bottom: 9px; }
+  .md-prefs__panel--sheet .md-prefs__themes { gap: 8px; }
+  .md-prefs__panel--sheet .md-prefs__theme { min-height: 52px; padding: 6px 8px 6px 6px; }
+  .md-prefs__panel--sheet .md-prefs__theme-swatch { width: 44px; height: 32px; }
+  .md-prefs__panel--sheet .md-prefs__theme-name { font-size: 13px; }
+  .md-prefs__panel--sheet .md-prefs__seg-btn { height: 42px; font-size: 13.5px; }
+  .md-prefs__panel--sheet .md-prefs__select select { height: 46px; font-size: 14px; }
+  .md-prefs__panel--sheet .md-prefs__reset { height: 34px; padding: 0 12px; font-size: 12.5px; }
+  .md-prefs__panel--sheet .md-prefs__hint { margin: 6px 2px 0; font-size: 12px; }
+  /* 滑杆的可点区域放大到 28px，轨道仍画 4px —— 视觉不变，手指不必瞄准一根线 */
+  .md-prefs__panel--sheet .md-prefs__range input[type='range'] {
+    height: 28px;
+    background: linear-gradient(90deg, var(--md-primary) var(--md-prefs-fill, 100%),
+      var(--md-border-strong) var(--md-prefs-fill, 100%)) center / 100% 4px no-repeat;
+  }
+  .md-prefs__panel--sheet .md-prefs__range input[type='range']::-webkit-slider-thumb { width: 20px; height: 20px; }
+  .md-prefs__panel--sheet .md-prefs__range input[type='range']::-moz-range-thumb { width: 18px; height: 18px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .md-prefs__scrim, .md-prefs__panel--sheet { animation: none; }
 }
 /* 「有效期至 2026-12-31 10:20」这类长文案在窄屏要被截断，而不是把顶栏撑爆 */
 .md-share__expiry-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
@@ -1787,19 +1853,23 @@ button { font-family: inherit; }
   /* 顶栏：从「身份+位置+导航+四颗动作」收成「目录 · 库名 · 设置/大纲/分享」 */
   .md-share__top { gap: 6px; padding: 0 8px; height: var(--md-share-top); }
   /*
-   * 站点 logo 是后台上传的横版图（实测 150×48，含圆形徽标 + 站名），内联宽高写死了。
-   * 原样带上手机顶栏会吃掉 150px，把「我在哪个库」挤到只剩一个字。
-   * 这里裁成 34px 方形、从左侧取景只留徽标：身份由紧跟着的库名说清楚，
-   * 品牌回到一个不抢空间的记号。logoOnly=false 的站点另有 .md-brand__text，照样隐藏。
+   * 横版 Logo 原样保留。
+   *
+   * <p>站点 logo 是后台上传的横版图（实测 150×48，含圆形徽标 + 站名）。原先这一档把它
+   * 裁成 34px 方形、只留徽标，理由是「别把库名挤没」—— 但代价是每一页都不再出现站点名，
+   * 读者看到的只是一个认不出来的圆圈。这一档顶栏只剩「目录 · 库名 · 设置/大纲/分享」，
+   * 32px 高约 95px 宽完全排得下；真的窄到放不下时，交给 flex 收缩 +
+   * {@code object-fit: contain} 等比缩小，而不是裁掉两边的字。</p>
    */
-  .md-share__top .md-brand { flex-shrink: 0; }
+  .md-share__top .md-brand { flex-shrink: 1; min-width: 0; }
   .md-share__top .md-brand__logo.is-image {
-    width: 34px !important; height: 34px !important;
-    border-radius: 9px; overflow: hidden;
+    width: auto !important; height: auto !important;
+    min-width: 0; flex-shrink: 1;
   }
   .md-share__top .md-brand__logo.is-image img {
-    width: 100%; height: 100%;
-    object-fit: cover; object-position: left center;
+    height: 32px !important; width: auto !important;
+    max-width: 100%;
+    object-fit: contain; object-position: left center;
   }
   .md-share__nav-toggle {
     display: grid; place-items: center; flex-shrink: 0;
@@ -2049,18 +2119,23 @@ button { font-family: inherit; }
   .md-share__totop-fab { display: none; }
 
   /*
-   * 站点顶栏：横版 Logo（实测 150×48）会把注册/登录挤出屏幕，整页因此可以左右拖 ——
-   * 手机上把它裁成方形只看徽标，与分享页顶栏同一处理。身份由站点名（logoOnly=false 时）
-   * 与底下的内容说明，一个记号足够。
+   * 站点顶栏：完整横版 Logo，不再裁成方形徽标。
+   *
+   * <p>横版图宽高比约 3:1，按 32px 高放进来约 95px 宽，右侧「搜索 / 明暗 / 注册 / 登录」
+   * 仍然排得下；只有 340px 以下才会碰到边界，那时交给 flex 收缩 + {@code object-fit: contain}
+   * 等比缩小，而不是把两边的字裁掉 —— 只留一个方徽标等于把站点名从首屏抹掉了。</p>
    */
+  .md-topbar .md-brand { min-width: 0; flex: 0 1 auto; }
   .md-topbar .md-brand__logo.is-image {
-    width: 34px !important; height: 34px !important;
-    border-radius: 9px; overflow: hidden;
+    width: auto !important; height: auto !important;
+    min-width: 0; flex-shrink: 1;
   }
   .md-topbar .md-brand__logo.is-image img {
-    width: 100%; height: 100%;
-    object-fit: cover; object-position: left center;
+    height: 32px !important; width: auto !important;
+    max-width: 100%;
+    object-fit: contain; object-position: left center;
   }
+  /* 分享页顶栏同理：这一档动作区已经收进底栏，横向足够放下完整标志 */
   .md-topbar__actions { gap: 6px; }
   .md-topbar__actions .md-btn { padding: 0 10px; }
 }
