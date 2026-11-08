@@ -12,6 +12,7 @@ import cn.minims.minidocs.doc.dto.DocDtos.DocNode;
 import cn.minims.minidocs.doc.dto.DocDtos.DownloadPayload;
 import cn.minims.minidocs.doc.dto.DocDtos.ImportResult;
 import cn.minims.minidocs.doc.dto.DocDtos.PathChangeVO;
+import cn.minims.minidocs.doc.dto.DocDtos.SaveResultVO;
 import cn.minims.minidocs.doc.service.DocLockService;
 import cn.minims.minidocs.doc.service.DocService;
 import cn.minims.minidocs.doc.service.VaultFileService;
@@ -163,7 +164,7 @@ public class DocServiceImpl implements DocService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public PathChangeVO saveDoc(Long kbId, String path, String content, Long baseSize,
+    public SaveResultVO saveDoc(Long kbId, String path, String content, Long baseSize,
                                LocalDateTime baseMtime, LoginUser user) {
         KnowledgeBase kb = accessService.requireKb(kbId, KbAction.DOC_WRITE, user);
         Path root = vaultFileService.ensureRoot(kb.getStorageKey());
@@ -172,7 +173,10 @@ public class DocServiceImpl implements DocService {
         requireBaseline(root, normalized, baseSize, baseMtime);
         vaultFileService.write(root, normalized, content == null ? "" : content);
         reload(kbId, normalized);
-        return new PathChangeVO(normalized, PathGuard.fileNameOf(normalized));
+        // 回传落盘后的读数：编辑器换基线用，避免为两个数字再取一次整棵树
+        Path file = vaultFileService.resolve(root, normalized);
+        return new SaveResultVO(normalized, PathGuard.fileNameOf(normalized),
+                vaultFileService.sizeOf(file), vaultFileService.modifiedAt(file));
     }
 
     /**

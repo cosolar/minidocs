@@ -51,6 +51,16 @@ public final class DocDtos {
                                long size, LocalDateTime modifiedAt) {
     }
 
+    /**
+     * 保存结果：新路径 + 落盘后的磁盘读数。
+     *
+     * <p>把 {@code size / modifiedAt} 一并回传，是为了让编辑器直接换上新的保存基线，
+     * 不必为了这两个数字再取一次整棵目录树 —— 几千篇的库上，那一次重取要重扫磁盘并
+     * 传输一份大 JSON，而保存本身并不改变树的结构。</p>
+     */
+    public record SaveResultVO(String path, String name, long size, LocalDateTime modifiedAt) {
+    }
+
     public record CreateDocRequest(
             @NotBlank(message = "路径不能为空") String path,
             String content) {

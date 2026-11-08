@@ -98,7 +98,15 @@ const treeLoading = ref(false)
  */
 const treeRefreshing = ref(false)
 const keyword = ref('')
-const collapseAll = ref(false)
+/**
+ * 目录树的统一展开状态。
+ *
+ * <p>三态：{@code default} 是「没点过那两个按钮」，只让第一个顶层目录展开；
+ * {@code collapsed} / {@code expanded} 是用户点过「折叠全部 / 展开全部」。
+ * 不能用一个布尔：子节点按需渲染后，后挂载的目录要从这里读出自己该展开还是收起，
+ * 而初始的 {@code false} 与「展开全部」必须区分开。</p>
+ */
+const treeExpandMode = ref<'default' | 'expanded' | 'collapsed'>('default')
 
 /**
  * 多选（批量删除）模式。
@@ -1147,7 +1155,7 @@ async function save(silent = false): Promise<boolean> {
   const value = loadedCrlf.value ? content.value.replace(/\r\n?/g, '\n').replace(/\n/g, '\r\n') : content.value
   saving.value = true
   try {
-    await docApi.save(kbSlug.value, {
+    const result = await docApi.save(kbSlug.value, {
       path,
       content: value,
       baseSize: docInfo.value?.size,
@@ -1162,10 +1170,15 @@ async function save(silent = false): Promise<boolean> {
      */
     savedAt.value = formatClock(new Date().toISOString())
     savedAuto.value = silent
+    /*
+     * 换基线只用响应里带回的读数：保存不改变树的结构，没必要为此重取整棵目录树。
+     * 在几千篇的库上，那次重取要重扫磁盘、传一份大 JSON，还会让左栏闪一次加载遮罩。
+     */
+    if (docInfo.value) {
+      docInfo.value = { ...docInfo.value, size: result.size, modifiedAt: result.modifiedAt }
+    }
     if (dirty.value) scheduleAutoSave()
     if (!silent) ElMessage.success('已保存')
-    await Promise.all([loadTree(), loadKb()])
-    await adoptBaseline(path)
     refreshPreview()
     return true
   } catch (error) {
@@ -1173,23 +1186,6 @@ async function save(silent = false): Promise<boolean> {
     return false
   } finally {
     saving.value = false
-  }
-}
-
-/**
- * 保存成功后必须换基线：刚写进去的内容让手里那份 size/modifiedAt 作废，不换的话下一次保存会被
- * 自己的 412 挡在门外。目录树带的就是同一套磁盘读数，省一次读请求。
- */
-async function adoptBaseline(path: string) {
-  const node = flatDocs.value.find((item) => item.path === path)
-  if (node && docInfo.value) {
-    docInfo.value = { ...docInfo.value, size: node.size, modifiedAt: node.modifiedAt }
-    return
-  }
-  try {
-    docInfo.value = await docApi.read(kbSlug.value, path)
-  } catch {
-    /* 拿不到基线就只能下次撞 412，由冲突弹窗接手 */
   }
 }
 
@@ -1345,7 +1341,7 @@ async function onTreeAction(payload: { action: string; node: DocNode }) {
 }
 
 function toggleCollapseAll() {
-  collapseAll.value = !collapseAll.value
+  treeExpandMode.value = treeExpandMode.value === 'collapsed' ? 'expanded' : 'collapsed'
 }
 
 /* ------------------------------------------------------------------ 多选 / 批量删除 */
@@ -1596,9 +1592,9 @@ const headActions = computed<HeadAction[]>(() => {
     {
       key: 'collapse',
       kind: 'icon',
-      icon: collapseAll.value ? 'chevron-right' : 'chevron-down',
+      icon: treeExpandMode.value === 'collapsed' ? 'chevron-right' : 'chevron-down',
       size: 15,
-      label: collapseAll.value ? '展开全部' : '折叠全部',
+      label: treeExpandMode.value === 'collapsed' ? '展开全部' : '折叠全部',
       run: toggleCollapseAll,
     },
   ]
@@ -2662,7 +2658,7 @@ onBeforeUnmount(() => {
               :active-path="currentPath"
               :depth="0"
               :init-collapsed="!(index === 0 && node.type === 'dir')"
-                     :collapse-all="collapseAll"
+              :expand-mode="treeExpandMode"
                   :perms="kb?.myPermissions"
                    :show-md-suffix="kb?.showMdSuffix"
                      :select-mode="selectMode"

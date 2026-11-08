@@ -335,6 +335,17 @@ export interface PathChangeVO {
   name: string
 }
 
+/**
+ * 保存结果：除路径外带回落盘后的磁盘读数。
+ *
+ * <p>下一次保存的基线（size / modifiedAt）直接用它，不必为了这两个数字再取一遍目录树 ——
+ * 大库上那一次重取要重扫磁盘并传输一份很大的 JSON，而保存并不改变树的结构。</p>
+ */
+export interface DocSaveVO extends PathChangeVO {
+  size: number
+  modifiedAt?: string
+}
+
 export interface ImportResult {
   imported: number
   skipped: number

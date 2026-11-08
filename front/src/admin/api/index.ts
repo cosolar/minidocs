@@ -1,7 +1,7 @@
 import { request } from './http'
 import { kbPath, kbUrl, orgPath } from './context'
 import type {
-  AdminUserVO, AuditVO, DiscoverOrgVO, DocContentVO, DocNode, GitStatusVO, GitSyncVO, ImportResult,
+  AdminUserVO, AuditVO, DiscoverOrgVO, DocContentVO, DocNode, DocSaveVO, GitStatusVO, GitSyncVO, ImportResult,
   KbConfigVO, KbDisplay, KbRosterVO, KbVO, LockVO,
   LoginResponse, MeVO, OrgMemberVO, OrgVO, PageResult, PathChangeVO, JoinRequestVO, RenderVO,
   ShareVO, SiteConfig, SiteMailVO, StatsVO, UserVO
@@ -182,9 +182,9 @@ export const docApi = {
     request<DocContentVO>({ url: `${kbPath(kbSlug)}/doc`, params: { path } }),
   create: (kbSlug: string, data: { path: string; content?: string }) =>
     request<PathChangeVO>({ url: `${kbPath(kbSlug)}/doc`, method: 'post', data }),
-  /** 保存：带磁盘基线（缺列或不符 → 412），锁相关冲突（409/412）由编辑器分支处理 */
+  /** 保存：带磁盘基线（缺列或不符 → 412）；响应回传新的 size / modifiedAt，下一次保存直接用它 */
   save: (kbSlug: string, data: { path: string; content: string; baseSize?: number; baseMtime?: string }) =>
-    request<PathChangeVO>({ url: `${kbPath(kbSlug)}/doc`, method: 'put', data, silentError: true }),
+    request<DocSaveVO>({ url: `${kbPath(kbSlug)}/doc`, method: 'put', data, silentError: true }),
   /** 获取或续期编辑锁（幂等）。他人持有 → 409 + LockVO，因此静默交给调用方处理 */
   acquireLock: (kbSlug: string, path: string) =>
     request<LockVO>({ url: `${kbPath(kbSlug)}/lock`, method: 'post', params: { path }, silentError: true }),

@@ -19,6 +19,7 @@ import cn.minims.minidocs.doc.dto.DocDtos.RenameRequest;
 import cn.minims.minidocs.doc.dto.DocDtos.RenderVO;
 import cn.minims.minidocs.doc.dto.DocDtos.ReorderRequest;
 import cn.minims.minidocs.doc.dto.DocDtos.SaveDocRequest;
+import cn.minims.minidocs.doc.dto.DocDtos.SaveResultVO;
 import cn.minims.minidocs.doc.service.DocLockService;
 import cn.minims.minidocs.doc.service.DocService;
 import cn.minims.minidocs.kb.service.KnowledgeBaseService;
@@ -102,9 +103,9 @@ public class DocController {
                 UserContext.require()));
     }
 
-    @Operation(summary = "保存文档（无有效锁 → 403；基线不符 → 412）")
+    @Operation(summary = "保存文档（无有效锁 → 403；基线不符 → 412；响应带回新的保存基线）")
     @PutMapping("/doc")
-    public ApiResponse<PathChangeVO> save(@PathVariable String slug, @Valid @RequestBody SaveDocRequest request) {
+    public ApiResponse<SaveResultVO> save(@PathVariable String slug, @Valid @RequestBody SaveDocRequest request) {
         return ApiResponse.ok(docService.saveDoc(locate(slug), request.path(), request.content(),
                 request.baseSize(), request.baseMtime(), UserContext.require()));
     }

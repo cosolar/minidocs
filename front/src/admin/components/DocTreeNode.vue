@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 import MdIcon from '@/admin/components/MdIcon.vue'
 import { draggingPath } from '@/admin/components/docDrag'
 import { can } from '@/shared/api/caps'
@@ -10,8 +10,15 @@ const props = defineProps<{
   node: DocNode
   activePath: string
   depth: number
-  /** 由工作区统一广播的折叠信号：切换时把本级目录一并展开/收起 */
-  collapseAll?: boolean
+  /**
+   * 由工作区统一广播的展开状态。
+   *
+   * <p>三态而不是一个布尔：{@code default} 表示「没广播过」，此时按 {@link initCollapsed} 决定；
+   * {@code expanded} / {@code collapsed} 才代表用户点过「展开全部 / 折叠全部」。
+   * 拆开这两件事是必需的 —— 子节点改成按需渲染后，后挂载的目录只能从这份状态里
+   * 知道自己该展开还是收起；若只用一个布尔，初始的 {@code false} 与「展开全部」无法区分。</p>
+   */
+  expandMode?: 'default' | 'expanded' | 'collapsed'
   /**
    * 初始是否折叠。缺省为「折叠」。
    *
@@ -74,10 +81,13 @@ const emit = defineEmits<{
 /**
  * 缺省收起；父级显式给 {@code initCollapsed: false} 的那一个（顶层入口目录）初始展开。
  *
- * <p>读 props 的时点只在初始化，之后 {@code collapseAll} 与「祖先自动展开」两条 watch
- * 才会改它 —— 初始值只决定「第一次进来长什么样」。</p>
+ * <p>读 props 的时点只在初始化，之后 {@code expandMode} 与「祖先自动展开」两条 watch
+ * 才会改它 —— 初始值只决定「第一次进来长什么样」。{@code expandMode} 在挂载时已生效，
+ * 是为了「展开全部」之后才挂载的子目录不会又按默认收起。</p>
  */
-const collapsed = ref(props.initCollapsed !== false)
+const collapsed = ref(
+  props.expandMode === 'collapsed' ? true : props.expandMode === 'expanded' ? false : props.initCollapsed !== false
+)
 
 /** 拖动中的这一行本身：给它降透明度，让人看得出「拿起的是哪一个」 */
 const isDragging = computed(() => draggingPath.value === props.node.path)
@@ -173,10 +183,30 @@ const showMenu = computed(() => {
     || allowed('DOC_DELETE')
 })
 
+/**
+ * 「⋯」的下拉菜单要等这一行真的被点过才创建。
+ *
+ * <p>Element Plus 的 dropdown 每一份都要拉起 tooltip/popper 一整套，单行成本约十几毫秒；
+ * 4511 行一次性挂载时，光这一步就占 75 秒、1.3GB 堆（doocs-leetcode-题解 实测）。
+ * 而菜单本身是点击后才看的，绝大多数行一辈子也用不到。所以先只画一个同样外观的
+ * 普通按钮，第一次点击时再替换成真正的 dropdown，并在挂载后立即展开，
+ * 让「点一下就能看见菜单」的手感保持不变。</p>
+ */
+const menuReady = ref(false)
+const dropdownRef = ref<{ handleOpen: () => void } | null>(null)
+
+function openMenu() {
+  menuReady.value = true
+  // 等 dropdown 挂载完成再展开；它才是菜单真正的触发器
+  void nextTick(() => dropdownRef.value?.handleOpen())
+}
+
 watch(
-  () => props.collapseAll,
+  () => props.expandMode,
   (value) => {
-    collapsed.value = Boolean(value)
+    // default 是「没广播过」：用户手动开合过的目录不该被一次无意义的默认值重置
+    if (value === 'collapsed') collapsed.value = true
+    else if (value === 'expanded') collapsed.value = false
   }
 )
 
@@ -391,7 +421,7 @@ function onDrop(event: DragEvent) {
       -->
       <em v-if="node.type === 'dir' && docCount" class="md-ad-tree__count">{{ docCount }}</em>
 
-      <el-dropdown v-if="showMenu" trigger="click" placement="bottom-end" @command="onAction">
+      <el-dropdown v-if="showMenu && menuReady" ref="dropdownRef" trigger="click" placement="bottom-end" @command="onAction">
         <button type="button" class="md-ad-tree__more" title="更多操作" @click.stop>
           <MdIcon name="more" :size="15" />
         </button>
@@ -424,16 +454,32 @@ function onDrop(event: DragEvent) {
           </el-dropdown-menu>
         </template>
       </el-dropdown>
+      <!-- 尚未创建 dropdown 的行：同款按钮，第一次点击时才换成真下拉（见 openMenu） -->
+      <button
+        v-else-if="showMenu"
+        type="button"
+        class="md-ad-tree__more"
+        title="更多操作"
+        @click.stop="openMenu"
+      >
+        <MdIcon name="more" :size="15" />
+      </button>
     </div>
 
-    <ul v-if="node.type === 'dir' && node.children && node.children.length" class="md-ad-tree">
+    <!--
+      折叠的目录不渲染子节点。
+      <p>这里以前只靠 CSS 隐藏，几千篇的库一进工作区就要把全部节点连同每一行的下拉菜单
+      一起挂载 —— doocs-leetcode-题解（4511 篇）实测主线程阻塞 75 秒，加载遮罩一直转。
+      按需渲染后，初始只挂载顶层目录与当前文档沿途的那几层。</p>
+    -->
+    <ul v-if="node.type === 'dir' && !collapsed && node.children && node.children.length" class="md-ad-tree">
       <DocTreeNode
         v-for="child in node.children"
         :key="child.path"
         :node="child"
         :active-path="activePath"
         :depth="depth + 1"
-        :collapse-all="collapseAll"
+        :expand-mode="expandMode"
         :perms="perms"
         :show-md-suffix="showMdSuffix"
         :select-mode="selectMode"

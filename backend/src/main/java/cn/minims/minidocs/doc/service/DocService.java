@@ -6,6 +6,7 @@ import cn.minims.minidocs.doc.dto.DocDtos.DocNode;
 import cn.minims.minidocs.doc.dto.DocDtos.DownloadPayload;
 import cn.minims.minidocs.doc.dto.DocDtos.ImportResult;
 import cn.minims.minidocs.doc.dto.DocDtos.PathChangeVO;
+import cn.minims.minidocs.doc.dto.DocDtos.SaveResultVO;
 import cn.minims.minidocs.markdown.model.MarkdownModels.RenderContext;
 import cn.minims.minidocs.markdown.model.MarkdownModels.RenderResult;
 import cn.minims.minidocs.markdown.model.MarkdownModels.Variant;
@@ -55,8 +56,10 @@ public interface DocService {
      *   <li>基线比对：{@code baseSize} / {@code baseMtime} 取自由 {@code read} 回传的同名字段，
      *       与磁盘当前值不符即 412 —— 它兜住的是「锁过期后另一人接手」这段窗口。</li>
      * </ol>
+     *
+     * <p>返回落盘后的新基线：调用方下一次保存直接用它，不必重取目录树。</p>
      */
-    PathChangeVO saveDoc(Long kbId, String path, String content, Long baseSize, LocalDateTime baseMtime,
+    SaveResultVO saveDoc(Long kbId, String path, String content, Long baseSize, LocalDateTime baseMtime,
                          LoginUser user);
 
     void delete(Long kbId, String path, LoginUser user);
