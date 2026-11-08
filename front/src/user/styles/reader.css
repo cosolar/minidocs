@@ -1787,7 +1787,7 @@ button { font-family: inherit; }
  *
  * <p>这一档改成「一条正文柱 + 按需唤出的两个抽屉」：目录与大纲退出栅格变成 fixed 抽屉，
  * 顶栏只留目录入口 / 库名 / 设置 / 大纲 / 分享，状态栏回到文档流末尾，回到顶部改成
- * 滚过一屏才出现的悬浮按钮，顶栏底沿补一条阅读进度线。宽屏（≥1181）三栏独滚那套一行不动。</p>
+ * 滚过一屏才出现的悬浮按钮，视口底沿补一条阅读进度线。宽屏（≥1181）三栏独滚那套一行不动。</p>
  *
  * <p>放在文件最末、print 之前：同特异度下源序靠后才盖得过前面的桌面规则，
  * 以及那些散在中段的 ≤620 / ≤480 分享顶栏规则。</p>
@@ -1800,14 +1800,30 @@ button { font-family: inherit; }
 .md-share__totop-fab { display: none; }
 
 /* 阅读进度：宽度由 ShareView 写在 .md-share 上，桌面三栏独滚时同样成立 */
-.md-share__top::after {
-  content: '';
-  position: absolute; left: 0; bottom: -1px;
-  height: 2px; width: var(--md-read-progress, 0%);
-  border-radius: 0 2px 2px 0;
+.md-share__progress {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 46;
+  height: 3px; pointer-events: none;
+  background: color-mix(in srgb, var(--md-text) 8%, transparent);
+}
+.md-share__progress-fill {
+  position: absolute; left: 0; bottom: 0; top: 0;
+  width: var(--md-read-progress, 0%);
+  border-radius: 0 999px 999px 0;
+  background: linear-gradient(90deg, var(--md-accent), var(--md-primary));
+  transition: width .12s linear, opacity .2s ease;
+}
+/* 还没开始读时不留一颗靠在左边缘的孤点 */
+.md-share__progress.is-idle .md-share__progress-fill { opacity: 0; }
+.md-share__progress-dot {
+  position: absolute; right: -4px; top: 50%;
+  width: 9px; height: 9px; border-radius: 50%;
+  transform: translateY(-50%);
   background: var(--md-primary);
-  pointer-events: none;
-  transition: width .12s linear;
+  box-shadow: 0 0 0 2px var(--md-surface), 0 0 9px color-mix(in srgb, var(--md-primary) 72%, transparent);
+}
+/* 手机上底栏占着最下面 56px + 1px 上边框 + 安全区：进度线让开它，落在内容区底沿 */
+@media (max-width: 620px) {
+  .md-share__progress { bottom: calc(57px + env(safe-area-inset-bottom)); }
 }
 
 /*

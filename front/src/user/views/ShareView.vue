@@ -230,7 +230,7 @@ function openDrawer(type: 'tree' | 'outline') {
   readBody.value?.openDrawer(type)
 }
 
-/** 顶栏底沿的 2px 进度线；比值而不是像素，换字体、换文章都不用改 */
+/** 视口底沿的进度线；比值而不是像素，换字体、换文章都不用改 */
 const progress = ref(0)
 /** 滚过约一屏才给回到顶部，刚打开时别在正文上压一颗没用的按钮 */
 const showTotop = ref(false)
@@ -366,6 +366,21 @@ const { copied: shareCopied, share } = useShareLink(
         :published-text="view.publishedText"
         :updated-text="view.updatedText"
       />
+
+      <!--
+        阅读进度：贴着视口底沿（手机让开底栏），渐变填充 + 末端一颗光点。
+        放在顶栏时它和顶栏的边框挤在同一条线上，读者容易当成装饰线；
+        挪到底部之后，它更像一条「读到哪儿了」的刻度，也不挡正文。
+      -->
+      <div
+        class="md-share__progress"
+        :class="{ 'is-idle': progress <= 0 }"
+        aria-hidden="true"
+      >
+        <span class="md-share__progress-fill">
+          <i class="md-share__progress-dot" />
+        </span>
+      </div>
 
       <!--
         手机底栏（≤620 才出现）：顶栏此时只剩品牌与库名，目录 / 大纲 / 设置 / 分享
