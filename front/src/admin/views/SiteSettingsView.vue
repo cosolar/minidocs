@@ -45,6 +45,16 @@ const form = reactive({ name: '', subtitle: '', baseUrl: '', readerTheme: '' })
 const logoForm = reactive({ width: null as number | null, height: null as number | null, only: false })
 const baseUrlSaving = ref(false)
 
+/**
+ * 自助注册开关：与「注册邮箱验证」是两条独立的轴。
+ *
+ * <p>这里决定「能不能注册」，下面那块决定「注册时要不要填验证码」。把两者混成一个开关时，
+ * 常见故障是管理员打开了邮箱验证、以为注册已开放，注册页却仍提示「自主注册已关闭」——
+ * 注册入口当时只认部署参数，界面上根本没有对应的地方可改。</p>
+ */
+const registerForm = reactive({ enabled: true })
+const registerSaving = ref(false)
+
 /** 预览跟着表单走：管理员要在这里看到最终效果，而不是等保存后再去顶栏核对 */
 const logoPreviewStyle = computed(() => {
   const style: Record<string, string> = {}
@@ -88,6 +98,7 @@ async function load() {
     logoForm.width = data.logoWidth ?? null
     logoForm.height = data.logoHeight ?? null
     logoForm.only = Boolean(data.logoOnly)
+    registerForm.enabled = data.registerEnabled !== false
   } finally {
     loading.value = false
   }
@@ -144,6 +155,24 @@ async function saveBaseUrl() {
     ElMessage.success('分享链接前缀已更新')
   } finally {
     baseUrlSaving.value = false
+  }
+}
+
+/**
+ * 保存自助注册开关。
+ *
+ * <p>保存后重新套用一次公开配置：顶栏没有用到这个值，但注册页下次打开会读同一份 ——
+ * 让前后端在「能不能注册」上永远说同一句话。</p>
+ */
+async function saveRegisterEnabled() {
+  registerSaving.value = true
+  try {
+    const data = await siteApi.update({ registerEnabled: registerForm.enabled })
+    site.apply(data)
+    registerForm.enabled = data.registerEnabled !== false
+    ElMessage.success(registerForm.enabled ? '自助注册已开放' : '自助注册已关闭')
+  } finally {
+    registerSaving.value = false
   }
 }
 
@@ -608,6 +637,41 @@ onMounted(() => {
       </div>
     </div>
 
+    <div class="md-card-panel">
+      <div class="md-panel-head">
+        <div class="md-panel-head__text">
+          <h2>自助注册<HelpTip :width="420">
+            关闭后，注册页只显示「暂未开放」，新账号由管理员在用户管理里创建。
+            这里只决定「能不能注册」，与下面的「注册邮箱验证」是两件事：那个决定注册时要不要填写验证码。
+            部署时给的默认值只是出厂设置，在这里保存过以后以这里为准。
+          </HelpTip></h2>
+          <p class="md-panel-desc">访客能否自己创建账号；与邮箱验证互不影响。</p>
+        </div>
+        <span class="md-ad-chip">全站生效</span>
+      </div>
+      <div class="md-panel-body">
+        <section class="md-mail-mode" :class="{ 'is-on': registerForm.enabled }">
+          <div class="md-mail-mode__text">
+            <div class="md-mail-mode__title">
+              <h3>允许访客自助注册</h3>
+              <span class="md-mail-mode__chip" :class="registerForm.enabled ? 'is-on' : 'is-off'">
+                {{ registerForm.enabled ? '已开放' : '已关闭' }}
+              </span>
+            </div>
+            <p>
+              {{ registerForm.enabled
+                ? '访客可以自己注册账号，注册页正常显示表单。'
+                : '访客不能自己注册；已有账号仍可登录，新账号请由管理员创建。' }}
+            </p>
+          </div>
+          <el-switch v-model="registerForm.enabled" active-text="开放注册" />
+        </section>
+        <el-button type="primary" class="md-register-save" :loading="registerSaving" @click="saveRegisterEnabled">
+          <MdIcon name="save" :size="14" />保存注册设置
+        </el-button>
+      </div>
+    </div>
+
     <div v-loading="mailLoading" class="md-card-panel">
       <div class="md-panel-head">
         <div class="md-panel-head__text">
@@ -904,6 +968,8 @@ onMounted(() => {
 }
 
 /* 验证开关做成一条横卡：开着的时候整块染一点主色，扫一眼就知道这台部署在不在要求验证 */
+/* 自助注册卡只有「说明 + 保存」两段，按钮别贴着说明条 */
+.md-register-save { margin-top: 14px; }
 .md-mail-mode {
   display: flex;
   align-items: center;

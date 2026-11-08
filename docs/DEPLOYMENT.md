@@ -476,7 +476,7 @@ journalctl -u minidocs -n 100 --no-pager
 | `JWT_SECRET` | 内置开发密钥 | **生产必须覆盖**，≥ 32 字节。它同时是登录态签名密钥和「站点设置里那条 SMTP 口令」的加密密钥 —— 换了它，已存的口令会解不开，需要重新填一次（见 8.2）|
 | `JWT_EXPIRES_IN` | `7d` | 登录态有效期 |
 | `ADMIN_USER` / `ADMIN_PASS` | `admin` / `admin123` | 内置管理员，仅初始化时使用 |
-| `REGISTER_ENABLED` | `true` | 自助注册开关；对外网建议 `false` |
+| `REGISTER_ENABLED` | `true` | 自助注册的**出厂默认**；对外网建议 `false`。后台「站点设置 → 自助注册」改过以后以后台为准，本项只在没改过时兜底 |
 | `SHARE_COOKIE_HOURS` | `12` | 分享口令免密时长 |
 | `FRONT_DIR` | 空 | 仅方案 B 使用：外部前端产物目录 |
 | `LOG_LEVEL` | `info` | 日志级别 |
@@ -760,7 +760,7 @@ docker run -d --name minidocs -p 9098:9098 \
 | `ADMIN_PASS` | 是 | 无 | 首次启动创建内置管理员的密码；缺失直接拒绝启动 |
 | `JWT_SECRET` | 是 | 无 | 登录态签名密钥，**≥ 32 字符**；换掉后所有已登录会话失效，站点设置里已存的 SMTP 口令也需要重填（见 8.2）|
 | `ADMIN_USER` | 否 | `admin` | 管理员用户名，仅首次初始化生效 |
-| `REGISTER_ENABLED` | 否 | `false` | 官方镜像默认关闭自助注册；需要开放时置 `true` |
+| `REGISTER_ENABLED` | 否 | `false` | 自助注册的**出厂默认**，官方镜像默认关闭；管理员也可以直接在「站点设置 → 自助注册」里开关，后台保存过就以后台为准 |
 | `PAGE_BASE_URL` | 否 | 空 | 站点基址（`https://kb.example.com`）；留空按请求推导 |
 | `SPRING_PROFILES_ACTIVE` | 否 | `standalone` | 默认 SQLite；改用 MySQL 时置 `prod` |
 | `DB_URL` / `DB_USER` / `DB_PASSWORD` | 用 MySQL 时 | 无 | `prod` profile 的连接参数 |

@@ -44,6 +44,15 @@ public class SiteConfig {
     /** JSON 键：默认阅读主题 id（只作用于没选过主题的新访客；缺键表示用内置默认） */
     public static final String KEY_READER_THEME = "readerTheme";
 
+    /**
+     * JSON 键：是否允许自助注册。
+     *
+     * <p>缺键表示「没在后台动过」，回落到部署参数 {@code REGISTER_ENABLED}；
+     * 一旦写进 true / false，就以这里为准 —— 部署参数只是出厂默认，不该成为
+     * 一个只有改服务器配置才能打开的暗门。</p>
+     */
+    public static final String KEY_REGISTER_ENABLED = "registerEnabled";
+
     // ---- 邮件发送（注册邮箱验证用）----------------------------------------------------
     //
     // 七个键分两层：前六个是「怎么发出去」的传输参数，最后一个是「要不要挡人」的策略开关。

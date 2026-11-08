@@ -40,7 +40,7 @@
 - `ADMIN_PASS` 默认口令仅用于首次引导，登录后立即修改
 - 公网部署启用 HTTPS，并让反向代理传递 `X-Forwarded-*`
   （后端开启 `server.forward-headers-strategy=framework`）
-- 按需关闭自助注册（`REGISTER_ENABLED=false`）
+- 按需关闭自助注册：后台「站点设置 → 自助注册」；部署参数 `REGISTER_ENABLED` 只作为没改过时的出厂默认
 - `VAULT_HOME` 只授予运行用户读写权限，并配置可恢复的备份
 - 不要把 `data/`、`.env` 或数据库文件放进 Web 根目录或公开仓库
 

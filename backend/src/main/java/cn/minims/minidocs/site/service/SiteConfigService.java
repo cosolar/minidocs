@@ -18,6 +18,14 @@ public interface SiteConfigService {
     SiteConfigVO get();
 
     /**
+     * 当前是否允许自助注册。
+     *
+     * <p>后台在站点设置里改过就以配置为准；没改过回落到部署参数 {@code REGISTER_ENABLED}。
+     * 注册与发码都必须读这里，而不是直接读部署参数 —— 否则后台那个开关只是个摆设。</p>
+     */
+    boolean selfRegisterEnabled();
+
+    /**
      * 浅合并保存名称 / 副标题 / 站点基址（值为空串即清除该项，回落到默认）。
      *
      * <p>站点基址写进去即归一化过（补协议、去尾斜杠），并经 {@code SiteBaseUrls} 校验；

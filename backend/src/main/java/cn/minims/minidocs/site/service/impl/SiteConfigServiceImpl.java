@@ -99,6 +99,7 @@ public class SiteConfigServiceImpl implements SiteConfigService {
             applyLogoOnly(config, patch);
             applyBaseUrl(config, patch);
             applyReaderTheme(config, patch);
+            applyRegisterEnabled(config, patch);
         }
         save(config);
         return toVO(config);
@@ -276,6 +277,43 @@ public class SiteConfigServiceImpl implements SiteConfigService {
             throw BizException.param("只显示 Logo 的取值只能是 true 或 false");
         }
         config.put(SiteConfig.KEY_LOGO_ONLY, true);
+    }
+
+    @Override
+    public boolean selfRegisterEnabled() {
+        return registerEnabled(readConfig());
+    }
+
+    /**
+     * 自助注册的生效值：配置里写过就以配置为准，没写过才回落到部署参数。
+     *
+     * <p>与 {@code applyLogoOnly} 的差别：这里 false 也要落库。<b>不能把 false 当作「清除」</b>，
+     * 否则部署参数是 true 时，后台关掉注册会被回落到默认值重新打开 —— 开关看起来是关的，
+     * 注册却照常放行。空串仍视为清除（调用方显式要求恢复默认）。</p>
+     */
+    private void applyRegisterEnabled(Map<String, Object> config, Map<String, Object> patch) {
+        if (!patch.containsKey(SiteConfig.KEY_REGISTER_ENABLED)) {
+            return;
+        }
+        Object raw = patch.get(SiteConfig.KEY_REGISTER_ENABLED);
+        String value = raw == null ? "" : String.valueOf(raw).trim();
+        if (value.isEmpty()) {
+            config.remove(SiteConfig.KEY_REGISTER_ENABLED);
+            return;
+        }
+        if (!"true".equalsIgnoreCase(value) && !"false".equalsIgnoreCase(value)) {
+            throw BizException.param("自助注册开关的取值只能是 true 或 false");
+        }
+        config.put(SiteConfig.KEY_REGISTER_ENABLED, Boolean.parseBoolean(value));
+    }
+
+    /** 配置缺键时用部署参数兜底 —— 官方镜像默认关闭，自建部署默认开启。 */
+    private boolean registerEnabled(Map<String, Object> config) {
+        Object raw = config.get(SiteConfig.KEY_REGISTER_ENABLED);
+        if (raw == null) {
+            return properties.isRegisterEnabled();
+        }
+        return Boolean.parseBoolean(String.valueOf(raw));
     }
 
     /**
@@ -524,7 +562,8 @@ public class SiteConfigServiceImpl implements SiteConfigService {
                 text(config.get(SiteConfig.KEY_READER_THEME)),
                 // 与注册/登录闸门同一个判断，且复用这次已经读出来的配置：不另查一次库，
                 // 也不允许前端拿到一个和后端行为不一致的布尔
-                mailSettingsReader.read(config).verificationRequired());
+                mailSettingsReader.read(config).verificationRequired(),
+                registerEnabled(config));
     }
 
     /** 邮件配置的脱敏视图：口令只以「有没有存过」回显，明文与密文都不出服务端。 */

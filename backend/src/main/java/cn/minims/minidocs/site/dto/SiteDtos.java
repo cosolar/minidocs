@@ -33,10 +33,14 @@ public final class SiteDtos {
      * 强制验证等于把所有注册者挡在门外。注册页用它决定邮箱是否必填、
      * 注册后是否要停在「请查收邮件」这一步 —— 前端不能自己猜，猜错就会出现
      * 「页面让人等邮件、后端却已经放行」这种两边都对不上的体验。</p>
+     *
+     * <p>{@code registerEnabled} 是当前是否允许自助注册的<b>生效值</b>：后台改过以后台为准，
+     * 没改过回落到部署参数 {@code REGISTER_ENABLED}。注册页拿它决定是显示表单还是
+     * 「暂未开放」；只看部署参数会让后台那个开关看起来像是失效的。</p>
      */
     public record SiteConfigVO(String name, String subtitle, String logo, String logoSrc, String icon, String iconSrc,
                                String baseUrl, Integer logoWidth, Integer logoHeight, Boolean logoOnly,
-                               String readerTheme, Boolean emailVerifyRequired) {
+                               String readerTheme, Boolean emailVerifyRequired, Boolean registerEnabled) {
 
         /** Logo 接口在上下文内的路径，对外地址要再补上上下文前缀（见 {@code AppPaths}） */
         public static final String LOGO_PREFIX = "/api/site-logos/";

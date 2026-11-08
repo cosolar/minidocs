@@ -46,6 +46,14 @@ const usernameTouched = ref(false)
 /** 站点当前是否要求注册先验证邮箱（后端已把「开关 + SMTP 配齐」与好再回吐）。 */
 const verifyRequired = computed(() => site.value.emailVerifyRequired === true)
 
+/**
+ * 站点当前是否允许自助注册（后端把「后台开关」与部署参数合并后的生效值）。
+ *
+ * <p>关闭时整张表单都不显示：让人填完邮箱、点了「获取验证码」才收到一句「自主注册已关闭」，
+ * 是旧版的真实表现 —— 既白填一遍，也让人以为是自己哪里填错了。</p>
+ */
+const registerClosed = computed(() => site.value.registerEnabled === false)
+
 /** 发码倒计时；与后端「同一邮箱 60 秒一次」的配额对齐。 */
 const cooldown = ref(0)
 let cooldownTimer: ReturnType<typeof setInterval> | null = null
@@ -200,8 +208,23 @@ async function submit() {
 
     <header class="md-login__head">
         <h2>创建账号</h2>
-        <p>{{ verifyRequired ? '先获取邮箱验证码，填回来就能完成注册' : '注册后会自动进入你的第一个知识库' }}</p>
+        <p>
+          {{ registerClosed
+            ? '注册入口当前关闭，新账号请联系管理员开通'
+            : verifyRequired ? '先获取邮箱验证码，填回来就能完成注册' : '注册后会自动进入你的第一个知识库' }}
+        </p>
       </header>
+
+      <div v-if="registerClosed" class="md-register-closed">
+        <p class="md-register-closed__title">本站暂未开放自助注册</p>
+        <p class="md-register-closed__desc">需要账号请联系管理员开通；已有账号可以直接登录。</p>
+        <div class="md-login__links">
+          <span>已有账号？<router-link to="/login">去登录</router-link></span>
+          <a :href="appHref('/')">← 返回首页</a>
+        </div>
+      </div>
+
+      <template v-else>
 
       <el-form label-position="top" class="md-login__form" @submit.prevent="submit">
         <el-form-item :error="emailError" label="邮箱">
@@ -286,6 +309,7 @@ async function submit() {
         <span>已有账号？<router-link to="/login">去登录</router-link></span>
         <a :href="appHref('/')">← 返回首页</a>
       </div>
+      </template>
   </AuthShell>
 </template>
 
@@ -305,6 +329,28 @@ async function submit() {
   font-size: 13px;
   font-weight: 600;
 }
+
+/* 注册入口关闭时：不留一张填了也提交不了的表单，只给结论与两条出路 */
+.md-register-closed {
+  margin-top: 18px;
+  padding: 20px 18px;
+  border: 1px solid var(--md-border);
+  border-radius: 12px;
+  background: var(--md-surface-2);
+}
+.md-register-closed__title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--md-text);
+}
+.md-register-closed__desc {
+  margin: 8px 0 0;
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--md-text-2);
+}
+.md-register-closed .md-login__links { margin-top: 16px; }
 
 /*
  * 窄屏把「输入框 + 获取验证码」改成上下两行：

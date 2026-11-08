@@ -35,7 +35,7 @@ class MailServiceTest {
         reader = mock(MailSettingsReader.class);
         SiteConfigService site = mock(SiteConfigService.class);
         when(site.get()).thenReturn(new SiteConfigVO("测试站点", null, null, null, null, null,
-                null, null, null, false, null, false));
+                null, null, null, false, null, false, true));
         mailService = new MailService(reader, site, new RateLimiter());
     }
 

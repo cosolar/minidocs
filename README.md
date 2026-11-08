@@ -236,7 +236,7 @@ cd front  && npm run build    # 产出 front/dist
 | `DB_HOST` / `DB_USER` / `DB_PASSWORD` / `DB_URL` | — | MySQL 连接信息 |
 | `JWT_SECRET` | 内置开发密钥 | **生产必须覆盖**，≥ 32 字节 |
 | `ADMIN_USER` / `ADMIN_PASS` | `admin` / `admin123` | 内置管理员 |
-| `REGISTER_ENABLED` | `true` | 自助注册开关；内网部署建议置 `false` |
+| `REGISTER_ENABLED` | `true` | 自助注册的**出厂默认**；内网部署建议置 `false`。后台「站点设置 → 自助注册」保存过以后以后台为准 |
 | `SHARE_COOKIE_HOURS` | `12` | 分享口令通过后的免密时长 |
 | `FRONT_DIR` | 空 | 仅「后端兼作静态服务器」时使用，指向前端产物目录 |
 | `LOG_LEVEL` | `info` | 日志级别 |

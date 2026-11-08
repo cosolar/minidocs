@@ -504,6 +504,13 @@ export interface SiteConfig {
    * 猜错就会出现「页面让人等邮件、后端已经放行」。</p>
    */
   emailVerifyRequired?: boolean
+  /**
+   * 当前是否允许自助注册（后端把「后台开关」与部署参数 {@code REGISTER_ENABLED} 合并后的生效值）。
+   *
+   * <p>注册页用它决定显示表单还是「暂未开放」。不要在前端自行读部署参数 ——
+   * 后台改过以后台为准。</p>
+   */
+  registerEnabled?: boolean
 }
 
 /**

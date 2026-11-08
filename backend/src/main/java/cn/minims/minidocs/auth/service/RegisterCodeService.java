@@ -9,7 +9,7 @@ import cn.minims.minidocs.common.support.RateLimiter;
 import cn.minims.minidocs.common.util.EmailUtil;
 import cn.minims.minidocs.common.util.HashUtil;
 import cn.minims.minidocs.common.util.TimeUtil;
-import cn.minims.minidocs.config.properties.MiniDocsProperties;
+import cn.minims.minidocs.site.service.SiteConfigService;
 import cn.minims.minidocs.mail.MailService;
 import cn.minims.minidocs.site.support.MailSettings;
 import cn.minims.minidocs.site.support.MailSettingsReader;
@@ -65,7 +65,7 @@ public class RegisterCodeService {
     private final MailService mailService;
     private final MailSettingsReader mailSettingsReader;
     private final RateLimiter rateLimiter;
-    private final MiniDocsProperties properties;
+    private final SiteConfigService siteConfigService;
 
     /**
      * 给一个还没注册的邮箱发验证码。
@@ -76,7 +76,7 @@ public class RegisterCodeService {
      * @param baseUrl 站点基址，邮件里的 Logo 要拼成绝对地址才能被客户端加载
      */
     public RegisterCodeVO send(String rawEmail, String ip, String baseUrl) {
-        if (!properties.isRegisterEnabled()) {
+        if (!siteConfigService.selfRegisterEnabled()) {
             throw BizException.of(ErrorCode.FORBIDDEN, "自主注册已关闭，请联系管理员开通账号");
         }
         String email = normalize(rawEmail);

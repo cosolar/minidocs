@@ -15,7 +15,7 @@ import cn.minims.minidocs.common.context.UserContext;
 import cn.minims.minidocs.common.exception.BizException;
 import cn.minims.minidocs.common.support.RateLimiter;
 import cn.minims.minidocs.common.util.TimeUtil;
-import cn.minims.minidocs.config.properties.MiniDocsProperties;
+import cn.minims.minidocs.site.service.SiteConfigService;
 import cn.minims.minidocs.site.support.MailSettings;
 import cn.minims.minidocs.tenant.service.TenantService;
 import cn.minims.minidocs.user.dto.UserDtos.UserVO;
@@ -47,7 +47,7 @@ public class AuthServiceImpl implements AuthService {
     private final TenantService tenantService;
     private final PasswordEncoder passwordEncoder;
     private final RateLimiter rateLimiter;
-    private final MiniDocsProperties properties;
+    private final SiteConfigService siteConfigService;
     private final EmailVerificationService emailVerificationService;
     private final RegisterCodeService registerCodeService;
 
@@ -84,7 +84,7 @@ public class AuthServiceImpl implements AuthService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public UserVO register(RegisterRequest request, String baseUrl) {
-        if (!properties.isRegisterEnabled()) {
+        if (!siteConfigService.selfRegisterEnabled()) {
             throw BizException.of(ErrorCode.FORBIDDEN, "自主注册已关闭，请联系管理员开通账号");
         }
         String username = request.username().trim().toLowerCase(Locale.ROOT);
