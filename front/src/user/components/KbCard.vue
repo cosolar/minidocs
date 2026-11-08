@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import Icon from '@/user/components/Icon.vue'
+import OverflowTip from '@/shared/components/OverflowTip.vue'
 import { useSessionStore } from '@/user/stores/session'
 import { portalKbUrl } from '@/shared/portal'
 import { appHref } from '@/shared/appBase'
@@ -80,54 +81,6 @@ const manageUrl = computed(() => appHref(props.kb.tenantSlug
 const orgLabel = computed(() => props.kb.tenantName || props.kb.tenantSlug || '未归属组织')
 /** 标题下只留「谁 · 哪个组织」的归属信息；创建时间收进悬停提示，底栏放最近更新 */
 const ownerLabel = computed(() => props.kb.ownerName || '未知用户')
-
-/* --------------------------------------------------- 截断提示 */
-/*
- * 标题一行、描述一行（列表视图两行）都是 CSS 截断，被截掉的那半句只有悬停才看得到。
- * 但没被截断的卡片不该也弹一句重复的话 —— 所以量一次，真的溢出才挂 title。
- *
- * <p>量的是 <a> 与 <p> 自己：<h3> 没有 overflow，它的 scrollWidth 只会等于截断后的宽度，
- * 量它永远「没溢出」。卡片宽度会随「网格 / 列表」切换而变，交给 ResizeObserver 重算。</p>
- */
-const cardRef = ref<HTMLElement | null>(null)
-const titleRef = ref<HTMLElement | null>(null)
-const descRef = ref<HTMLElement | null>(null)
-const titleCut = ref(false)
-const descCut = ref(false)
-
-/**
- * 这段文字是否被容器截掉了。
- *
- * <p>不用 {@code scrollWidth / scrollHeight}：{@code -webkit-line-clamp} 是「裁剪」而不是
- * 「可滚动溢出」，单行省略时 scrollWidth 常常等于 clientWidth，量不出来。改成取文本自身的
- * 排版矩形（Range），它反映的是文字实际占了多少，与看不看得见无关。</p>
- */
-function overflowing(el: HTMLElement | null | undefined) {
-  if (!el) {
-    return false
-  }
-  const range = document.createRange()
-  range.selectNodeContents(el)
-  const rect = range.getBoundingClientRect()
-  return rect.width > el.clientWidth + 1 || rect.height > el.clientHeight + 1
-}
-
-function measureClamp() {
-  titleCut.value = overflowing(titleRef.value?.querySelector('a'))
-  descCut.value = overflowing(descRef.value)
-}
-
-let cardObserver: ResizeObserver | null = null
-onMounted(() => {
-  nextTick(measureClamp)
-  if (typeof ResizeObserver !== 'undefined' && cardRef.value) {
-    cardObserver = new ResizeObserver(measureClamp)
-    cardObserver.observe(cardRef.value)
-  }
-})
-onBeforeUnmount(() => cardObserver?.disconnect())
-/** 同一个卡片实例换了数据（翻页 / 搜索命中复用）时也要重量一次 */
-watch(() => [props.kb.name, props.kb.description], () => nextTick(measureClamp))
 
 const copied = ref(false)
 let copyTimer: number | undefined
@@ -234,7 +187,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <article ref="cardRef" class="md-card" :style="{ '--cover-a': palette[0], '--cover-b': palette[1] }">
+  <article class="md-card" :style="{ '--cover-a': palette[0], '--cover-b': palette[1] }">
     <!-- 竖版卡片：顶部一条水彩封面，正文在下，右下一颗圆形箭头 -->
     <router-link
       class="md-card__cover"
@@ -265,24 +218,24 @@ onBeforeUnmount(() => {
     <div class="md-card__body">
       <div class="md-card__head">
         <span class="md-card__mark" aria-hidden="true"><Icon name="bookOpen" :size="17" /></span>
-        <h3 ref="titleRef" class="md-card__title" :title="titleCut ? kb.name : undefined">
+        <OverflowTip as="h3" class="md-card__title" :text="kb.name" :touch="false">
           <router-link :to="link">{{ kb.name }}</router-link>
-        </h3>
+        </OverflowTip>
       </div>
 
-      <p
-        ref="descRef"
-        class="md-card__desc"
-        :title="descCut ? (kb.description || '暂无描述') : undefined"
-      >{{ kb.description || '暂无描述' }}</p>
+      <OverflowTip as="p" class="md-card__desc" :text="kb.description || '暂无描述'" />
 
       <div class="md-card__foot">
         <span class="md-card__meta-item">
           <Icon name="file" :size="13" />{{ kb.docCount }} 篇
         </span>
-        <span class="md-card__meta-item md-card__meta-item--org" :title="`${orgLabel} · ${ownerLabel}`">
+        <OverflowTip
+          as="span"
+          class="md-card__meta-item md-card__meta-item--org"
+          :text="`${orgLabel} · ${ownerLabel}`"
+        >
           <Icon name="building" :size="13" /><span class="md-card__meta-text">{{ orgLabel }}</span>
-        </span>
+        </OverflowTip>
         <router-link class="md-card__go" :to="link" :aria-label="`阅读《${kb.name}》`">
           <Icon name="arrowRight" :size="15" />
         </router-link>
