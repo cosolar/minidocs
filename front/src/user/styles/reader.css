@@ -1800,11 +1800,8 @@ button { font-family: inherit; }
 .md-share__totop-fab { display: none; }
 
 /* 阅读进度：宽度由 ShareView 写在 .md-share 上，桌面三栏独滚时同样成立 */
-.md-share__progress {
-  position: fixed; left: 0; right: 0; bottom: 0; z-index: 46;
-  height: 3px; pointer-events: none;
-  background: color-mix(in srgb, var(--md-text) 8%, transparent);
-}
+/* 宽屏不显示阅读进度：正文栏自己滚，顶部阅读位置已经足够清楚 */
+.md-share__progress { display: none; }
 .md-share__progress-fill {
   position: absolute; left: 0; bottom: 0; top: 0;
   width: var(--md-read-progress, 0%);
@@ -1812,18 +1809,19 @@ button { font-family: inherit; }
   background: linear-gradient(90deg, var(--md-accent), var(--md-primary));
   transition: width .12s linear, opacity .2s ease;
 }
-/* 还没开始读时不留一颗靠在左边缘的孤点 */
 .md-share__progress.is-idle .md-share__progress-fill { opacity: 0; }
-.md-share__progress-dot {
-  position: absolute; right: -4px; top: 50%;
-  width: 9px; height: 9px; border-radius: 50%;
-  transform: translateY(-50%);
-  background: var(--md-primary);
-  box-shadow: 0 0 0 2px var(--md-surface), 0 0 9px color-mix(in srgb, var(--md-primary) 72%, transparent);
-}
-/* 手机上底栏占着最下面 56px + 1px 上边框 + 安全区：进度线让开它，落在内容区底沿 */
+/*
+ * 手机才出进度线：一条 2px 的细线，压在底部动作栏上沿。
+ * 底栏占着最下面 56px + 1px 上边框 + 安全区，进度线让开它，落在内容区底沿。
+ */
 @media (max-width: 620px) {
-  .md-share__progress { bottom: calc(57px + env(safe-area-inset-bottom)); }
+  .md-share__progress {
+    display: block;
+    position: fixed; left: 0; right: 0;
+    bottom: calc(57px + env(safe-area-inset-bottom)); z-index: 46;
+    height: 2px; pointer-events: none;
+    background: color-mix(in srgb, var(--md-text) 6%, transparent);
+  }
 }
 
 /*

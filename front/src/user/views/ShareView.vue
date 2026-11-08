@@ -368,18 +368,15 @@ const { copied: shareCopied, share } = useShareLink(
       />
 
       <!--
-        阅读进度：贴着视口底沿（手机让开底栏），渐变填充 + 末端一颗光点。
-        放在顶栏时它和顶栏的边框挤在同一条线上，读者容易当成装饰线；
-        挪到底部之后，它更像一条「读到哪儿了」的刻度，也不挡正文。
+        阅读进度：只在手机出现，一条 2px 渐变细线压在底部动作栏上沿。
+        宽屏正文栏独立滚动，进度线没有存在的必要，直接不渲染出来。
       -->
       <div
         class="md-share__progress"
         :class="{ 'is-idle': progress <= 0 }"
         aria-hidden="true"
       >
-        <span class="md-share__progress-fill">
-          <i class="md-share__progress-dot" />
-        </span>
+        <span class="md-share__progress-fill" />
       </div>
 
       <!--
