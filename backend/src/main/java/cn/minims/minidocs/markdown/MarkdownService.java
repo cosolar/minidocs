@@ -327,7 +327,12 @@ public class MarkdownService {
         FrontMatterParser.Parsed parsed = FrontMatterParser.parse(content);
         Map<String, Object> frontmatter = parsed.data();
 
-        String rawHtml = renderer.render(parser.parse(normalizeTableDelimiters(parsed.body())));
+        // 公式保护：LaTeX 语法与 Markdown 强调/转义规则冲突（_ 与 * 会变成 <em>，
+        // \\ 会折叠成 \），解析前摘出公式换成占位符，渲染后原样放回，
+        // 由浏览器端 KaTeX auto-render 排版。见 MathGuard 类注释里的实测案例。
+        MathGuard.Extraction math = MathGuard.extract(normalizeTableDelimiters(parsed.body()));
+        String rawHtml = renderer.render(parser.parse(math.text()));
+        rawHtml = MathGuard.restore(rawHtml, math.formulas());
 
         Document document = Jsoup.parseBodyFragment(rawHtml);
         document.outputSettings().prettyPrint(false);
