@@ -1624,8 +1624,6 @@ body.is-col-resizing .md-ws__bytemd-resizer::after { background: var(--md-primar
 .md-ad-tree__drop-line.is-before { top: -1px; }
 .md-ad-tree__drop-line.is-after { bottom: -1px; }
 .md-ad-tree__row.is-active .md-ad-tree__name { color: var(--md-primary); font-weight: 650; }
-.md-ad-tree__row.is-active .md-ad-tree__type,
-.md-ad-tree__row.is-ancestor .md-ad-tree__type { color: var(--md-primary); }
 .md-ad-tree__toggle {
   width: 16px; height: 22px; flex-shrink: 0; display: inline-grid; place-items: center;
   border: 0; border-radius: 5px; background: none; color: var(--md-text-3); cursor: pointer;
@@ -1633,10 +1631,8 @@ body.is-col-resizing .md-ws__bytemd-resizer::after { background: var(--md-primar
 .md-ad-tree__toggle:hover { background: var(--md-surface); color: var(--md-text); }
 .md-ad-tree__toggle--spacer { cursor: default; }
 .md-ad-tree__toggle--spacer:hover { background: none; }
-/* 文档 / 图片压到最淡的灰 */
-.md-ad-tree__type { flex-shrink: 0; color: var(--md-text-3); }
-/* 目录给品牌蓝：一眼分出「这一层还有下级」，与文章行区分开 */
-.md-ad-tree__row.is-dir .md-ad-tree__type { color: var(--md-primary); }
+/* 类型图标统一品牌色，与阅读端目录树同口径 */
+.md-ad-tree__type { flex-shrink: 0; color: var(--md-primary); }
 .md-ad-tree__name {
   flex: 1; min-width: 0; padding: 5px 2px; font-size: 13px; cursor: pointer;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--md-text-2);

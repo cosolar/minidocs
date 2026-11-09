@@ -612,12 +612,8 @@ button { font-family: inherit; }
  */
 .md-tree__chevron--spacer { visibility: hidden; }
 
-/*
- * 节点类型图标。目录是品牌蓝，文档与图片压到最淡的灰 —— 一眼能分清「这一层
- * 还有下级」和「这是一篇文章」，又不至于让上百个蓝图标把整栏吵醒。
- */
-.md-tree__type { flex-shrink: 0; color: var(--md-text-3); }
-.md-tree__label .md-tree__type { color: var(--md-primary); }
+/* 类型图标统一品牌色：文档压灰看着像禁用，与目录 folder 同色才不分彼此 */
+.md-tree__type { flex-shrink: 0; color: var(--md-primary); }
 
 /* 图片节点：用 button 承载（不能跳路由），把浏览器默认的按钮态抹平 */
 .md-tree__link--asset {
@@ -638,21 +634,9 @@ button { font-family: inherit; }
 .md-tree__link--asset:hover { color: var(--md-text-1); }
 .md-tree__label:hover .md-tree__chevron { color: var(--md-text-2); }
 
-/*
- * 篇数。设计稿上是纯粹一个灰数字：胶囊底色在这里是噪声 —— 目录一多，
- * 几十个灰胶囊连成一条带子，反而把名称挤窄了。
- */
-.md-tree__count {
-  margin-left: auto; flex-shrink: 0; font-style: normal;
-  min-width: 18px; padding: 0 2px;
-  color: var(--md-text-3);
-  font-size: 11px; line-height: 20px; text-align: right;
-}
-
-.md-tree__link.is-active { background: var(--md-primary-soft); color: var(--md-primary); font-weight: 600; box-shadow: inset 3px 0 0 var(--md-primary); }
 /* 激活行整行着色（原来只给圆点加光环）：行高只有 20 多 px，一个 6px 的点太轻，
    扫视时抓不到「我在这篇」。 */
-.md-tree__link.is-active .md-tree__type { color: var(--md-primary); }
+.md-tree__link.is-active { background: var(--md-primary-soft); color: var(--md-primary); font-weight: 600; box-shadow: inset 3px 0 0 var(--md-primary); }
 
 /*
  * 阅读条：**宽屏下横跨正文栏与右侧目录栏**，两栏顶部连成一条。

@@ -142,8 +142,8 @@ const showPerms = computed(() => kbCan('KB_MEMBER_MANAGE') || kbCan('KB_SET_VISI
 }
 
 /* ---------------------------------------------------------------- 卡片形态 */
-/* --act 挂在容器上让按钮继承，具体动作再用同名类覆盖；默认值落在「更多」的灰蓝 */
-.md-row-actions.is-card { gap: 4px; flex-wrap: nowrap; --act: #64748b; }
+/* --act 挂在容器上让按钮继承，具体动作再用同名类覆盖；默认值给「更多」的品牌青绿（灰蓝静止态看着像禁用） */
+.md-row-actions.is-card { gap: 4px; flex-wrap: nowrap; --act: var(--md-primary); }
 .md-row-actions.is-card :deep(.el-button) {
   height: 36px; padding: 0 9px;
   border-radius: 10px;
@@ -189,7 +189,6 @@ const showPerms = computed(() => kbCan('KB_MEMBER_MANAGE') || kbCan('KB_SET_VISI
 .md-row-actions.is-card :deep(.el-button.md-action--share) { --act: #0ea5e9; }
 .md-row-actions.is-card :deep(.el-button.md-action--edit) { --act: #f59e0b; }
 .md-row-actions.is-card :deep(.el-button.md-action--perms) { --act: #8b5cf6; }
-.md-row-actions.is-card :deep(.el-button.md-action--more) { --act: #64748b; }
 .md-row-actions.is-card :deep(.el-button.md-action:focus-visible) {
   outline: 2px solid color-mix(in srgb, var(--act) 70%, transparent);
   outline-offset: 1px;
