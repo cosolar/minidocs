@@ -7,15 +7,17 @@
  * 并没有一个自然的 org 可填。组织自己的资料与成员治理在 {@code OrgSettingsView}。</p>
  */
 import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
-import { ElMessage } from 'element-plus'
-import { authApi, avatarApi } from '@/admin/api'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import { authApi, avatarApi, tokenApi } from '@/admin/api'
 import AdminPageHeader from '@/admin/components/AdminPageHeader.vue'
 import MdIcon from '@/admin/components/MdIcon.vue'
+import { useIsMobile } from '@/admin/composables/useIsMobile'
 import HelpTip from '@/shared/components/HelpTip.vue'
 import { appBackendHref, appHref } from '@/shared/appBase'
 import { toApiErrorInfo } from '@/shared/api/http'
 import { useAuthStore } from '@/admin/stores/auth'
 import { useSettingsStore } from '@/shared/stores/settings'
+import type { ApiTokenVO } from '@/shared/api/types'
 
 const auth = useAuthStore()
 const settings = useSettingsStore()
@@ -167,6 +169,105 @@ async function patch(patchValue: Record<string, unknown>) {
   await settings.patch(patchValue)
 }
 
+/* ------------------------------------------------- 第三方应用授权（访问令牌） */
+/**
+ * 访问令牌：给第三方应用签发的一枚长期凭证。
+ *
+ * <p>它换来的身份就是本人，所以第三方能读到的数据与本人登录后读到的一致；
+ * 差别在于令牌可以被随时吊销，也可以只给「读」的权限。</p>
+ */
+const tokens = ref<ApiTokenVO[]>([])
+const tokenLoading = ref(false)
+const tokenDialog = ref(false)
+const tokenCreating = ref(false)
+const tokenForm = reactive({ name: '', writeable: false, expiresInDays: 0 })
+/** 刚签发出来的令牌原文：只在这个弹窗里出现一次，关闭即消失 */
+const issuedToken = ref('')
+const issuedDialog = ref(false)
+/** 窄屏用卡片而不是表格：七列挤在 390px 里会把「谁是哪枚令牌」挤没了 */
+const isMobile = useIsMobile()
+
+const expiryOptions = [
+  { label: '长期有效', value: 0 },
+  { label: '30 天', value: 30 },
+  { label: '90 天', value: 90 },
+  { label: '一年', value: 365 }
+]
+
+async function loadTokens() {
+  tokenLoading.value = true
+  try {
+    tokens.value = await tokenApi.list()
+  } finally {
+    tokenLoading.value = false
+  }
+}
+
+function openTokenDialog() {
+  tokenForm.name = ''
+  tokenForm.writeable = false
+  tokenForm.expiresInDays = 0
+  tokenDialog.value = true
+}
+
+async function createToken() {
+  const name = tokenForm.name.trim()
+  if (!name) {
+    ElMessage.warning('请填写应用名称，方便日后认出这枚令牌')
+    return
+  }
+  tokenCreating.value = true
+  try {
+    const created = await tokenApi.create({
+      name,
+      scopes: tokenForm.writeable ? 'read,write' : 'read',
+      expiresInDays: tokenForm.expiresInDays || undefined
+    })
+    tokenDialog.value = false
+    issuedToken.value = created.token
+    issuedDialog.value = true
+    await loadTokens()
+  } finally {
+    tokenCreating.value = false
+  }
+}
+
+async function revokeToken(row: ApiTokenVO) {
+  await ElMessageBox.confirm(
+    `吊销后「${row.name}」将立即失去访问权限，且无法恢复。`,
+    '确认吊销这枚令牌？',
+    { confirmButtonText: '吊销', cancelButtonText: '取消', type: 'warning' }
+  )
+  await tokenApi.revoke(row.id)
+  ElMessage.success('令牌已吊销')
+  await loadTokens()
+}
+
+async function copyIssuedToken() {
+  try {
+    await navigator.clipboard.writeText(issuedToken.value)
+    ElMessage.success('令牌已复制')
+  } catch {
+    ElMessage.warning('复制失败，请手动选中文本复制')
+  }
+}
+
+function tokenStatusText(status: string) {
+  if (status === 'active') return '生效中'
+  if (status === 'expired') return '已过期'
+  return '已吊销'
+}
+
+function tokenStatusTone(status: string) {
+  if (status === 'active') return 'ok'
+  if (status === 'expired') return 'warn'
+  return 'muted'
+}
+
+function tokenTime(value?: string) {
+  return value ? value.replace('T', ' ').slice(0, 16) : '—'
+}
+
 onMounted(async () => {
   settings.applyToDom()
   if (!auth.user) await auth.loadProfile()
@@ -174,6 +275,7 @@ onMounted(async () => {
   account.displayName = auth.user?.displayName || ''
   account.email = auth.user?.email || ''
   await settings.load()
+  await loadTokens()
 })
 </script>
 
@@ -369,6 +471,142 @@ onMounted(async () => {
         </section>
       </div>
     </div>
+
+    <section class="md-card-panel md-table-card">
+      <div class="md-panel-head">
+        <div class="md-panel-head__text">
+          <h2>第三方应用授权</h2>
+          <p class="md-panel-desc">给第三方应用签发一枚访问令牌，它就能以你的身份读取官方接口的数据。令牌只显示一次，请立刻保存。</p>
+        </div>
+        <span class="md-spacer" />
+        <HelpTip text="令牌等同于你的账号权限：只读令牌只能查询数据，读写令牌还能新建与修改。随时可以在这里吊销。" />
+        <el-button type="primary" @click="openTokenDialog">
+          <MdIcon name="plus" :size="14" />新建令牌
+        </el-button>
+      </div>
+      <div class="md-panel-body">
+        <div v-if="!tokens.length && tokenLoading" class="md-empty">
+          <div class="md-empty__title">正在读取令牌…</div>
+        </div>
+        <div v-else-if="!tokens.length" class="md-empty">
+          <span class="md-empty__icon"><MdIcon name="key" :size="22" /></span>
+          <div class="md-empty__title">还没有访问令牌</div>
+          <p class="md-empty__desc">第三方应用需要凭一枚令牌访问官方接口。签发一枚，把令牌填进它的配置里即可。</p>
+          <el-button type="primary" @click="openTokenDialog">
+            <MdIcon name="plus" :size="14" />新建令牌
+          </el-button>
+        </div>
+        <template v-else>
+          <!-- 窄屏：一枚令牌一张卡，跟「用户管理」同一套读法 -->
+          <div v-if="isMobile" class="md-token-cards">
+            <div v-for="row in tokens" :key="row.id" class="md-token-card">
+              <div class="md-token-card__head">
+                <strong>{{ row.name }}</strong>
+                <span class="md-tbl-pill" :class="row.writeable ? 'md-tbl-pill--brand' : 'md-tbl-pill--muted'">
+                  {{ row.writeable ? '读写' : '只读' }}
+                </span>
+                <span class="md-tbl-pill" :class="`md-tbl-pill--${tokenStatusTone(row.status)}`">
+                  {{ tokenStatusText(row.status) }}
+                </span>
+              </div>
+              <div class="md-token-card__meta">
+                <code>{{ row.tokenPrefix }}…</code>
+                <span>创建于 {{ tokenTime(row.createdAt) }}</span>
+                <span>{{ row.lastUsedAt ? `最近使用 ${tokenTime(row.lastUsedAt)}` : '还没用过' }}</span>
+                <span>{{ row.expiresAt ? `有效期至 ${tokenTime(row.expiresAt)}` : '长期有效' }}</span>
+              </div>
+              <div class="md-token-card__actions">
+                <el-button v-if="row.status !== 'revoked'" size="small" type="danger" plain @click="revokeToken(row)">
+                  <MdIcon name="trash" :size="14" />吊销
+                </el-button>
+                <span v-else class="md-token-cell__muted">已作废</span>
+              </div>
+            </div>
+          </div>
+          <el-table v-else :data="tokens" v-loading="tokenLoading" style="width: 100%">
+          <el-table-column label="应用" min-width="200">
+            <template #default="{ row }">
+              <div class="md-token-cell">
+                <strong>{{ row.name }}</strong>
+                <code>{{ row.tokenPrefix }}…</code>
+              </div>
+            </template>
+          </el-table-column>
+          <el-table-column label="权限" width="96" align="center">
+            <template #default="{ row }">
+              <span class="md-tbl-pill" :class="row.writeable ? 'md-tbl-pill--brand' : 'md-tbl-pill--muted'">
+                {{ row.writeable ? '读写' : '只读' }}
+              </span>
+            </template>
+          </el-table-column>
+          <el-table-column label="状态" width="96" align="center">
+            <template #default="{ row }">
+              <span class="md-tbl-pill" :class="`md-tbl-pill--${tokenStatusTone(row.status)}`">
+                {{ tokenStatusText(row.status) }}
+              </span>
+            </template>
+          </el-table-column>
+          <el-table-column label="创建时间" width="148">
+            <template #default="{ row }">{{ tokenTime(row.createdAt) }}</template>
+          </el-table-column>
+          <el-table-column label="最近使用" width="148">
+            <template #default="{ row }">{{ row.lastUsedAt ? tokenTime(row.lastUsedAt) : '还没用过' }}</template>
+          </el-table-column>
+          <el-table-column label="有效期" width="148">
+            <template #default="{ row }">{{ row.expiresAt ? tokenTime(row.expiresAt) : '长期有效' }}</template>
+          </el-table-column>
+          <el-table-column label="操作" width="104" align="right" fixed="right">
+            <template #default="{ row }">
+              <el-button v-if="row.status !== 'revoked'" size="small" type="danger" plain @click="revokeToken(row)">
+                <MdIcon name="trash" :size="14" />吊销
+              </el-button>
+              <span v-else class="md-token-cell__muted">已作废</span>
+            </template>
+          </el-table-column>
+        </el-table>
+        </template>
+      </div>
+    </section>
+
+    <el-dialog v-model="tokenDialog" title="新建访问令牌" width="460px">
+      <el-form label-position="top">
+        <el-form-item label="应用名称">
+          <el-input v-model="tokenForm.name" maxlength="64" placeholder="例如：我的数据看板" />
+        </el-form-item>
+        <el-form-item>
+          <template #label>权限<HelpTip :width="320">只读：只能查询数据。读写：还能新建与修改内容。默认给只读。</HelpTip></template>
+          <el-radio-group v-model="tokenForm.writeable">
+            <el-radio-button :value="false">只读</el-radio-button>
+            <el-radio-button :value="true">读写</el-radio-button>
+          </el-radio-group>
+        </el-form-item>
+        <el-form-item label="有效期">
+          <el-select v-model="tokenForm.expiresInDays" style="width: 100%">
+            <el-option v-for="opt in expiryOptions" :key="opt.value" :label="opt.label" :value="opt.value" />
+          </el-select>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="tokenDialog = false">取消</el-button>
+        <el-button type="primary" :loading="tokenCreating" @click="createToken">签发令牌</el-button>
+      </template>
+    </el-dialog>
+
+    <el-dialog v-model="issuedDialog" title="令牌已生成" width="560px" :close-on-click-modal="false">
+      <p class="md-panel-desc">这枚令牌只显示这一次，关闭后无法再次查看。请立刻复制并保存到第三方应用的配置里。</p>
+      <div class="md-token-secret">
+        <code>{{ issuedToken }}</code>
+        <el-button size="small" @click="copyIssuedToken">
+          <MdIcon name="copy" :size="14" />复制
+        </el-button>
+      </div>
+      <p class="md-panel-desc md-token-usage">
+        调用官方接口时把它放进请求头：<code>Authorization: Bearer &lt;令牌&gt;</code>
+      </p>
+      <template #footer>
+        <el-button type="primary" @click="issuedDialog = false">我已保存</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -385,5 +623,81 @@ onMounted(async () => {
   display: inline-flex;
   align-items: center;
   gap: 10px;
+}
+
+/* 窄屏一枚令牌一张卡：表格七列挤在 390px 里，「谁是哪枚令牌」会被固定列挤没 */
+.md-token-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.md-token-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 14px;
+  border: 1px solid var(--md-border);
+  border-radius: var(--md-radius-sm, 10px);
+}
+.md-token-card__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.md-token-card__meta {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  color: var(--md-text-3);
+  font-size: 12px;
+}
+.md-token-card__meta code {
+  font-family: var(--md-mono, ui-monospace, Menlo, Consolas, monospace);
+  color: var(--md-text-2);
+}
+.md-token-card__actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+/* 令牌那列：应用名与前缀分两行，前缀是等宽字体 —— 它是给人认「哪一枚」用的 */
+.md-token-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.md-token-cell code {
+  font-family: var(--md-mono, ui-monospace, Menlo, Consolas, monospace);
+  font-size: 11.5px;
+  color: var(--md-text-3);
+}
+.md-token-cell__muted {
+  color: var(--md-text-3);
+  font-size: 12.5px;
+}
+
+/* 刚签发出来的令牌原文：等宽 + 允许换行，别让它把弹窗撑破 */
+.md-token-secret {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 14px 0;
+  padding: 12px 14px;
+  border: 1px solid var(--md-border);
+  border-radius: var(--md-radius-sm, 10px);
+  background: var(--md-surface-2);
+}
+.md-token-secret code {
+  flex: 1;
+  word-break: break-all;
+  font-family: var(--md-mono, ui-monospace, Menlo, Consolas, monospace);
+  font-size: 12.5px;
+  color: var(--md-text);
+}
+.md-token-usage code {
+  font-family: var(--md-mono, ui-monospace, Menlo, Consolas, monospace);
+  font-size: 12px;
+  color: var(--md-text-2);
 }
 </style>

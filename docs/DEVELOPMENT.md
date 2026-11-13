@@ -212,6 +212,11 @@ ReaderService.build(kb, ReadRequest)
   白名单刻意不放行 `style`：作者的 `align` / `text-align` 在过滤前归一成 `md-align-*` 类名，
   其余内联样式一律丢弃。新增标签或属性必须同时补 `MarkdownHtmlRenderTest` 的用例。
 - 路径穿越、上传校验（扩展名 / MIME / 魔数）、分享 token 形态：见 README 的安全要点。
+- **第三方应用访问令牌**（`auth/` 下的 `ApiToken*`）：令牌原文只在签发时回吐一次，库里只存
+  SHA-256 摘要；`AuthInterceptor` 识别 `Authorization: Bearer mdt_…` 并换成令牌所有者的身份，
+  与登录态在 `UserContext` 处合流。两条边界写在拦截器里：**只读令牌只能读**（非 GET/HEAD/OPTIONS
+  一律 403），且**令牌不得访问 `/api/tokens` 与账号安全类接口**（不能自己增发令牌、不能改密码）。
+  新增令牌相关的接口时，别把这两条放到控制器里 —— 放控制器就等于「每个新接口都要记得写一遍」。
 
 ### 4.8 测试
 

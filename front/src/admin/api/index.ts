@@ -1,7 +1,8 @@
 import { request } from './http'
 import { kbPath, kbUrl, orgPath } from './context'
 import type {
-  AdminUserVO, AuditVO, DiscoverOrgVO, DocContentVO, DocNode, DocSaveVO, GitStatusVO, GitSyncVO, ImportResult,
+  AdminUserVO, ApiTokenCreatedVO, ApiTokenVO, AuditVO, DiscoverOrgVO, DocContentVO, DocNode, DocSaveVO,
+  GitStatusVO, GitSyncVO, ImportResult,
   KbConfigVO, KbDisplay, KbRosterVO, KbVO, LockVO,
   LoginResponse, MeVO, OrgMemberVO, OrgVO, PageResult, PathChangeVO, JoinRequestVO, RenderVO,
   ShareVO, SiteConfig, SiteMailVO, StatsVO, UserVO
@@ -411,6 +412,20 @@ export const themeApi = {
 
 /* 全局搜索面板（Ctrl/⌘+K）在门户与管理台共用同一份，走 {@code user/api} 的 searchApi：
    两点都在 {@code /api/search*}，复制一份只会让「哪边接了全文检索」变成两份漂移的账。 */
+
+/* ------------------------------------------------------------------ 第三方应用授权 */
+/**
+ * 访问令牌：给第三方应用签发的一枚长期凭证（GitHub Personal Access Token 的做法）。
+ *
+ * <p>令牌原文<b>只在签发那一次</b>回吐，服务端只留摘要，所以列表里拿不到原文 ——
+ * 前端不要设计「再次查看令牌」的入口。</p>
+ */
+export const tokenApi = {
+  list: () => request<ApiTokenVO[]>({ url: '/tokens' }),
+  create: (data: { name: string; scopes?: string; expiresInDays?: number }) =>
+    request<ApiTokenCreatedVO>({ url: '/tokens', method: 'post', data }),
+  revoke: (id: number) => request<void>({ url: `/tokens/${id}`, method: 'delete' })
+}
 
 export function encodePath(path: string) {
   return (path || '')

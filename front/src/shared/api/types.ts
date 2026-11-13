@@ -555,3 +555,29 @@ export interface SearchHit {
   /** 服务端拼好的门户地址（{@code /kb/{org}/{slug}?path=...}），前端拿到什么跳什么 */
   url: string
 }
+
+/* ------------------------------------------------------------------ 第三方应用访问令牌 */
+/** 令牌概要：没有原文字段，服务端只存摘要，原文拿不回来。 */
+export interface ApiTokenVO {
+  id: number
+  /** 应用名 / 用途 */
+  name: string
+  /** 展示用前缀，如 mdt_a1b2c3d4 */
+  tokenPrefix: string
+  /** 逗号分隔的权限 */
+  scopes: string
+  /** 是否含写权限 */
+  writeable: boolean
+  /** active 生效中 / expired 已过期 / revoked 已吊销 */
+  status: string
+  createdAt?: string
+  lastUsedAt?: string
+  expiresAt?: string
+  revokedAt?: string
+}
+
+/** 签发结果：令牌原文只在这里出现一次。 */
+export interface ApiTokenCreatedVO {
+  token: string
+  item: ApiTokenVO
+}
