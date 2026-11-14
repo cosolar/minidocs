@@ -13,7 +13,7 @@
 
     <groupId>cn.minims</groupId>
     <artifactId>minidocs</artifactId>
-    <version>1.2.19</version>
+    <version>1.2.20</version>
     <name>minidocs</name>
     <description>MiniDocs 极简智库平台</description>
     <url>https://github.com/cosolar/minidocs</url>
@@ -54,18 +54,6 @@
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-validation</artifactId>
-        </dependency>
-
-        <!--
-          行为验证码（tianai-captcha / 天爱验证码，Dromara 社区，Apache-2.0）。
-          登录前的滑块拼图 + 轨迹校验：比图形字符码难被脚本绕过，又不像付费方案要接第三方。
-          默认加载库内置的滑块模板（META-INF/cut-image/template）与背景资源；
-          品牌背景图另外注册，见 CaptchaResourceConfig。
-        -->
-        <dependency>
-            <groupId>cloud.tianai.captcha</groupId>
-            <artifactId>tianai-captcha-springboot-starter</artifactId>
-            <version>1.5.6</version>
         </dependency>
 
         <!--
