@@ -57,6 +57,18 @@
         </dependency>
 
         <!--
+          行为验证码（tianai-captcha / 天爱验证码，Dromara 社区，Apache-2.0）。
+          登录前的滑块拼图 + 轨迹校验：比图形字符码难被脚本绕过，又不像付费方案要接第三方。
+          默认加载库内置的滑块模板（META-INF/cut-image/template）与背景资源；
+          品牌背景图另外注册，见 CaptchaResourceConfig。
+        -->
+        <dependency>
+            <groupId>cloud.tianai.captcha</groupId>
+            <artifactId>tianai-captcha-springboot-starter</artifactId>
+            <version>1.5.6</version>
+        </dependency>
+
+        <!--
           连接池：Druid 取代 spring-boot-starter-jdbc 默认带的 HikariCP。
           换它的理由是监控与可观测性（StatViewServlet 看池与 SQL 统计、慢 SQL 日志），
           代价是每条 SQL 会多一次 StatFilter 解析——不想要就把

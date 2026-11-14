@@ -17,6 +17,7 @@ import { toApiErrorInfo } from '@/shared/api/http'
 import { appHref } from '@/shared/appBase'
 import MdIcon from '@/admin/components/MdIcon.vue'
 import AuthShell from '@/admin/components/AuthShell.vue'
+import SliderCaptcha from '@/admin/components/SliderCaptcha.vue'
 import { useAuthStore } from '@/admin/stores/auth'
 import { useSiteStore } from '@/shared/stores/site'
 
@@ -39,6 +40,13 @@ const POINTS = [
 
 const form = reactive({ username: '', displayName: '', email: '', password: '', confirm: '', code: '' })
 const loading = ref(false)
+
+/** 自动登录要过的滑块：票据一次性，注册成功后紧接着的那次登录用它。 */
+const captchaRef = ref<InstanceType<typeof SliderCaptcha> | null>(null)
+const captchaTicket = ref('')
+function onCaptchaPassed(ticket: string) {
+  captchaTicket.value = ticket
+}
 const sendingCode = ref(false)
 /** 用户手动改过用户名之后，就不再跟着邮箱覆盖 */
 const usernameTouched = ref(false)
@@ -184,11 +192,15 @@ async function submit() {
     })
     // 注册接口不给会话，紧接着登录一次；失败也不把账号回滚，提示去登录即可
     try {
-      await auth.login(username, form.password)
+      // 登录现在要过滑块：注册页也摆一个，否则「注册即登录」这条路会被验证码挡在门口，
+      // 用户刚填完一屏字段还得跳去登录页再滑一次
+      await auth.login(username, form.password, captchaTicket.value)
       ElMessage.success('注册完成，个人组织已经建好')
       router.replace((route.query.redirect as string) || '/console')
       return
     } catch {
+      captchaTicket.value = ''
+      captchaRef.value?.reset()
       ElMessage.success('注册完成，请登录')
     }
   } catch (error) {
@@ -300,11 +312,14 @@ async function submit() {
           </el-form-item>
         </div>
 
+        <!-- 只服务于「注册完自动登录」：注册接口本身不校验滑块，登录接口校验 -->
+        <div class="md-login__captcha">
+          <SliderCaptcha ref="captchaRef" @passed="onCaptchaPassed" />
+        </div>
         <el-button type="primary" size="large" class="md-login__submit" :loading="loading" @click="submit">
           <MdIcon name="user-plus" :size="16" />创建账号
         </el-button>
       </el-form>
-
       <div class="md-login__links">
         <span>已有账号？<router-link to="/login">去登录</router-link></span>
         <a :href="appHref('/')">← 返回首页</a>
@@ -314,6 +329,10 @@ async function submit() {
 </template>
 
 <style scoped>
+/* 滑块与「创建账号」之间的呼吸；上方 el-form-item 自带下边距 */
+.md-login__captcha {
+  margin: 2px 0 18px;
+}
 /* 验证码一行：输入框吃满剩余宽度，按钮固定宽度并与输入框同高 */
 .md-login__code {
   display: grid;

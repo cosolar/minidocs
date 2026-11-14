@@ -5,7 +5,7 @@ import type {
   GitStatusVO, GitSyncVO, ImportResult,
   KbConfigVO, KbDisplay, KbRosterVO, KbVO, LockVO,
   LoginResponse, MeVO, OrgMemberVO, OrgVO, PageResult, PathChangeVO, JoinRequestVO, RenderVO,
-  ShareVO, SiteConfig, SiteMailVO, StatsVO, UserVO
+  ShareVO, SiteConfig, SiteMailVO, SliderCaptchaVO, CaptchaTicketVO, StatsVO, UserVO
 } from '@/shared/api/types'
 import type { ThemePack } from '@/shared/readerTheme'
 
@@ -18,7 +18,7 @@ export const authApi = {
    * 交给 onUnauthorized 跳转」），而后端「用户名或密码错误」也正好返回 401，于是密码敲错时
    * 全链路一声不吭。所以这个请求自己处理提示，由登录页 catch 后弹。</p>
    */
-  login: (data: { username: string; password: string }) =>
+  login: (data: { username: string; password: string; captchaTicket: string }) =>
     request<LoginResponse>({ url: '/auth/login', method: 'post', data, silentError: true }),
   /**
    * 自助注册。后端**不回 token**（它只建账号 + 个人组织），所以注册成功后要用同一组
@@ -432,4 +432,17 @@ export function encodePath(path: string) {
     .split('/')
     .map((segment) => encodeURIComponent(segment).replace(/%20/g, '%20'))
     .join('/')
+}
+
+/**
+ * 登录滑块验证码。
+ *
+ * <p>两步：{@code slider} 取图，{@code check} 交轨迹换票据，登录时带上票据。
+ * 两条都关掉全局错误提示 —— 滑歪了属于正常操作，用组件内的抖动与文案反馈，
+ * 不该在屏幕角落再弹一个 toast。</p>
+ */
+export const captchaApi = {
+  slider: () => request<SliderCaptchaVO>({ url: '/captcha/slider', silentError: true }),
+  check: (data: { id: string; data: Record<string, unknown> }) =>
+    request<CaptchaTicketVO>({ url: '/captcha/check', method: 'post', data, silentError: true })
 }

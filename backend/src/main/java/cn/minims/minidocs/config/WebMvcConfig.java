@@ -70,6 +70,9 @@ public class WebMvcConfig implements WebMvcConfigurer {
                         // 限速与「不泄露账号存在性」在 EmailVerificationService 里，不在拦截器上。
                         "/api/auth/verify-email",
                         "/api/auth/resend-verification",
+                        // 验证码要发给「还没登录」的人，否则登录门自己把自己锁死了。
+                        // 刷图/刷轨迹的成本由 CaptchaController 里的限流承担。
+                        "/api/captcha/**",
                         "/api/search",
                         "/api/search/suggest",
                         "/api/portal/**",

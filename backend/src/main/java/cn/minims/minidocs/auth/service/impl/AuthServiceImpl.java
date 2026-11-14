@@ -8,6 +8,7 @@ import cn.minims.minidocs.auth.dto.AuthDtos.LoginResponse;
 import cn.minims.minidocs.auth.dto.AuthDtos.PasswordUpdateRequest;
 import cn.minims.minidocs.auth.dto.AuthDtos.RegisterRequest;
 import cn.minims.minidocs.auth.service.AuthService;
+import cn.minims.minidocs.auth.service.CaptchaGateService;
 import cn.minims.minidocs.auth.service.EmailVerificationService;
 import cn.minims.minidocs.auth.service.RegisterCodeService;
 import cn.minims.minidocs.common.api.ErrorCode;
@@ -26,6 +27,7 @@ import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -50,6 +52,16 @@ public class AuthServiceImpl implements AuthService {
     private final SiteConfigService siteConfigService;
     private final EmailVerificationService emailVerificationService;
     private final RegisterCodeService registerCodeService;
+    private final CaptchaGateService captchaGateService;
+
+    /**
+     * 是否强制滑块验证。
+     *
+     * <p>默认开。留这个开关只为一件事：线上把所有人锁在门外时能临时救急 ——
+     * 关掉期间登录限流仍在，挡住单点爆破，但挡不住分布式撞库，所以恢复正常后要立刻打开。</p>
+     */
+    @Value("${minidocs.captcha.login-required:true}")
+    private boolean captchaRequired;
 
     @Override
     public LoginResponse login(LoginRequest request, String ip) {
@@ -57,6 +69,12 @@ public class AuthServiceImpl implements AuthService {
         String limitKey = "login:" + (account.isEmpty() ? ip : account);
         if (!rateLimiter.tryAcquire(limitKey, LOGIN_LIMIT, LOGIN_WINDOW)) {
             throw BizException.of(ErrorCode.LOGIN_TOO_FREQUENT, "尝试过于频繁，请 60 秒后重试");
+        }
+
+        // 滑块票据：一次性，消费即焚。放在查库之前 —— 没有这张票，连「这个账号在不在」
+        // 都问不到，撞库脚本得先过一遍拼图。
+        if (captchaRequired) {
+            captchaGateService.consume(request.captchaTicket());
         }
 
         User user = userService.findByUsernameOrEmail(account);

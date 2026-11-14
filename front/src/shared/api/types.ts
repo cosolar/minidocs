@@ -581,3 +581,23 @@ export interface ApiTokenCreatedVO {
   token: string
   item: ApiTokenVO
 }
+
+/* ------------------------------------------------------------------ 登录滑块验证码 */
+/** 一张待拼的滑块图；图片是 data:image/png;base64 形式，直接塞进 img src。 */
+export interface SliderCaptchaVO {
+  id: string
+  backgroundImage: string
+  templateImage: string
+  backgroundWidth: number
+  backgroundHeight: number
+  templateWidth: number
+  templateHeight: number
+  /** 后端透传的附加信息，含缺口纵向位置 y（原图坐标） */
+  extra?: { y?: number } | null
+}
+
+/** 滑块通过后换到的一次性票据，登录时带上，用完即废。 */
+export interface CaptchaTicketVO {
+  ticket: string
+  expiresIn: number
+}

@@ -22,8 +22,14 @@ export const useAuthStore = defineStore('auth', {
     avatarSrc: (state) => state.user?.avatarSrc || ''
   },
   actions: {
-    async login(username: string, password: string) {
-      const result = await authApi.login({ username, password })
+    /**
+     * 登录。
+     *
+     * @param captchaTicket 滑块通过后换到的一次性票据。它由登录页负责获取 ——
+     *                      这个 store 只管会话，不掺和验证码的交互细节。
+     */
+    async login(username: string, password: string, captchaTicket: string) {
+      const result = await authApi.login({ username, password, captchaTicket })
       this.token = result.token
       this.user = result.user
       localStorage.setItem(TOKEN_KEY, result.token)
