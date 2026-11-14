@@ -54,7 +54,8 @@ import java.util.List;
  * <p>可见性口径：<b>分享等同于发布</b>。只有存在「有效整库分享」的库才出现在门户，且对所有访问者
  * 一视同仁（登录不再多出未发布的库）。分享未加密即公开，加密即私有 —— 后者需要先过访问口令，
  * 口令校验与分享页复用同一套 {@link ShareAccessSupport} Cookie，因此私有库在门户与分享链接下
- * 是同一道门。</p>
+ * 是同一道门。<b>封面是唯一的例外</b>：它是平台元数据里的标题图，不属于文档内容，
+ * 已发布的库不论是否加密都直接出图，免得门户卡片上只剩一张占位图。</p>
  */
 @Slf4j
 @RestController
@@ -218,17 +219,21 @@ public class PortalApiController {
     /**
      * 门户封面。
      *
-     * <p>封面文件在平台目录，不随知识库内容走；但访问门与资源代理保持一致：加密库在通过口令前
-     * 按不存在处理，避免用封面地址确认「这个私有库确实存在」。</p>
+     * <p><b>封面不参与口令门</b>：只要库已发布（或本人可读），封面对所有访问者可见，
+     * 不必先输访问口令。封面是平台元数据里的标题图，门户卡片本来就要展示它；
+     * 早先把加密库的封面也按「不存在」处理，结果是门户上唯一那个加密库永远取不到封面，
+     * 卡片只能降级成水彩占位 —— 藏住的是一个列表早已公开了名字的库，代价却是一张坏掉的封面。</p>
+     *
+     * <p>守住的边界没有变：<b>未发布</b>的库照旧 404（不确认存在性），
+     * 而正文与库内图片（{@code /kb/{org}/{slug}/asset/**}）、阅读接口仍走 {@link #resolve}
+     * 的完整口令门 —— 放开封面不会让任何文档内容泄露。</p>
      */
     @GetMapping("/kb/{org}/{slug}/cover")
     public ResponseEntity<Resource> cover(@PathVariable String org, @PathVariable String slug,
                                           @RequestHeader(value = "If-None-Match", required = false) String ifNoneMatch,
                                           HttpServletRequest request) {
+        // 这里只为拿到库与作用域校验；needPassword 被有意忽略，理由见方法注释
         PortalTarget target = resolve(org, slug, currentUserResolver.resolve(), request);
-        if (target.needPassword()) {
-            throw BizException.notFound("知识库不存在或未公开");
-        }
         return assetService.respond(kbCoverService.load(target.kb()), ifNoneMatch);
     }
 

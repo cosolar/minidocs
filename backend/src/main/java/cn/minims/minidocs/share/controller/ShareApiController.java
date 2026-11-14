@@ -227,17 +227,17 @@ public class ShareApiController {
     /**
      * 分享页封面。
      *
-     * <p>与分享资源代理同一道门：撤销 / 过期 / 未通过口令都按不存在处理。</p>
+     * <p><b>封面不参与口令门</b>：分享仍然存活（未撤销 / 未失效 / 未过期）就能取图，
+     * 不必先过访问口令。理由同门户封面 —— 封面是平台元数据里的一张标题图，不是文档内容；
+     * 而且 token 本身已经是「这个分享存在」的凭证，用封面地址也探不出更多东西。</p>
+     *
+     * <p>正文与库内图片（{@link #asset}）仍然要求先过口令，门没有放松。</p>
      */
     @GetMapping("/share/{token}/cover")
     public ResponseEntity<Resource> cover(@PathVariable String token,
-                                          @RequestHeader(value = "If-None-Match", required = false) String ifNoneMatch,
-                                          HttpServletRequest request) {
+                                          @RequestHeader(value = "If-None-Match", required = false) String ifNoneMatch) {
         Share share = shareService.findByToken(ShareTokenUtil.isValid(token) ? token : null);
         if (share == null || share.revoked() || share.invalid() || share.expired()) {
-            throw BizException.notFound("分享不存在或已被撤销");
-        }
-        if (!accessSupport.isVerified(share, request)) {
             throw BizException.notFound("分享不存在或已被撤销");
         }
         KnowledgeBase kb = knowledgeBaseService.getById(share.getKbId());
