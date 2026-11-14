@@ -25,7 +25,7 @@ export const useAuthStore = defineStore('auth', {
     /**
      * 登录。
      *
-     * @param captchaTicket 滑块通过后换到的一次性票据。它由登录页负责获取 ——
+     * @param captchaTicket 人机验证通过后换到的一次性票据。它由登录页负责获取 ——
      *                      这个 store 只管会话，不掺和验证码的交互细节。
      */
     async login(username: string, password: string, captchaTicket: string) {

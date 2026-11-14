@@ -5,7 +5,7 @@ import type {
   GitStatusVO, GitSyncVO, ImportResult,
   KbConfigVO, KbDisplay, KbRosterVO, KbVO, LockVO,
   LoginResponse, MeVO, OrgMemberVO, OrgVO, PageResult, PathChangeVO, JoinRequestVO, RenderVO,
-  ShareVO, SiteConfig, SiteMailVO, SliderCaptchaVO, CaptchaTicketVO, StatsVO, UserVO
+  ShareVO, SiteConfig, SiteMailVO, CaptchaChallengeVO, CaptchaPickVO, StatsVO, UserVO
 } from '@/shared/api/types'
 import type { ThemePack } from '@/shared/readerTheme'
 
@@ -435,14 +435,14 @@ export function encodePath(path: string) {
 }
 
 /**
- * 登录滑块验证码。
+ * 登录人机验证（依次点选图形）。
  *
  * <p>两步：{@code slider} 取图，{@code check} 交轨迹换票据，登录时带上票据。
  * 两条都关掉全局错误提示 —— 滑歪了属于正常操作，用组件内的抖动与文案反馈，
  * 不该在屏幕角落再弹一个 toast。</p>
  */
 export const captchaApi = {
-  slider: () => request<SliderCaptchaVO>({ url: '/captcha/slider', silentError: true }),
-  check: (data: { id: string; data: Record<string, unknown> }) =>
-    request<CaptchaTicketVO>({ url: '/captcha/check', method: 'post', data, silentError: true })
+  challenge: () => request<CaptchaChallengeVO>({ url: '/captcha/challenge', silentError: true }),
+  pick: (data: { id: string; x: number; y: number }) =>
+    request<CaptchaPickVO>({ url: '/captcha/pick', method: 'post', data, silentError: true })
 }

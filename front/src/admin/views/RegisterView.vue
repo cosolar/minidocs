@@ -17,7 +17,7 @@ import { toApiErrorInfo } from '@/shared/api/http'
 import { appHref } from '@/shared/appBase'
 import MdIcon from '@/admin/components/MdIcon.vue'
 import AuthShell from '@/admin/components/AuthShell.vue'
-import SliderCaptcha from '@/admin/components/SliderCaptcha.vue'
+import HumanCheck from '@/admin/components/HumanCheck.vue'
 import { useAuthStore } from '@/admin/stores/auth'
 import { useSiteStore } from '@/shared/stores/site'
 
@@ -42,7 +42,7 @@ const form = reactive({ username: '', displayName: '', email: '', password: '', 
 const loading = ref(false)
 
 /** 自动登录要过的滑块：票据一次性，注册成功后紧接着的那次登录用它。 */
-const captchaRef = ref<InstanceType<typeof SliderCaptcha> | null>(null)
+const captchaRef = ref<InstanceType<typeof HumanCheck> | null>(null)
 const captchaTicket = ref('')
 function onCaptchaPassed(ticket: string) {
   captchaTicket.value = ticket
@@ -314,7 +314,7 @@ async function submit() {
 
         <!-- 只服务于「注册完自动登录」：注册接口本身不校验滑块，登录接口校验 -->
         <div class="md-login__captcha">
-          <SliderCaptcha ref="captchaRef" @passed="onCaptchaPassed" />
+          <HumanCheck ref="captchaRef" @passed="onCaptchaPassed" />
         </div>
         <el-button type="primary" size="large" class="md-login__submit" :loading="loading" @click="submit">
           <MdIcon name="user-plus" :size="16" />创建账号

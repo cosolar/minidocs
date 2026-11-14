@@ -12,13 +12,12 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * 「滑块已通过」的一次性票据。
+ * 「人机验证已通过」的一次性票据。
  *
- * <p>tianai-captcha 的 {@code matching} 会取出即销毁缓存，所以前端不能「先校验一次、
- * 登录时再交一次同样的轨迹」。这里在两次请求之间架一张短票据：</p>
+ * <p>验证本身是「取图 → 点三下」的三次往返，而登录是另一次请求。这里在两者之间架一张短票据：</p>
  *
  * <pre>
- *   前端拖动 → POST /api/captcha/check（轨迹）→ 通过 → 拿到 ticket
+ *   前端点选 → POST /api/captcha/pick（每点一下一次）→ 第三个命中 → 拿到 ticket
  *   前端点登录 → POST /api/auth/login（用户名 + 密码 + ticket）→ 后端消费 ticket
  * </pre>
  *
@@ -26,7 +25,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * <ul>
  *   <li><b>一次性</b>：{@code consume} 先移除再判断，无论登录成功还是密码错误都已作废，
  *       否则一次验证可以反复试密码；</li>
- *   <li><b>有时效</b>：默认 2 分钟，与滑块本身的过期时间对齐；</li>
+ *   <li><b>有时效</b>：默认 2 分钟，与验证图本身的过期时间对齐；</li>
  *   <li><b>不可猜</b>：{@link SecureRandom} 生成的 48 位十六进制串。</li>
  * </ul>
  *
@@ -36,7 +35,7 @@ import java.util.concurrent.ConcurrentHashMap;
 @Service
 public class CaptchaGateService {
 
-    /** 票据有效期：从「滑动通过」到「点下登录」的真实耗时，2 分钟足够，再久就是给爆破留窗口。 */
+    /** 票据有效期：从「点选通过」到「点下登录」的真实耗时，2 分钟足够，再久就是给爆破留窗口。 */
     private static final Duration TTL = Duration.ofMinutes(2);
     private static final int TOKEN_BYTES = 24;
 
@@ -64,7 +63,7 @@ public class CaptchaGateService {
         }
         Long expireAt = tickets.remove(ticket);
         if (expireAt == null || expireAt < System.currentTimeMillis()) {
-            throw BizException.of(ErrorCode.CAPTCHA_INVALID, "滑块验证已失效，请重新拖动");
+            throw BizException.of(ErrorCode.CAPTCHA_INVALID, "人机验证已失效，请重新验证");
         }
     }
 

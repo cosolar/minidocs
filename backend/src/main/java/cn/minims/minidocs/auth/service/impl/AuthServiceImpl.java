@@ -55,7 +55,7 @@ public class AuthServiceImpl implements AuthService {
     private final CaptchaGateService captchaGateService;
 
     /**
-     * 是否强制滑块验证。
+     * 是否强制人机验证。
      *
      * <p>默认开。留这个开关只为一件事：线上把所有人锁在门外时能临时救急 ——
      * 关掉期间登录限流仍在，挡住单点爆破，但挡不住分布式撞库，所以恢复正常后要立刻打开。</p>
@@ -71,8 +71,8 @@ public class AuthServiceImpl implements AuthService {
             throw BizException.of(ErrorCode.LOGIN_TOO_FREQUENT, "尝试过于频繁，请 60 秒后重试");
         }
 
-        // 滑块票据：一次性，消费即焚。放在查库之前 —— 没有这张票，连「这个账号在不在」
-        // 都问不到，撞库脚本得先过一遍拼图。
+        // 人机验证票据：一次性，消费即焚。放在查库之前 —— 没有这张票，连「这个账号在不在」
+        // 都问不到，撞库脚本得先过一遍点选。
         if (captchaRequired) {
             captchaGateService.consume(request.captchaTicket());
         }

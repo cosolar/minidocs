@@ -19,13 +19,13 @@ public final class AuthDtos {
     /**
      * 登录请求。
      *
-     * <p>{@code captchaTicket} 是滑块通过后换到的一次性票据，服务端消费即作废。
+     * <p>{@code captchaTicket} 是人机验证通过后换到的一次性票据，服务端消费即作废。
      * 它不叫 {@code captchaId}：id 只是「哪一张图」，票据才代表「这张图已经滑对了」。</p>
      */
     public record LoginRequest(
             @NotBlank(message = "用户名或邮箱不能为空") String username,
             @NotBlank(message = "密码不能为空") String password,
-            @NotBlank(message = "请先完成滑块验证") String captchaTicket) {
+            @NotBlank(message = "请先完成人机验证") String captchaTicket) {
     }
 
     public record LoginResponse(String token, long expiresIn, UserVO user, Map<String, Object> settings) {

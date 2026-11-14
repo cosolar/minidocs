@@ -16,7 +16,7 @@ public enum ErrorCode {
     GIT_NOT_BOUND(40004, 400, "该知识库没有绑定线上仓库"),
     GIT_PARAM_INVALID(40005, 400, "线上仓库信息不完整"),
     VERIFY_LINK_INVALID(40006, 400, "验证链接无效或已过期"),
-    CAPTCHA_INVALID(40007, 400, "请先完成滑块验证"),
+    CAPTCHA_INVALID(40007, 400, "请先完成人机验证"),
     UNAUTHORIZED(40100, 401, "未登录或登录态失效"),
     FORBIDDEN(40300, 403, "无权限"),
     ACCOUNT_DISABLED(40301, 403, "账号被禁用 / 待审核"),

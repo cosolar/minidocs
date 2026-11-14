@@ -109,18 +109,9 @@ minidocs:
   tree-cache-size: 20
   log-level: ${LOG_LEVEL:info}
   captcha:
-    # 登录强制滑块验证。关掉只该用于「线上被误锁在门外」的应急排障，
+    # 登录强制人机验证。关掉只该用于「线上被误锁在门外」的应急排障，
     # 关掉期间限流仍在，挡得住脚本但挡不住分布式撞库。
     login-required: ${CAPTCHA_LOGIN_REQUIRED:true}
-
-# tianai-captcha 自带的配置（前缀是 captcha，不是 minidocs）
-captcha:
-  # 不加载库自带资源：内置只有一张照片背景，与站点风格不搭。
-  # 背景与滑块模板全部由 CaptchaResourceConfig 注册（青绿水彩背景 + 库内置的拼图形状）。
-  init-default-resource: false
-  expire:
-    # 滑块生成到提交的窗口。太短会让人还没拖完就失效，太长则给暴力尝试留时间。
-    default: 120000
 
 logging:
   level:

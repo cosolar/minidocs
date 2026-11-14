@@ -4,7 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import MdIcon from '@/admin/components/MdIcon.vue'
 import AuthShell from '@/admin/components/AuthShell.vue'
-import SliderCaptcha from '@/admin/components/SliderCaptcha.vue'
+import HumanCheck from '@/admin/components/HumanCheck.vue'
 import { authApi } from '@/admin/api'
 import { useAuthStore } from '@/admin/stores/auth'
 import { appHref } from '@/shared/appBase'
@@ -36,7 +36,7 @@ const loading = ref(false)
  * 所以每次登录失败（密码错、账号停用、票据过期）都要重新滑一次 —— 这不是刁难，
  * 正是「一次验证只能试一次密码」这条防线本身。</p>
  */
-const captchaRef = ref<InstanceType<typeof SliderCaptcha> | null>(null)
+const captchaRef = ref<InstanceType<typeof HumanCheck> | null>(null)
 const captchaTicket = ref('')
 
 function onCaptchaPassed(ticket: string) {
@@ -58,7 +58,7 @@ async function submit() {
     return
   }
   if (!captchaTicket.value) {
-    ElMessage.warning('请先拖动滑块完成验证')
+    ElMessage.warning('请先完成人机验证')
     captchaRef.value?.reset()
     return
   }
@@ -71,7 +71,7 @@ async function submit() {
     const redirect = (route.query.redirect as string) || '/console'
     router.replace(redirect)
   } catch (error) {
-    // 票据已经在上一个请求里被消费掉了，无论这次失败是什么原因，都得换一张图重新滑
+    // 票据已经在上一个请求里被消费掉了，无论这次失败是什么原因，都得换一张图重新点
     captchaTicket.value = ''
     captchaRef.value?.reset()
     // 这条请求带 silentError，全局 onError 不弹 401，所以「用户名或密码错误」必须在这里说出口。
@@ -149,7 +149,7 @@ async function resend() {
       </el-form-item>
       <!-- 滑块放在密码与按钮之间：视觉顺序与操作顺序一致，也避免用户填完就点登录被拦下 -->
       <div class="md-login__captcha">
-        <SliderCaptcha ref="captchaRef" @passed="onCaptchaPassed" />
+        <HumanCheck ref="captchaRef" @passed="onCaptchaPassed" />
       </div>
       <el-button type="primary" size="large" class="md-login__submit" :loading="loading" @click="submit">
         <MdIcon name="login" :size="16" />登录

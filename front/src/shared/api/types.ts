@@ -582,21 +582,40 @@ export interface ApiTokenCreatedVO {
   item: ApiTokenVO
 }
 
-/* ------------------------------------------------------------------ 登录滑块验证码 */
-/** 一张待拼的滑块图；图片是 data:image/png;base64 形式，直接塞进 img src。 */
-export interface SliderCaptchaVO {
-  id: string
-  backgroundImage: string
-  templateImage: string
-  backgroundWidth: number
-  backgroundHeight: number
-  templateWidth: number
-  templateHeight: number
-  /** 后端透传的附加信息，含缺口纵向位置 y（原图坐标） */
-  extra?: { y?: number } | null
+/* ------------------------------------------------------------------ 登录人机验证 */
+/**
+ * 提示里要点的一个图形。
+ *
+ * 只有形状与颜色，没有坐标 —— 坐标就是答案，下发到前端等于没验证。
+ */
+export interface CaptchaTarget {
+  /** circle / triangle / square / diamond / star / hexagon */
+  shape: string
+  /** 十六进制颜色，与图上那个图形一致 */
+  color: string
 }
 
-/** 滑块通过后换到的一次性票据，登录时带上，用完即废。 */
+/** 一张待点选的验证图；图片是 data:image/png;base64 形式，直接塞进 img src。 */
+export interface CaptchaChallengeVO {
+  id: string
+  image: string
+  /** 原图尺寸：点击坐标要按这个尺寸换算后再提交 */
+  width: number
+  height: number
+  targets: CaptchaTarget[]
+}
+
+/** 一次点击的结果。 */
+export interface CaptchaPickVO {
+  /** 已点对几个；0 表示没点中，这张图已作废 */
+  progress: number
+  /** 点中的图形在原图上的位置，用来画选中环 */
+  hit: { x: number; y: number } | null
+  /** 第三个点对时才有 */
+  ticket: CaptchaTicketVO | null
+}
+
+/** 验证通过后换到的一次性票据，登录时带上，用完即废。 */
 export interface CaptchaTicketVO {
   ticket: string
   expiresIn: number
