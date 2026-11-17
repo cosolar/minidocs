@@ -800,7 +800,11 @@ button { font-family: inherit; }
 .md-outline__row.is-active::before {
   content: '';
   position: absolute;
-  left: 4px;
+  /*
+   * 贴着行左沿画：行首那颗展开箭头也占 20px，原来的 left:4px 会把短条压在箭头上，
+   * 选中行看起来像箭头被划了一道。放在箭头槽左侧的留白里，两者各占各的位置。
+   */
+  left: -1px;
   top: 50%;
   width: 3px;
   height: 16px;

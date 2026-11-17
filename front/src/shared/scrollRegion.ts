@@ -145,6 +145,15 @@ export const OUTLINE_SCROLL_ATTR = 'data-md-scroll-outline'
 export interface DocMemo {
   main: number
   outline: number
+  /**
+   * 落盘时地址栏的 hash（没有则为空）。
+   *
+   * <p>点大纲标题会 {@code replaceState} 把 #标题 写进地址栏；之后读者用滚动条离开那一节，
+   * hash 却还留着。刷新时若只看 hash 就会跳回点过的标题、把后来滚出来的位置丢掉。
+   * 记下「这份快照是在哪个 hash 下存的」：刷新时 hash 与之相同，说明读者已经在这之后滚过，
+   * 以快照为准；hash 不同（外链带了别的锚点）才按锚点跳。</p>
+   */
+  anchor?: string
 }
 
 function readStore<T>(storage: Storage, key: string, fallback: T): T {
@@ -182,7 +191,11 @@ const saved = (() => {
       path,
       typeof memo === 'number'
         ? { main: memo, outline: 0 }
-        : { main: memo?.main ?? 0, outline: memo?.outline ?? 0 },
+        : {
+            main: memo?.main ?? 0,
+            outline: memo?.outline ?? 0,
+            ...(typeof memo?.anchor === 'string' ? { anchor: memo.anchor } : {}),
+          },
     )
   }
   return map
@@ -203,6 +216,18 @@ const treeSaved = new Map<string, number>(
 function docKey(fullPath: string): string {
   const i = fullPath.indexOf('#')
   return i < 0 ? fullPath : fullPath.slice(0, i)
+}
+
+/**
+ * 刷新带的 hash 是否就是这份快照落盘时的那个。
+ *
+ * <p>是：读者点过标题之后又用滚动条离开了那一节，地址栏 hash 已经过时，位置以快照为准。
+ * 否（没有快照，或外链带来另一个锚点）：hash 是这次打开的显式意图，按它跳。</p>
+ */
+export function anchorInSnapshot(fullPath: string): boolean {
+  const i = fullPath.indexOf('#')
+  if (i < 0) return false
+  return saved.get(docKey(fullPath))?.anchor === fullPath.slice(i)
 }
 
 /**
@@ -262,7 +287,12 @@ export function rememberScroll(routePath: string, fullPath: string) {
     const key = docKey(fullPath)
     const prev = saved.get(key) ?? { main: 0, outline: 0 }
     saved.delete(key)
-    saved.set(key, { main: now.main ?? prev.main, outline: now.outline ?? prev.outline })
+    saved.set(key, {
+      main: now.main ?? prev.main,
+      outline: now.outline ?? prev.outline,
+      // hash 直接读地址栏：点大纲是 replaceState 写进去的，路由对象并不知道它变了
+      anchor: window.location.hash,
+    })
     prune(saved)
     writeStore(sessionStorage, STORE_KEY, Object.fromEntries(saved))
   }

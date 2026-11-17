@@ -7,6 +7,7 @@ import Icon from './Icon.vue'
 import OutlineTree from './OutlineTree.vue'
 import { enhanceMarkdown } from '@/shared/enhanceMarkdown'
 import {
+  anchorInSnapshot,
   cancelRestore,
   isRestoring,
   isRestoringTree,
@@ -355,11 +356,12 @@ async function decorate() {
   refreshSpy()
   /*
    * 刷新带 hash 进来时路由的 scrollBehavior 跑在正文到达之前，{ el } 找不到锚点；
-   * 这里补跳一次。锚点是读者的显式意图，优先于记忆位置。
+   * 这里补跳一次。锚点是读者的显式意图，优先于记忆位置 —— 但「点完标题又自己滚走」
+   * 留下的 hash 已经过时（见 anchorInSnapshot），那种情况交给快照恢复。
    */
   const anchorId = decodeURIComponent(route.hash.slice(1))
   const anchor = anchorId ? document.getElementById(anchorId) : null
-  if (anchor) {
+  if (anchor && !anchorInSnapshot(route.fullPath)) {
     cancelRestore()
     jumpToElement(anchor)
     // 锚点只决定正文落点；两侧栏仍按快照回原位（否则带 #标题 刷新时大纲总留在顶部）

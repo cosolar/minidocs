@@ -1,6 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import type { App } from 'vue'
-import { cancelRestore, rememberScroll, restoreScroll, trackLiveScroll } from '@/shared/scrollRegion'
+import { anchorInSnapshot, cancelRestore, rememberScroll, restoreScroll, trackLiveScroll } from '@/shared/scrollRegion'
 import { APP_BASE } from '@/shared/appBase'
 import { rememberPageTitle } from '@/shared/stores/site'
 
@@ -173,8 +173,10 @@ const router = createRouter({
      * 这里只做「滚到哪」，「从哪来」的位置是在 beforeEach 记的，两件事不能合并：
      * scrollBehavior 是在新页面已经渲染完之后再调的，那一刻旧位置已经被浏览器夹回 0。
      * hash 例外：`{ el }` 内部走 scrollIntoView，它会自己找最近的滚动祖先，不受影响。
+     * 但如果这个 hash 就是上次落盘时地址栏里的那个（读者点完标题又自己滚走了），它已经过时，
+     * 按快照恢复正文，别再把人拽回点过的标题。
      */
-    if (to.hash) {
+    if (to.hash && !anchorInSnapshot(to.fullPath)) {
       cancelRestore()
       return { el: to.hash, behavior: 'smooth' }
     }
