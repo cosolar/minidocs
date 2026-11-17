@@ -523,6 +523,9 @@ async function openDoc(path: string, discard = false, force = false) {
   const sameDoc = path === currentPath.value
   // force：同一篇文档也要重取正文（拉取远端更新后用），此时不能因为「还是这一篇」就提前返回
   if (sameDoc && !dirty.value && !force) return
+  // 下面会重置正文与大纲，先把这篇的阅读位置落盘，否则切走一次就忘了
+  flushWsMemo()
+  cancelWsRestore()
   if (dirty.value && !discard) {
     try {
       await ElMessageBox.confirm('当前文档有未保存的修改，是否保存？', '未保存的修改', {
@@ -576,6 +579,8 @@ async function openDoc(path: string, discard = false, force = false) {
     await nextTick()
     bindPreviewHost()
     refreshPreview()
+    // bytemd 渲染完再钉回上次的阅读位置（换文档则回到顶部）
+    scheduleWsRestore()
     syncRoutePath(doc.path)
     // 预览是只读行为：不抢锁、不续期、不轮询，同事不会被一篇「只是在看」的文档挡在外面。
     // 只有显式进入编辑模式才要锁；没有写权限也不去要——那条 403 只会把「你进不来」变成
@@ -663,6 +668,8 @@ function refreshEditor() {
 
 async function setPaneMode(next: PaneMode) {
   if (next === paneMode.value) return
+  // 离开预览前把最后这段滚动落盘（编辑态里量不到预览容器，也就不该再写）
+  flushWsMemo()
   paneMode.value = next
   if (next === 'edit') {
     // 显式进入编辑才拿锁：先让 CodeMirror 在可见状态下重新量尺寸，锁请求与之并行即可
@@ -681,11 +688,17 @@ async function setPaneMode(next: PaneMode) {
   lockDeniedCode.value = 0
   syncLockTimers()
   await nextTick(refreshPreview)
+  // 预览容器刚从 display:none 里出来，滚动在 0 附近；按快照钉回去
+  scheduleWsRestore()
 }
 
 /* ------------------------------------------------------------------ 预览区后处理 */
 function previewHost(): HTMLElement | null {
   return editorRef.value?.querySelector<HTMLElement>('.bytemd-preview') || null
+}
+
+function tocBodyEl(): HTMLElement | null {
+  return tocPanelRef.value?.querySelector<HTMLElement>('.md-ws__toc-body') || null
 }
 
 function markdownBody(): HTMLElement | null {
@@ -827,6 +840,176 @@ function unbindPreviewHost() {
   previewBound = null
 }
 
+/* ------------------------------------------------------------------ 预览阅读状态快照 */
+
+/**
+ * 预览态的「阅读位置」：正文滚动 + 右侧大纲滚动（以及大纲手风琴的手工展开状态）。
+ *
+ * <p>工作区刷新后 {@link openDoc} 会重新拉正文，bytemd 重新渲染，滚动容器回到 0 —— 读者
+ * 要从头再翻一遍。这里按「库 + 文档」记一份快照，刷新 / 切走再回来时把两处滚动都还原。
+ * 存在 sessionStorage：与阅读页同一口径，关掉标签页即失效，不会长期积累。</p>
+ *
+ * <p>展开状态按大纲结构指纹存：正文改标题后指纹对不上就丢掉，免得把旧结构的下标套到新标题上。</p>
+ */
+const WS_MEMO_KEY = 'md-ws-memo'
+const WS_MEMO_MAX = 80
+const WS_RESTORE_MS = 5000
+
+interface WsMemo {
+  main: number
+  outline: number
+  /** 存这份展开状态时的大纲结构指纹（{@link outlineSignature}） */
+  sig?: string
+  /** 手工展开状态，只有读者点过箭头的 key 才会出现 */
+  open?: Record<string, boolean>
+}
+
+const wsMemos = new Map<string, WsMemo>()
+let wsMemosLoaded = false
+let wsSaveTimer: number | undefined
+let wsRestoreRun = 0
+let wsRestoring = false
+let wsRestoreCleanup: (() => void) | null = null
+
+function loadWsMemos() {
+  if (wsMemosLoaded) return
+  wsMemosLoaded = true
+  try {
+    const raw = JSON.parse(sessionStorage.getItem(WS_MEMO_KEY) || '{}') as Record<string, WsMemo>
+    Object.entries(raw).forEach(([key, memo]) => {
+      if (memo && typeof memo.main === 'number') wsMemos.set(key, memo)
+    })
+  } catch {
+    /* 存坏了就当没有 */
+  }
+}
+
+function persistWsMemos() {
+  const raw: Record<string, WsMemo> = {}
+  wsMemos.forEach((memo, key) => {
+    raw[key] = memo
+  })
+  try {
+    sessionStorage.setItem(WS_MEMO_KEY, JSON.stringify(raw))
+  } catch {
+    /* 隐私模式 / 配额满：记不住阅读位置不影响读 */
+  }
+}
+
+function wsMemoId(): string {
+  return currentPath.value ? `${kbSlug.value}|${currentPath.value}` : ''
+}
+
+/** 取当前文档的快照并挪到 LRU 队尾；超过上限时丢最久没碰的那份 */
+function touchWsMemo(): WsMemo | null {
+  const id = wsMemoId()
+  if (!id) return null
+  loadWsMemos()
+  const memo = wsMemos.get(id) || { main: 0, outline: 0 }
+  wsMemos.delete(id)
+  wsMemos.set(id, memo)
+  while (wsMemos.size > WS_MEMO_MAX) {
+    const oldest = wsMemos.keys().next().value
+    if (oldest === undefined) break
+    wsMemos.delete(oldest)
+  }
+  return memo
+}
+
+function saveWsMemo() {
+  // 编辑态预览是隐藏的，量到的滚动永远是 0；此时落盘会把读者上次的阅读位置抹掉
+  if (wsRestoring || paneMode.value !== 'preview') return
+  const memo = touchWsMemo()
+  if (!memo) return
+  const host = previewHost()
+  const box = tocBodyEl()
+  if (host) memo.main = host.scrollTop
+  if (box) memo.outline = box.scrollTop
+  memo.sig = outlineMemoSig
+  memo.open = Object.fromEntries(outlineOverrides)
+  persistWsMemos()
+}
+
+function scheduleWsSave() {
+  window.clearTimeout(wsSaveTimer)
+  wsSaveTimer = window.setTimeout(() => {
+    wsSaveTimer = undefined
+    saveWsMemo()
+  }, 200)
+}
+
+/** 立刻落盘：页面要没了、或者马上要换文档，不能等 200ms 防抖 */
+function flushWsMemo() {
+  window.clearTimeout(wsSaveTimer)
+  wsSaveTimer = undefined
+  saveWsMemo()
+}
+
+function cancelWsRestore() {
+  if (wsRestoreCleanup) {
+    wsRestoreCleanup()
+    wsRestoreCleanup = null
+  }
+  wsRestoreRun += 1
+  wsRestoring = false
+}
+
+/**
+ * 把快照里的两处滚动还原回去。
+ *
+ * <p>不能在 {@link openDoc} 里同步设一次：bytemd 的渲染是异步的，260ms 后还会再刷一遍
+ * 标题与图片，容器高度那时才定下来，先设的值会被夹回 0。这里在 {@link WS_RESTORE_MS}
+ * 内逐帧钉住，高度什么时候长够，位置就什么时候落到位。</p>
+ *
+ * <p>钉住期间大纲自动跟随要让位，否则两边抢同一根滚动条。任何真实输入（滚轮 / 触摸 /
+ * 点击 / 按键）都会立刻停掉还原：读者的手比快照优先。</p>
+ */
+function scheduleWsRestore() {
+  cancelWsRestore()
+  if (!currentPath.value || paneMode.value !== 'preview') return
+  loadWsMemos()
+  const id = wsMemoId()
+  const target = id ? wsMemos.get(id) : undefined
+  const run = (wsRestoreRun += 1)
+  wsRestoring = true
+  const onUserInput = () => {
+    if (run !== wsRestoreRun) return
+    cancelWsRestore()
+    scheduleWsSave()
+  }
+  window.addEventListener('wheel', onUserInput, { capture: true, passive: true })
+  window.addEventListener('touchstart', onUserInput, { capture: true, passive: true })
+  window.addEventListener('pointerdown', onUserInput, { capture: true, passive: true })
+  window.addEventListener('keydown', onUserInput, { capture: true })
+  wsRestoreCleanup = () => {
+    window.removeEventListener('wheel', onUserInput, { capture: true })
+    window.removeEventListener('touchstart', onUserInput, { capture: true })
+    window.removeEventListener('pointerdown', onUserInput, { capture: true })
+    window.removeEventListener('keydown', onUserInput, { capture: true })
+  }
+  const mainTarget = target?.main ?? 0
+  const outlineTarget = target?.outline ?? 0
+  const deadline = performance.now() + WS_RESTORE_MS
+  const tick = () => {
+    if (run !== wsRestoreRun) return
+    const host = previewHost()
+    if (host) host.scrollTop = mainTarget
+    const box = tocBodyEl()
+    if (box) box.scrollTop = outlineTarget
+    if (performance.now() >= deadline) {
+      cancelWsRestore()
+      scheduleWsSave()
+      return
+    }
+    requestAnimationFrame(tick)
+  }
+  requestAnimationFrame(tick)
+}
+
+function onOutlineScroll() {
+  scheduleWsSave()
+}
+
 /* ------------------------------------------------------------------ 大纲 */
 function scheduleOutline() {
   window.clearTimeout(outlineTimer)
@@ -889,6 +1072,8 @@ function isOutlineExpanded(key: string) {
 
 function toggleOutline(key: string) {
   outlineOverrides.set(key, !isOutlineExpanded(key))
+  // 读者摊开 / 收起的状态也算阅读状态，跟着滚动位置一起记
+  scheduleWsSave()
 }
 
 /**
@@ -913,12 +1098,36 @@ const visibleOutline = computed(() => {
  * 大纲的「结构指纹」：标题增删改都会变。
  *
  * <p>刷新大纲是每次改动后都会跑的（防抖 400ms），所以不能拿数组身份当「换文档」的信号。
- * 指纹兜住这件事：结构一变就丢掉手工展开状态，回到默认的「只展开当前阅读链」；
- * 只改正文段落时指纹不变，读者摊开的枝不会莫名其妙合上。</p>
+ * 指纹兜住这件事：结构一变先丢掉旧的手工展开状态，新结构与这篇文档存下的指纹一致时再恢复
+ * 回来（刷新后读者摊开的枝还是摊开的）；只改正文段落时指纹不变，读者摊开的枝不会莫名其妙合上。</p>
  */
 const outlineSignature = computed(() => outline.value.map((item) => `${item.level}:${item.text}`).join('\n'))
 
-watch(outlineSignature, () => outlineOverrides.clear())
+let outlineMemoDoc = ''
+let outlineMemoSig = ''
+
+/**
+ * 结构一变就丢掉手工展开状态，回到默认的「只展开当前阅读链」；顺便把换文档也认出来。
+ *
+ * <p>换文档同样会换指纹（甚至可能一模一样），所以先比文档：新文档先清空，再按它自己存下的
+ * 指纹决定要不要恢复 —— 否则两篇同名标题的文档会互相套用展开状态。</p>
+ */
+watch(outlineSignature, (sig) => {
+  const doc = wsMemoId()
+  if (doc !== outlineMemoDoc) {
+    outlineMemoDoc = doc
+    outlineMemoSig = ''
+    outlineOverrides.clear()
+  }
+  if (!sig || sig === outlineMemoSig) return
+  outlineMemoSig = sig
+  outlineOverrides.clear()
+  loadWsMemos()
+  const memo = wsMemos.get(doc)
+  if (memo?.sig === sig && memo.open) {
+    Object.entries(memo.open).forEach(([key, open]) => outlineOverrides.set(key, open))
+  }
+})
 
 function scrollToHeading(item: OutlineItem) {
   activeOutlineKey.value = item.key
@@ -927,6 +1136,7 @@ function scrollToHeading(item: OutlineItem) {
 }
 
 function onPreviewScroll() {
+  scheduleWsSave()
   if (spyTimer) return
   spyTimer = window.setTimeout(() => {
     spyTimer = undefined
@@ -947,6 +1157,37 @@ function syncActiveHeading() {
   })
   if (`${current}` !== activeOutlineKey.value) activeOutlineKey.value = `${current}`
 }
+
+/**
+ * 让当前章节在大纲里可见。
+ *
+ * <p>大纲是独立滚动容器：正文翻到第 100 节时，右侧还停在开头的第 1 节，高亮选了也看不见。
+ * 这里用「最近对齐」只挪够用的距离，不把用户自己拖出来的位置整段抢走。</p>
+ */
+function revealActiveOutline() {
+  const box = tocBodyEl()
+  const key = activeOutlineKey.value
+  if (!box || !key) return
+  const row = Array.from(box.querySelectorAll<HTMLElement>('[data-outline-key]')).find(
+    (el) => el.dataset.outlineKey === key
+  )
+  if (!row) return
+  const boxRect = box.getBoundingClientRect()
+  const rowRect = row.getBoundingClientRect()
+  if (rowRect.top < boxRect.top) box.scrollTop -= boxRect.top - rowRect.top
+  else if (rowRect.bottom > boxRect.bottom) box.scrollTop += rowRect.bottom - boxRect.bottom
+}
+
+// 还原期间逐帧钉住的位置由快照决定，同时动会打架；恢复结束后下一次章节变化再自然跟随
+watch(activeOutlineKey, () => {
+  if (wsRestoring) return
+  void nextTick(revealActiveOutline)
+})
+
+// 手机上大纲是抽屉：打开时抽屉尺寸才从 0 变成真实高度，得等一帧再对齐
+watch(showToc, (open) => {
+  if (open) void nextTick(revealActiveOutline)
+})
 
 /** 预览区里的站内 .md 链接直接在工作区切换文档，避免跳出到无效地址 */
 function onPreviewClick(event: MouseEvent) {
@@ -2171,6 +2412,8 @@ function onKeydown(event: KeyboardEvent) {
 }
 
 function onBeforeUnload(event: BeforeUnloadEvent) {
+  // 刷新前把阅读位置落盘：防抖计时器多半等不到，这一下是最后一次机会
+  flushWsMemo()
   // 页面要没了就先还锁：不还得让人干等 TTL
   if (haveLock.value) void releaseLock(true)
   if (!dirty.value) return
@@ -2210,6 +2453,8 @@ onMounted(async () => {
   refreshGitStatusSoon()
   window.addEventListener('keydown', onKeydown)
   window.addEventListener('beforeunload', onBeforeUnload)
+  // beforeunload 在手机 / 部分浏览器的返回手势下不一定来，pagehide 兜一层
+  window.addEventListener('pagehide', flushWsMemo)
   window.addEventListener('resize', onWindowResize)
   sideResizer.restore()
   tocResizer.restore()
@@ -2229,6 +2474,7 @@ onBeforeUnmount(() => {
   stopClonePolling()
   window.removeEventListener('keydown', onKeydown)
   window.removeEventListener('beforeunload', onBeforeUnload)
+  window.removeEventListener('pagehide', flushWsMemo)
   window.removeEventListener('resize', onWindowResize)
   sideResizer.stop()
   tocResizer.stop()
@@ -2237,6 +2483,9 @@ onBeforeUnmount(() => {
   window.clearTimeout(outlineTimer)
   window.clearTimeout(spyTimer)
   window.clearTimeout(readyTimer)
+  window.clearTimeout(wsSaveTimer)
+  cancelWsRestore()
+  flushWsMemo()
   unbindPreviewHost()
   // 路由切走也要还锁，否则同事得干等 TTL；组件已卸载，发出去就不管结果了
   void releaseLock(true)
@@ -2841,7 +3090,7 @@ onBeforeUnmount(() => {
             <MdIcon name="close" :size="14" />
           </button>
         </div>
-        <div class="md-ws__toc-body">
+        <div class="md-ws__toc-body" @scroll.passive="onOutlineScroll">
           <p v-if="outline.length === 0" class="md-ws__toc-empty">正文还没有标题</p>
           <ul v-else class="md-ad-outline__list">
             <li
@@ -2850,7 +3099,11 @@ onBeforeUnmount(() => {
               class="md-ad-outline__item"
               :data-level="node.level"
             >
-              <div class="md-ad-outline__row" :class="{ 'is-active': activeOutlineKey === node.key }">
+              <div
+                class="md-ad-outline__row"
+                :class="{ 'is-active': activeOutlineKey === node.key }"
+                :data-outline-key="node.key"
+              >
                 <span class="md-ad-outline__link" :title="node.text" @click="scrollToHeading(node)">
                   {{ node.text }}
                 </span>
