@@ -1,6 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import type { App } from 'vue'
-import { rememberScroll, restoreScroll } from '@/shared/scrollRegion'
+import { cancelRestore, rememberScroll, restoreScroll, trackLiveScroll } from '@/shared/scrollRegion'
 import { APP_BASE } from '@/shared/appBase'
 import { rememberPageTitle } from '@/shared/stores/site'
 
@@ -166,7 +166,7 @@ const router = createRouter({
       meta: { title: '页面不存在' }
     }
   ],
-  scrollBehavior(to) {
+  scrollBehavior(to, from) {
     /*
      * 页面不滚（滚动区是 #md-view），所以 router 那一套基于 window 的位置恢复一律是 0，
      * 交给它只会得到「永远停在顶部」；恢复改由 scrollRegion 自己做（规范 §11.13）。
@@ -174,15 +174,18 @@ const router = createRouter({
      * scrollBehavior 是在新页面已经渲染完之后再调的，那一刻旧位置已经被浏览器夹回 0。
      * hash 例外：`{ el }` 内部走 scrollIntoView，它会自己找最近的滚动祖先，不受影响。
      */
-    if (to.hash) return { el: to.hash, behavior: 'smooth' }
-    restoreScroll(to.fullPath)
+    if (to.hash) {
+      cancelRestore()
+      return { el: to.hash, behavior: 'smooth' }
+    }
+    restoreScroll(to.path, to.fullPath, !from.name)
     return false
   }
 })
 
 router.beforeEach((to, from) => {
   // 守卫是最早还能读到旧页面滚动位置的地方，晚一步（scrollBehavior）内容就已经换掉了
-  if (to.fullPath !== from.fullPath && from.name) rememberScroll(from.fullPath)
+  if (to.fullPath !== from.fullPath && from.name) rememberScroll(from.path, from.fullPath)
   return true
 })
 
@@ -201,6 +204,8 @@ router.beforeEach(async (to) => {
 router.afterEach((to) => {
   // 站点名可能被后台改过，标题由站点 store 统一拼（见 shared/stores/site.ts）
   rememberPageTitle(to.meta.title as string | undefined)
+  // 滚动位置的实时落盘要知道「当前在读哪一页」
+  trackLiveScroll(to.path, to.fullPath)
 })
 
 export default router

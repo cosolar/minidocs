@@ -1,14 +1,23 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import DocTree from './DocTree.vue'
 import KbGlyph from '@/shared/components/KbGlyph.vue'
 import Icon from './Icon.vue'
 import OutlineTree from './OutlineTree.vue'
 import { enhanceMarkdown } from '@/shared/enhanceMarkdown'
+import {
+  cancelRestore,
+  isRestoring,
+  isRestoringTree,
+  jumpToElement,
+  outlineScrollEl,
+  restoreSides,
+  retryRestore,
+} from '@/shared/scrollRegion'
 import { appHref, stripAppBase } from '@/shared/appBase'
 import { flattenOutline, useScrollSpy } from '@/user/composables/useScrollSpy'
-import { isTreeAllExpanded, setTreeExpanded } from '@/user/composables/useTreeExpand'
+import { isTreeAllExpanded, setTreeExpanded, setTreeScope } from '@/user/composables/useTreeExpand'
 import ImagePreview from '@/user/components/ImagePreview.vue'
 import MobileActionBar from '@/user/components/MobileActionBar.vue'
 import ReaderPrefsMenu from '@/user/components/ReaderPrefsMenu.vue'
@@ -33,6 +42,13 @@ const treeNodes = computed(() => props.tree ?? props.view.tree)
 const allExpanded = computed(() => isTreeAllExpanded(treeNodes.value))
 
 const router = useRouter()
+const route = useRoute()
+
+/**
+ * 目录开合状态按库分桶。用后端给的 kbId 而不是路由路径：首屏地址栏里的中文是百分号编码、
+ * 应用内跳转是解码后的，拿 route.path 作键会「同一个库两把钥匙」，一换文档整棵树就塌。
+ */
+watch(() => props.view.kbId, (id) => { if (id) setTreeScope(String(id)) }, { immediate: true })
 
 /**
  * 正文里的跨文档链接由后端渲染成裸 {@code <a href>}（门户是 {@code /kb/...?path=...}，分享页是
@@ -68,6 +84,7 @@ const drawer = ref<'tree' | 'outline' | null>(null)
 function openDrawer(type: 'tree' | 'outline') {
   drawer.value = type
   if (type === 'tree') void nextTick(revealActive)
+  else void nextTick(revealOutlineActive)
 }
 function closeDrawer() {
   drawer.value = null
@@ -97,6 +114,31 @@ const outlineIds = computed(() => flattenOutline(props.view.outline || []).map((
 const { activeId, refresh: refreshSpy } = useScrollSpy(outlineIds)
 
 /**
+ * 把大纲里当前章节滚进可视范围。
+ *
+ * <p>长文滚到后半段时，高亮的那一条早已跑出大纲的可视区 —— 右栏只剩一个看不见的「选中项」。
+ * 这里只在高亮变化时做 {@code block:'nearest'}：已经在视口里就不动，越过分页才挪一格，
+ * 读长文时右栏会跟着一格格走，而不是整块跳动。</p>
+ *
+ * <p>快照恢复期间让位：那时大纲正被逐帧钉在刷新前的位置，两边同时写只会互相拽。</p>
+ */
+function revealOutlineActive() {
+  const id = activeId.value
+  if (!id) return
+  const box = outlineScrollEl()
+  if (!box) return
+  const row = [...box.querySelectorAll<HTMLElement>('[data-md-outline-id]')].find(
+    (el) => el.dataset.mdOutlineId === id,
+  )
+  row?.scrollIntoView({ block: 'nearest' })
+}
+
+watch(activeId, () => {
+  if (isRestoring()) return
+  void nextTick(revealOutlineActive)
+})
+
+/**
  * 大纲手风琴：默认只展开「当前正在读的那条标题」这条枝（连同它的各级父标题），其余枝收起，
  * 长文的大纲因此不会一屏铺开几十个标题。
  *
@@ -104,6 +146,45 @@ const { activeId, refresh: refreshSpy } = useScrollSpy(outlineIds)
  * 否则「点收起却没反应」比收错了更让人困惑。换一篇文章时清空，免得上一篇摊开的枝带到下一篇。</p>
  */
 const outlineOverrides = reactive(new Map<string, boolean>())
+
+/**
+ * 读者手动展开 / 收起的大纲枝按篇记进 sessionStorage：刷新回来时左栏回到原处，
+ * 大纲也该还是读者摊开的那几枝。只记手动结果，滚动联动算出来的默认态不进存储 ——
+ * 那是由当前阅读位置推出来的，回到原处自然会再算一遍。
+ *
+ * <p>键用 kbId + 文档路径：路由路径在首屏是百分号编码、应用内跳转是解码后的，
+ * 拿它作键同一次访问会拼出两种键，回到上一篇时手风琴状态就找不回来了。</p>
+ */
+const OUTLINE_OPEN_KEY = 'md-outline-open'
+const outlineMemoKey = computed(() => `${props.view.kbId}|${props.view.currentPath ?? ''}`)
+
+function readOutlineMemos(): Record<string, Record<string, boolean>> {
+  try {
+    return JSON.parse(sessionStorage.getItem(OUTLINE_OPEN_KEY) || '{}') as Record<string, Record<string, boolean>>
+  } catch {
+    return {}
+  }
+}
+
+function persistOutlineOverrides() {
+  const all = readOutlineMemos()
+  all[outlineMemoKey.value] = Object.fromEntries(outlineOverrides)
+  // 只留最近 120 篇：手动开合过的文档通常不多，超过就当旧记录淘汰
+  const keys = Object.keys(all)
+  while (keys.length > 120) delete all[keys.shift()!]
+  try {
+    sessionStorage.setItem(OUTLINE_OPEN_KEY, JSON.stringify(all))
+  } catch {
+    // 存不进去只影响跨刷新记忆
+  }
+}
+
+function loadOutlineOverrides() {
+  outlineOverrides.clear()
+  const memo = readOutlineMemos()[outlineMemoKey.value]
+  if (!memo) return
+  for (const [id, open] of Object.entries(memo)) outlineOverrides.set(id, open)
+}
 
 /** 从根到当前标题的 id 链：只有这条链默认是展开的 */
 const activeOutlineChain = computed(() => {
@@ -129,9 +210,11 @@ function isOutlineExpanded(id: string) {
 
 function toggleOutline(id: string) {
   outlineOverrides.set(id, !isOutlineExpanded(id))
+  persistOutlineOverrides()
 }
 
-watch(() => props.view.outline, () => outlineOverrides.clear())
+// immediate：刷新时 ReadBody 挂载即带完整 view，watch 不跑首次，记忆就永远读不进来
+watch([() => props.view.outline, outlineMemoKey], () => loadOutlineOverrides(), { immediate: true })
 
 /** 分享页左栏是紧凑卡片，文案与门户不同；搜索也只在有树可搜时才有意义 */
 const isShare = computed(() => props.view.mode === 'share')
@@ -266,9 +349,25 @@ onBeforeUnmount(() => {
 /** 正文挂载后做一次增强：代码高亮 / Mermaid / KaTeX / 灯箱 */
 async function decorate() {
   await nextTick()
-  revealActive()
+  // 恢复目录树位置期间别去「展开到当前项」：逐帧钉住会把这次滚动拽回去，白闪一下
+  if (!isRestoringTree()) revealActive()
   await enhanceMarkdown(markdownEl.value)
   refreshSpy()
+  /*
+   * 刷新带 hash 进来时路由的 scrollBehavior 跑在正文到达之前，{ el } 找不到锚点；
+   * 这里补跳一次。锚点是读者的显式意图，优先于记忆位置。
+   */
+  const anchorId = decodeURIComponent(route.hash.slice(1))
+  const anchor = anchorId ? document.getElementById(anchorId) : null
+  if (anchor) {
+    cancelRestore()
+    jumpToElement(anchor)
+    // 锚点只决定正文落点；两侧栏仍按快照回原位（否则带 #标题 刷新时大纲总留在顶部）
+    restoreSides(route.path, route.fullPath)
+    return
+  }
+  // 刷新后正文迟到（慢网络、分享口令门）时，路由那次恢复可能已超时，这里补一次
+  retryRestore(route.fullPath)
 }
 
 /**
@@ -396,7 +495,12 @@ function routerTo(link?: string) {
           <Icon name="search" :size="14" />
           <input v-model="keyword" type="search" :placeholder="searchPlaceholder" autocomplete="off">
         </div>
-        <nav v-if="view.showTree && treeNodes.length" ref="treeEl" class="md-aside__tree">
+        <nav
+          v-if="view.showTree && treeNodes.length"
+          ref="treeEl"
+          class="md-aside__tree"
+          data-md-scroll-tree
+        >
           <DocTree
             :nodes="treeNodes"
                       :current-path="view.currentPath"
@@ -580,7 +684,7 @@ function routerTo(link?: string) {
     />
 
     <!-- 大纲 -->
-    <aside class="md-reading__outline" @click="onOutlineClick">
+    <aside class="md-reading__outline" data-md-scroll-outline @click="onOutlineClick">
       <div class="md-outline__card">
         <div class="md-drawer__head">
           <span class="md-drawer__title">
@@ -602,7 +706,7 @@ function routerTo(link?: string) {
           <span>目录</span>
         </div>
         <h2 v-else class="md-outline__title">文章目录</h2>
-        <div v-if="view.outline.length" class="md-outline__body">
+        <div v-if="view.outline.length" class="md-outline__body" data-md-scroll-outline>
           <OutlineTree
             :nodes="view.outline"
             :active-id="activeId"

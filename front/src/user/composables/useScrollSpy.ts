@@ -17,6 +17,26 @@ export function useScrollSpy(ids: Ref<string[]>, offset = 100) {
 
   let ticking = false
   let scrollers: HTMLElement[] = []
+  /** 缓存标题元素：正文切换后 DOM 会重建，由 {@link refresh} 重新解析 */
+  let elements: HTMLElement[] = []
+  /** 顶边是否随文档顺序单调递增；被收起的 {@code <details>} 里的标题会打破它，届时退回逐条扫描 */
+  let sorted = true
+
+  const resolve = () => {
+    elements = ids.value
+      .map((id) => document.getElementById(id))
+      .filter((el): el is HTMLElement => el !== null)
+    sorted = true
+    let prev = Number.NEGATIVE_INFINITY
+    for (const el of elements) {
+      const top = el.getBoundingClientRect().top
+      if (top < prev - 1) {
+        sorted = false
+        break
+      }
+      prev = top
+    }
+  }
 
   const update = () => {
     /*
@@ -25,14 +45,25 @@ export function useScrollSpy(ids: Ref<string[]>, offset = 100) {
      * 点击目录跳到某节后，高亮会停留在上一节 —— 看起来像「点 1.5 定位到了 1.4」。
      */
     const origin = scrollEl()?.getBoundingClientRect().top ?? 0
+    const crossed = (el: HTMLElement) => el.getBoundingClientRect().top - origin - offset <= 0
     let current = ''
-    for (const id of ids.value) {
-      const el = document.getElementById(id)
-      if (!el) continue
-      if (el.getBoundingClientRect().top - origin - offset <= 0) {
-        current = id
-      } else {
-        break
+    if (sorted) {
+      /*
+       * 标题按文档顺序排列，顶边也随之递增：二分找「最后一条越过判定线」的标题即可。
+       * 长文动辄几百个标题，逐条读 rect 会让每一帧滚动都排一次几百次的布局查询。
+       */
+      let lo = 0
+      let hi = elements.length
+      while (lo < hi) {
+        const mid = (lo + hi) >> 1
+        if (crossed(elements[mid])) lo = mid + 1
+        else hi = mid
+      }
+      current = elements[lo - 1]?.id || ''
+    } else {
+      for (const el of elements) {
+        if (crossed(el)) current = el.id
+        else break
       }
     }
     activeId.value = current || ids.value[0] || ''
@@ -48,6 +79,7 @@ export function useScrollSpy(ids: Ref<string[]>, offset = 100) {
   }
 
   onMounted(() => {
+    resolve()
     scrollers = [...new Set([viewEl(), scrollEl()].filter((el): el is HTMLElement => el !== null))]
     scrollers.forEach((el) => el.addEventListener('scroll', onScroll, { passive: true }))
     update()
@@ -55,7 +87,13 @@ export function useScrollSpy(ids: Ref<string[]>, offset = 100) {
 
   onBeforeUnmount(() => scrollers.forEach((el) => el.removeEventListener('scroll', onScroll)))
 
-  return { activeId, refresh: update }
+  /** 正文渲染 / 增强后调用：DOM 可能已重建，先重新解析标题元素再重算高亮 */
+  const refresh = () => {
+    resolve()
+    update()
+  }
+
+  return { activeId, refresh }
 }
 
 /** 把后端返回的大纲树按文档顺序拍平，便于做滚动联动 */

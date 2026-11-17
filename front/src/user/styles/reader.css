@@ -763,29 +763,67 @@ button { font-family: inherit; }
 
 .md-outline__title { font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: var(--md-text-3); margin: 0 0 10px 4px; }
 .md-outline__list { list-style: none; margin: 0; padding: 0; }
-/* 层级缩进交给嵌套列表本身：每深一层缩 12px，比按 h 级别硬编码 padding 更贴合真实嵌套深度 */
-.md-outline__list .md-outline__list { padding-left: 12px; }
+/*
+ * 层级缩进交给嵌套列表本身，并给每一层补一条竖向引导线 —— 与左栏文档树同一套语言。
+ * 只靠缩进，标题一多就分不清「这条是上一节的子项，还是另一个顶栏」；一条淡线把从属关系
+ * 直接画出来。
+ *
+ * <p>线落在父级箭头的中轴上：父级行首那颗 20px 箭头距离行左沿 10px（行本身还留了 2px
+ * 左侧缩进边框），所以嵌套列表缩进 12px 正好让竖线穿过箭头中心，展开/收起与层级从属
+ * 落在同一条垂直线上。</p>
+ */
+.md-outline__list .md-outline__list {
+  margin-left: 12px;
+  padding-left: 8px;
+  border-left: 1px solid var(--md-border);
+  transition: border-color 0.15s;
+}
+/* 悬停时整条祖先链一起加深：指到哪一条，就知道它挂在哪几节下面 */
+.md-outline__list .md-outline__list:hover { border-left-color: var(--md-border-strong); }
 
 .md-outline__row {
+  position: relative;
   display: flex; align-items: center; gap: 2px;
+  margin: 1px 0;
   padding-right: 3px;
   border-left: 2px solid transparent;
-  border-radius: 0 6px 6px 0;
-  transition: background 0.15s;
+  border-radius: 8px;
+  transition: background-color 0.15s;
 }
 .md-outline__row:hover { background: var(--md-surface-2); }
-.md-outline__row.is-active { border-left-color: var(--md-primary); background: var(--md-primary-soft); }
+/*
+ * 激活项：整行浅色药丸 + 左侧短胶囊。
+ * 原来是一条通高的 2px 硬边，行高二十来像素时像被「切开」；改成圆角短条，长度与文字行高相当，
+ * 圆角药丸底色托住整行，扫一眼就知道读到哪一节。
+ */
+.md-outline__row.is-active { background: var(--md-primary-soft); }
+.md-outline__row.is-active::before {
+  content: '';
+  position: absolute;
+  left: 4px;
+  top: 50%;
+  width: 3px;
+  height: 16px;
+  margin-top: -8px;
+  border-radius: 999px;
+  background: var(--md-primary);
+}
 .md-outline__link {
   flex: 1; min-width: 0; display: block;
-  padding: 4px 2px 4px 8px;
-  font-size: 12.5px; color: var(--md-text-2);
+  padding: 4px 2px 4px 6px;
+  font-size: 12.5px; line-height: 1.5; color: var(--md-text-2);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   transition: color 0.15s;
 }
+/* 顶层（通常是文档标题）略重一档，越往下越轻，层级不只靠缩进表达 */
+.md-outline__body > .md-outline__list > .md-outline__item > .md-outline__row .md-outline__link {
+  font-size: 13px; color: var(--md-text);
+}
 .md-outline__row:hover .md-outline__link { color: var(--md-text); }
 .md-outline__row.is-active .md-outline__link { color: var(--md-primary); font-weight: 600; }
+.md-outline__link:focus-visible { outline: 2px solid var(--md-primary); outline-offset: -2px; border-radius: 4px; }
 
-/* 展开箭头放在行尾：所有标题的文字左边缘因此齐平，不会因为「有子标题就右移」而参差 */
+/* 行首箭头槽：有子标题放箭头，没有也占同宽，标题文字因此全部落在一条竖线上 */
 .md-outline__toggle {
   flex-shrink: 0; display: grid; place-items: center;
   width: 20px; height: 20px; padding: 0;
@@ -793,6 +831,7 @@ button { font-family: inherit; }
   color: var(--md-text-3); cursor: pointer;
   transition: background 0.15s, color 0.15s;
 }
+.md-outline__toggle-spacer { flex-shrink: 0; width: 20px; height: 20px; }
 .md-outline__toggle:hover { background: var(--md-bg); color: var(--md-text); }
 .md-outline__chevron { transition: transform 0.18s ease; }
 .md-outline__toggle[aria-expanded='false'] .md-outline__chevron { transform: rotate(-90deg); }

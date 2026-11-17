@@ -12,10 +12,52 @@ import type { DocNode } from '@/shared/api/types'
  * <p>路径在同一个知识库里天然唯一，所以一整棵树的开合状态可以就摊平成一个
  * {@code Record<path, boolean>}，谁读谁写都是同一份。</p>
  *
- * <p><b>不随树重置</b>：路由切文档时 {@code view.tree} 是新对象，若跟着重置，
- * 读者点开下一篇目录就全塌了。留着旧键也无害 —— 别的库的路径撞不上同一个键。</p>
+ * <p><b>按库持久化</b>（{@code localStorage}）：刷新后左栏回到原处时，目录不该全塌回默认。
+ * 存的时候按库（路由路径）分桶 —— 两个库都有 {@code guide/} 这样的目录名很正常，
+ * 不分开就会互相串开合状态。应用内切文档不重置：同一个库切文档，树不该跟着塌。</p>
  */
+const STORE_KEY = 'md-tree-expanded'
+/** 分桶上限：按最近访问淘汰，读几十个库也不会把存储撑大 */
+const MAX_SCOPES = 60
+
 const expanded = reactive<Record<string, boolean>>({})
+let scope = ''
+
+function readAll(): Record<string, Record<string, boolean>> {
+  try {
+    return JSON.parse(localStorage.getItem(STORE_KEY) || '{}') as Record<string, Record<string, boolean>>
+  } catch {
+    return {}
+  }
+}
+
+function persist() {
+  if (!scope) return
+  const all = readAll()
+  // 先删再设：让「最近写过的库」排在末尾，淘汰时依赖它
+  delete all[scope]
+  all[scope] = { ...expanded }
+  const keys = Object.keys(all)
+  while (keys.length > MAX_SCOPES) delete all[keys.shift()!]
+  try {
+    localStorage.setItem(STORE_KEY, JSON.stringify(all))
+  } catch {
+    // 写不进去只影响跨刷新记忆
+  }
+}
+
+/**
+ * 声明当前在哪个库（路由路径）。换库时把内存里的开合状态换成那个库自己记住的一份；
+ * 同一个库内切文档不触发，树保持原样。
+ */
+export function setTreeScope(next: string) {
+  if (scope === next) return
+  scope = next
+  for (const key of Object.keys(expanded)) delete expanded[key]
+  const memo = readAll()[next]
+  if (memo) Object.assign(expanded, memo)
+  revision.value += 1
+}
 
 /**
  * 开合次数的计数器。纯展示用的派生判断（「是不是全展开了」）要读到它才可靠：
@@ -31,12 +73,14 @@ export function isTreeExpanded(path: string): boolean {
 export function toggleTreeNode(path: string): void {
   expanded[path] = !expanded[path]
   revision.value += 1
+  persist()
 }
 
 export function expandTreeNode(path: string): void {
   if (expanded[path]) return
   expanded[path] = true
   revision.value += 1
+  persist()
 }
 
 /**
@@ -47,12 +91,16 @@ export function expandTreeNode(path: string): void {
  * 读者看着就像按钮时灵时不灵。</p>
  */
 export function setTreeExpanded(nodes: DocNode[] | undefined, open: boolean): void {
-  for (const node of nodes || []) {
-    if (node.type !== 'dir') continue
-    expanded[node.path] = open
-    setTreeExpanded(node.children, open)
+  const walk = (list?: DocNode[]) => {
+    for (const node of list || []) {
+      if (node.type !== 'dir') continue
+      expanded[node.path] = open
+      walk(node.children)
+    }
   }
+  walk(nodes)
   revision.value += 1
+  persist()
 }
 
 /**
