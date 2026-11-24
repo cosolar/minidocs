@@ -10,6 +10,7 @@ import { useSettingsStore } from '@/shared/stores/settings'
 import { useSiteStore } from '@/shared/stores/site'
 import { DEFAULT_LOGO } from '@/shared/brand'
 import { appHref } from '@/shared/appBase'
+import { toApiErrorInfo } from '@/shared/api/http'
 
 const route = useRoute()
 const router = useRouter()
@@ -289,6 +290,37 @@ function goAccount() {
   router.push('/account')
 }
 
+/* ------------------------------------------------- 验证码登录后的改密提醒 */
+/*
+ * 密码连续输错 3 次后，用户是用邮箱验证码进来的：能收到信说明账号是他的，
+ * 但旧密码大概率已经记混或泄露。这里提醒一次，可以「稍后再说」——
+ * 改密是建议，不是第二道门；账号设置里随时能改。
+ */
+const resetVisible = ref(false)
+const resetSaving = ref(false)
+const resetForm = reactive({ newPassword: '', confirm: '' })
+
+async function saveResetPassword() {
+  if (resetForm.newPassword.length < 6) {
+    ElMessage.warning('新密码长度至少 6 位')
+    return
+  }
+  if (resetForm.newPassword !== resetForm.confirm) {
+    ElMessage.warning('两次输入的新密码不一致')
+    return
+  }
+  resetSaving.value = true
+  try {
+    await auth.resetPassword(resetForm.newPassword)
+    resetVisible.value = false
+    ElMessage.success('密码已重设，下次登录请使用新密码')
+  } catch (error) {
+    ElMessage.error(toApiErrorInfo(error).message)
+  } finally {
+    resetSaving.value = false
+  }
+}
+
 onMounted(async () => {
   settings.applyToDom()
   mobileMq.addEventListener('change', syncMobile)
@@ -304,7 +336,10 @@ onMounted(async () => {
   /* 组织清单只为渲染顶栏；失败不影响当前页，守卫已经放行说明成员门是过的 */
   void org.load().catch(() => undefined)
   if (!settings.value.showDocTree) collapsed.value = true
-  if (auth.user?.emailVerified === false) {
+  // 验证码登录进来的会话：先提醒重设密码，再谈补验证邮箱 —— 两者同时成立时先处理更重要的那个
+  if (auth.passwordResetRequired) {
+    resetVisible.value = true
+  } else if (auth.user?.emailVerified === false) {
     verifyVisible.value = true
   }
 })
@@ -512,6 +547,43 @@ watch(() => route.fullPath, () => {
         </el-button>
         <el-button v-else type="primary" @click="goAccount">
           <MdIcon name="user" :size="14" />去填邮箱
+        </el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 验证码登录后的改密提醒：可以稍后再说，改密不是进入平台的前提 -->
+    <el-dialog v-model="resetVisible" title="建议重设一个密码" width="440px">
+      <p class="md-verify-tip">
+        你刚刚是用邮箱验证码登录的。如果原来的密码已经记不清或可能被别人知道，
+        现在设置一个新密码，下次就能直接用新密码登录。
+      </p>
+      <el-form label-position="top" class="md-reset-form">
+        <el-form-item label="新密码">
+          <el-input
+            v-model="resetForm.newPassword"
+            type="password"
+            show-password
+            maxlength="64"
+            placeholder="6-64 位"
+            autocomplete="new-password"
+          />
+        </el-form-item>
+        <el-form-item label="确认新密码">
+          <el-input
+            v-model="resetForm.confirm"
+            type="password"
+            show-password
+            maxlength="64"
+            placeholder="再输入一次"
+            autocomplete="new-password"
+            @keyup.enter="saveResetPassword"
+          />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="resetVisible = false">稍后再说</el-button>
+        <el-button type="primary" :loading="resetSaving" @click="saveResetPassword">
+          <MdIcon name="key" :size="14" />保存新密码
         </el-button>
       </template>
     </el-dialog>

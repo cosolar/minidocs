@@ -28,7 +28,47 @@ public final class AuthDtos {
             @NotBlank(message = "请先完成人机验证") String captchaTicket) {
     }
 
-    public record LoginResponse(String token, long expiresIn, UserVO user, Map<String, Object> settings) {
+    /**
+     * 登录结果。
+     *
+     * <p>{@code passwordResetRequired} 只在「密码连续输错后改用邮箱验证码登录」时为 true：
+     * 前端据此进入平台后弹一次重设密码的提醒。密码登录恒为 false。</p>
+     */
+    public record LoginResponse(String token, long expiresIn, UserVO user, Map<String, Object> settings,
+                                boolean passwordResetRequired) {
+
+        /** 密码登录：不需要重设密码，保持原来的四参数构造。 */
+        public LoginResponse(String token, long expiresIn, UserVO user, Map<String, Object> settings) {
+            this(token, expiresIn, user, settings, false);
+        }
+    }
+
+    /** 邮箱验证码登录：发码只认账号，收件地址由后端从账号里取，前端传不进别的地址。 */
+    public record SendLoginCodeRequest(
+            @NotBlank(message = "请填写用户名或邮箱")
+            @Size(max = 128, message = "长度不能超过 128") String account) {
+    }
+
+    /** 发码结果：掩码邮箱供页面提示「发到哪儿去了」，两个秒数用来起倒计时。 */
+    public record LoginCodeVO(String maskedEmail, int cooldownSeconds, int validMinutes) {
+    }
+
+    /** 验证码登录：账号与密码登录同口径，用户名或邮箱都行。 */
+    public record LoginCodeLoginRequest(
+            @NotBlank(message = "请填写用户名或邮箱")
+            @Size(max = 128, message = "长度不能超过 128") String account,
+            @NotBlank(message = "请填写验证码")
+            @Pattern(regexp = "^\\d{6}$", message = "验证码应为 6 位数字") String code) {
+    }
+
+    /**
+     * 重设密码：不要求原密码，授权来自「刚用邮箱验证码登录」这一会话标记。
+     *
+     * <p>这正是忘记密码的场景 —— 说得出来原密码就不用走这条路了。</p>
+     */
+    public record PasswordResetRequest(
+            @NotBlank(message = "新密码不能为空")
+            @Size(min = 6, max = 64, message = "新密码长度需在 6-64 之间") String newPassword) {
     }
 
     public record AccountUpdateRequest(

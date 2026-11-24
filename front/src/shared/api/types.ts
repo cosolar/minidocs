@@ -465,6 +465,13 @@ export interface LoginResponse {
   expiresIn: number
   user: UserVO
   settings: Record<string, unknown>
+  /**
+   * 是否需要在进入平台后提醒重设密码。
+   *
+   * <p>只有「密码连续输错后改用邮箱验证码登录」这一条路径为 true：验证码证明了收件箱归本人，
+   * 但旧密码很可能已经泄露或记混，所以进入平台后弹一次提醒。密码登录恒为 false。</p>
+   */
+  passwordResetRequired?: boolean
 }
 
 /**

@@ -21,6 +21,26 @@ export const authApi = {
   login: (data: { username: string; password: string; captchaTicket: string }) =>
     request<LoginResponse>({ url: '/auth/login', method: 'post', data, silentError: true }),
   /**
+   * 发送登录邮箱验证码。
+   *
+   * <p>密码连续输错 3 次后登录页才会出现这个入口。同步发信：失败必须当场让填表的人看到原因，
+   * 所以同样关掉全局提示，由登录页自己弹。</p>
+   */
+  sendLoginCode: (account: string) =>
+    request<{ maskedEmail: string; cooldownSeconds: number; validMinutes: number }>({
+      url: '/auth/login/code', method: 'post', data: { account }, silentError: true
+    }),
+  /** 邮箱验证码登录：验证通过直接进入平台，返回里带 {@code passwordResetRequired}。 */
+  loginByCode: (data: { account: string; code: string }) =>
+    request<LoginResponse>({ url: '/auth/login/code/verify', method: 'post', data, silentError: true }),
+  /**
+   * 重设密码（不要求原密码）。
+   *
+   * <p>授权来自服务端在「验证码登录」时写下的会话标记；普通登录的会话调它会被 403 拒绝。</p>
+   */
+  resetPassword: (newPassword: string) =>
+    request<void>({ url: '/auth/password/reset', method: 'post', data: { newPassword }, silentError: true }),
+  /**
    * 自助注册。后端**不回 token**（它只建账号 + 个人组织），所以注册成功后要用同一组
    * 凭据再走一次 {@link login}，别在这里猜一个「注册即登录」的行为。
    *

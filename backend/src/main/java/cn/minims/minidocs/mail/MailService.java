@@ -147,6 +147,21 @@ public class MailService {
                         validMinutes, brand.logoUrl()));
     }
 
+    /**
+     * 登录验证码邮件。
+     *
+     * <p>同样同步发送：用户等在「获取验证码」按钮后面，失败必须当场报出来。
+     * 配置由调用方传入，理由与 {@link #sendRegisterCode} 相同。</p>
+     */
+    public void sendLoginCode(MailSettings settings, String to, String code, int validMinutes,
+                              String baseUrl) {
+        requireReady(settings);
+        Brand brand = brand(baseUrl);
+        send(settings, to, "登录验证码 - " + brand.name(),
+                MailBodies.loginCode(brand.name(), brand.subtitle(), to, code,
+                        validMinutes, brand.logoUrl()));
+    }
+
     /** 邮件里要用的品牌信息：站点名、副标题与 Logo 绝对地址。 */
     private record Brand(String name, String subtitle, String logoUrl) {
     }

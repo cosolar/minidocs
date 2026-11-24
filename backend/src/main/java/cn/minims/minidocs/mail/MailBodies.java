@@ -65,6 +65,40 @@ final class MailBodies {
     }
 
     /**
+     * 登录验证码邮件。
+     *
+     * <p>版式与注册验证码共用：同样的品牌外壳、同样的验证码框，只把说明换成「登录」。
+     * 收件箱里两封邮件长得一样是好事 —— 用户不用分辨这是哪条流程，只需要认出那 6 位数字。</p>
+     *
+     * @param email        收码邮箱，正文里高亮出来，让人确认验的是哪个地址
+     * @param code         6 位数字
+     * @param validMinutes 有效期，写进正文免得用户翻出一封旧邮件来试
+     */
+    static String loginCode(String siteName, String subtitle, String email,
+                            String code, int validMinutes, String logoUrl) {
+        String brand = escape(siteName);
+        String content = """
+                <h1 style="margin:6px 0 16px;font-size:24px;line-height:1.35;color:#14231f;font-weight:700">登录验证码</h1>
+                <p style="margin:0;font-size:15px;line-height:1.8;color:#46524e">
+                  你正在登录「<strong style="color:#1f2d28">%s</strong>」的账号
+                  <span style="padding:1px 5px;border-radius:4px;background:#edf8f4;color:%s;font-weight:600">%s</span>。
+                  把下面这 6 位数字填回登录页面，即可进入平台。
+                </p>
+                <div style="margin:22px 0 20px;padding:20px 10px;text-align:center;border:1px dashed #a9d8cc;\
+                border-radius:12px;background:#f4fbf8;color:%s;font-size:38px;font-weight:700;\
+                line-height:1.15;letter-spacing:.3em;text-indent:.3em">%s</div>
+                <p style="margin:0 0 6px;font-size:14px;line-height:1.75;color:#46524e">
+                  验证码 <strong style="color:#1f2d28">%d 分钟内</strong>有效，使用一次后立即失效。
+                </p>
+                <p style="margin:0;font-size:13.5px;line-height:1.75;color:#7a8782">%s 不会通过电话、聊天软件或邮件向你索要验证码。</p>
+                <p style="margin:4px 0 0;font-size:13.5px;line-height:1.75;color:#7a8782">
+                  如果你没有在登录，请忽略本邮件，并建议尽快修改账号密码。
+                </p>
+                """.formatted(brand, BRAND, escape(email), BRAND, escape(code), validMinutes, brand);
+        return brandShell(siteName, subtitle, logoUrl, "账号登录", content);
+    }
+
+    /**
      * 邮箱验证链接邮件（改邮箱、补验证时用）。
      *
      * @param displayName 收件人昵称，可空

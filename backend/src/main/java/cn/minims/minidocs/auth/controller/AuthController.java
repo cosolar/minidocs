@@ -1,17 +1,22 @@
 package cn.minims.minidocs.auth.controller;
 
 import cn.minims.minidocs.auth.dto.AuthDtos.AccountUpdateRequest;
+import cn.minims.minidocs.auth.dto.AuthDtos.LoginCodeLoginRequest;
+import cn.minims.minidocs.auth.dto.AuthDtos.LoginCodeVO;
 import cn.minims.minidocs.auth.dto.AuthDtos.LoginRequest;
 import cn.minims.minidocs.auth.dto.AuthDtos.LoginResponse;
+import cn.minims.minidocs.auth.dto.AuthDtos.PasswordResetRequest;
 import cn.minims.minidocs.auth.dto.AuthDtos.PasswordUpdateRequest;
 import cn.minims.minidocs.auth.dto.AuthDtos.RegisterCodeVO;
 import cn.minims.minidocs.auth.dto.AuthDtos.RegisterRequest;
 import cn.minims.minidocs.auth.dto.AuthDtos.ResendVerificationRequest;
+import cn.minims.minidocs.auth.dto.AuthDtos.SendLoginCodeRequest;
 import cn.minims.minidocs.auth.dto.AuthDtos.SendRegisterCodeRequest;
 import cn.minims.minidocs.auth.dto.AuthDtos.VerifyEmailRequest;
 import cn.minims.minidocs.auth.dto.AuthDtos.VerificationResultVO;
 import cn.minims.minidocs.auth.service.AuthService;
 import cn.minims.minidocs.auth.service.EmailVerificationService;
+import cn.minims.minidocs.auth.service.LoginCodeService;
 import cn.minims.minidocs.auth.service.RegisterCodeService;
 import cn.minims.minidocs.auth.support.TokenCookieSupport;
 import cn.minims.minidocs.common.api.ApiResponse;
@@ -43,6 +48,7 @@ public class AuthController {
     private final TokenCookieSupport tokenCookieSupport;
     private final EmailVerificationService emailVerificationService;
     private final RegisterCodeService registerCodeService;
+    private final LoginCodeService loginCodeService;
     private final SiteBaseUrlResolver siteBaseUrlResolver;
 
     @Operation(summary = "登录")
@@ -53,6 +59,31 @@ public class AuthController {
         LoginResponse response = authService.login(request, AccessLogFilter.clientIp(servletRequest));
         tokenCookieSupport.write(servletResponse, servletRequest, response.token());
         return ApiResponse.ok(response);
+    }
+
+    @Operation(summary = "发送登录邮箱验证码（公开：密码连续错误的兜底入口）")
+    @PostMapping("/login/code")
+    public ApiResponse<LoginCodeVO> sendLoginCode(@Valid @RequestBody SendLoginCodeRequest request,
+                                                  HttpServletRequest servletRequest) {
+        return ApiResponse.ok(loginCodeService.send(request.account(),
+                AccessLogFilter.clientIp(servletRequest), siteBaseUrlResolver.resolve(servletRequest)));
+    }
+
+    @Operation(summary = "邮箱验证码登录（公开：验证通过直接进入平台，并标记需要重设密码）")
+    @PostMapping("/login/code/verify")
+    public ApiResponse<LoginResponse> loginByCode(@Valid @RequestBody LoginCodeLoginRequest request,
+                                                  HttpServletRequest servletRequest,
+                                                  HttpServletResponse servletResponse) {
+        LoginResponse response = authService.loginByCode(request, AccessLogFilter.clientIp(servletRequest));
+        tokenCookieSupport.write(servletResponse, servletRequest, response.token());
+        return ApiResponse.ok(response);
+    }
+
+    @Operation(summary = "重设密码（仅限邮箱验证码登录后的会话）")
+    @PostMapping("/password/reset")
+    public ApiResponse<Void> resetPassword(@Valid @RequestBody PasswordResetRequest request) {
+        authService.resetPassword(request);
+        return ApiResponse.ok();
     }
 
     @Operation(summary = "获取注册邮箱验证码（公开：按邮箱与来源 IP 限速）")

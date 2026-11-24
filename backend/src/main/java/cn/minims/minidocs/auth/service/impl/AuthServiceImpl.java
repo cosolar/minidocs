@@ -3,13 +3,17 @@ package cn.minims.minidocs.auth.service.impl;
 import cn.dev33.satoken.stp.SaTokenInfo;
 import cn.dev33.satoken.stp.StpUtil;
 import cn.minims.minidocs.auth.dto.AuthDtos.AccountUpdateRequest;
+import cn.minims.minidocs.auth.dto.AuthDtos.LoginCodeLoginRequest;
 import cn.minims.minidocs.auth.dto.AuthDtos.LoginRequest;
 import cn.minims.minidocs.auth.dto.AuthDtos.LoginResponse;
+import cn.minims.minidocs.auth.dto.AuthDtos.PasswordResetRequest;
 import cn.minims.minidocs.auth.dto.AuthDtos.PasswordUpdateRequest;
 import cn.minims.minidocs.auth.dto.AuthDtos.RegisterRequest;
 import cn.minims.minidocs.auth.service.AuthService;
 import cn.minims.minidocs.auth.service.CaptchaGateService;
 import cn.minims.minidocs.auth.service.EmailVerificationService;
+import cn.minims.minidocs.auth.service.LoginAttemptService;
+import cn.minims.minidocs.auth.service.LoginCodeService;
 import cn.minims.minidocs.auth.service.RegisterCodeService;
 import cn.minims.minidocs.common.api.ErrorCode;
 import cn.minims.minidocs.common.context.UserContext;
@@ -53,6 +57,8 @@ public class AuthServiceImpl implements AuthService {
     private final EmailVerificationService emailVerificationService;
     private final RegisterCodeService registerCodeService;
     private final CaptchaGateService captchaGateService;
+    private final LoginAttemptService loginAttemptService;
+    private final LoginCodeService loginCodeService;
 
     /**
      * 是否强制人机验证。
@@ -79,6 +85,11 @@ public class AuthServiceImpl implements AuthService {
 
         User user = userService.findByUsernameOrEmail(account);
         if (user == null || !passwordEncoder.matches(request.password(), user.getPasswordHash())) {
+            // 连续输错三次就把人引到邮箱验证码上：再让他在同一个框里试下去，
+            // 只会撞上 60 秒限流，且永远等不到「换个方式」的提示。
+            if (loginAttemptService.recordFailure(account) >= LoginAttemptService.MAX_FAILURES) {
+                throw BizException.of(ErrorCode.LOGIN_CODE_REQUIRED);
+            }
             throw BizException.of(ErrorCode.UNAUTHORIZED, GENERIC_LOGIN_ERROR);
         }
         // 账号状态异常时对外统一提示，避免暴露账号存在性
@@ -94,9 +105,56 @@ public class AuthServiceImpl implements AuthService {
         StpUtil.login(user.getId());
         SaTokenInfo tokenInfo = StpUtil.getTokenInfo();
         rateLimiter.reset(limitKey);
+        // 用户名与邮箱可能是两条不同的计数键，两条都清掉，别让残留把下一次输错直接推到阈值
+        loginAttemptService.clear(account);
+        loginAttemptService.clear(user.getUsername());
+        loginAttemptService.clear(user.getEmail());
+        // 用密码正常进来了，说明不需要走「免原密码重设」那条路，残留许可顺手清掉
+        loginCodeService.clearResetPermission(user.getEmail());
         log.info("用户登录成功 id={} username={}", user.getId(), user.getUsername());
         return new LoginResponse(tokenInfo.getTokenValue(), tokenInfo.getTokenTimeout(),
                 UserVO.from(user), settingsService.getSettings(user.getId()));
+    }
+
+    @Override
+    public LoginResponse loginByCode(LoginCodeLoginRequest request, String ip) {
+        // 验证码通过即视为本人：码是发到这个账号绑定邮箱的，能填回来就说明收件箱归他
+        User user = loginCodeService.verify(request.account(), request.code());
+        StpUtil.login(user.getId());
+        // JWT 无状态，服务端没有会话可挂标记：把「允许免原密码重设一次」落成库里的一条
+        // 一次性许可，重设时再取用。前端拿到的 passwordResetRequired 只是给用户看的提示。
+        loginCodeService.allowPasswordReset(user.getEmail());
+        SaTokenInfo tokenInfo = StpUtil.getTokenInfo();
+        String account = request.account() == null ? "" : request.account().trim().toLowerCase(Locale.ROOT);
+        // 换个方式成功登录，密码失败的限速窗口也该一并松开：
+        // 否则刚用验证码进来的人，立刻用新密码登录还要被自己前面的错误次数挡 60 秒
+        rateLimiter.reset("login:" + (account.isEmpty() ? ip : account));
+        loginAttemptService.clear(account);
+        loginAttemptService.clear(user.getUsername());
+        loginAttemptService.clear(user.getEmail());
+        log.info("用户通过邮箱验证码登录 id={}", user.getId());
+        return new LoginResponse(tokenInfo.getTokenValue(), tokenInfo.getTokenTimeout(),
+                UserVO.from(user), settingsService.getSettings(user.getId()), true);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void resetPassword(PasswordResetRequest request) {
+        Long userId = UserContext.requireUserId();
+        User user = userService.getById(userId);
+        if (user == null) {
+            throw BizException.of(ErrorCode.UNAUTHORIZED);
+        }
+        // 许可来自「刚刚用这个邮箱的验证码登录过」，只能用一次；过期或已用过都拒绝
+        if (!loginCodeService.consumeResetPermission(user.getEmail())) {
+            throw BizException.forbidden("重设密码的时限已过，请重新用邮箱验证码登录");
+        }
+        User update = new User();
+        update.setId(userId);
+        update.setPasswordHash(passwordEncoder.encode(request.newPassword()));
+        userService.updateById(update);
+        loginAttemptService.clear(user.getUsername());
+        log.info("用户通过验证码登录后重设密码 id={}", userId);
     }
 
     @Override

@@ -63,6 +63,9 @@ public class WebMvcConfig implements WebMvcConfigurer {
                 .addPathPatterns("/api/**")
                 .excludePathPatterns(
                         "/api/auth/login",
+                        // 密码连续输错后的兜底：发码与验证码登录都发生在「还没登录」的时候
+                        "/api/auth/login/code",
+                        "/api/auth/login/code/verify",
                         "/api/auth/register",
                         "/api/auth/register/code",
                         // 验证与重发都来自「还没登录」的人：链接里的一次性令牌就是凭证，
