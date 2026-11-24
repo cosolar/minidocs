@@ -44,7 +44,8 @@ export function useScrollSpy(ids: Ref<string[]>, offset = 100) {
      * （容器 top 约 108px），标题滚到列顶时仍在视口 108px 处。若继续拿视口 100px 当线，
      * 点击目录跳到某节后，高亮会停留在上一节 —— 看起来像「点 1.5 定位到了 1.4」。
      */
-    const origin = scrollEl()?.getBoundingClientRect().top ?? 0
+    const box = scrollEl()
+    const origin = box?.getBoundingClientRect().top ?? 0
     const crossed = (el: HTMLElement) => el.getBoundingClientRect().top - origin - offset <= 0
     let current = ''
     if (sorted) {
@@ -65,6 +66,19 @@ export function useScrollSpy(ids: Ref<string[]>, offset = 100) {
         if (crossed(el)) current = el.id
         else break
       }
+    }
+    /*
+     * 文末的最后一节没有「下文」可以继续滚，它的顶边永远越不过判定线：
+     * 滚到底、或点最后一条大纲时，高亮会一直卡在上一节，看着像「这一条点不动」。
+     * 真正滚到底就把最后一节认作当前章节 —— 那时读者眼前的内容正是它。
+     */
+    if (
+      box &&
+      box.scrollHeight > box.clientHeight + 2 &&
+      box.scrollHeight - box.clientHeight - box.scrollTop <= 2 &&
+      elements.length
+    ) {
+      current = elements[elements.length - 1].id
     }
     activeId.value = current || ids.value[0] || ''
   }

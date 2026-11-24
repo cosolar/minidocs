@@ -1231,6 +1231,33 @@ button { font-family: inherit; }
 /* 已经是自适应了：这个按钮无事可做，压灰比留着让人白点一下好 */
 .md-prefs__reset:disabled { color: var(--md-text-3); opacity: .55; cursor: default; }
 
+/*
+ * 侧栏开关（左侧目录 / 右侧大纲）：自己画的拨杆，不引 Element Plus。
+ * 一行一颗按钮，整行可点 —— 手机上比只点那颗 34×20 的拨杆好按得多。
+ */
+.md-prefs__toggles { display: flex; flex-direction: column; gap: 6px; }
+.md-prefs__toggle {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  min-height: 32px; padding: 0 10px;
+  border: 1px solid var(--md-border); border-radius: 9px; background: var(--md-surface);
+  color: var(--md-text); font-family: inherit; font-size: 12.5px; text-align: left; cursor: pointer;
+  transition: border-color .15s ease, background-color .15s ease;
+}
+.md-prefs__toggle:hover { border-color: var(--md-primary); }
+.md-prefs__toggle:focus-visible { outline: 2px solid var(--md-primary); outline-offset: 2px; }
+.md-prefs__switch {
+  position: relative; flex-shrink: 0; width: 34px; height: 20px;
+  border-radius: 999px; background: var(--md-border-strong);
+  transition: background-color .18s ease;
+}
+.md-prefs__switch i {
+  position: absolute; top: 2px; left: 2px; width: 16px; height: 16px;
+  border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(15, 17, 23, .24);
+  transition: transform .18s ease;
+}
+.md-prefs__switch.is-on { background: var(--md-primary); }
+.md-prefs__switch.is-on i { transform: translateX(14px); }
+
 .md-prefs__hint {
   margin: 2px 8px 6px; padding-top: 8px;
   border-top: 1px solid var(--md-border);
@@ -1291,6 +1318,7 @@ button { font-family: inherit; }
   .md-prefs__panel--sheet .md-prefs__seg-btn { height: 42px; font-size: 13.5px; }
   .md-prefs__panel--sheet .md-prefs__select select { height: 46px; font-size: 14px; }
   .md-prefs__panel--sheet .md-prefs__reset { height: 34px; padding: 0 12px; font-size: 12.5px; }
+  .md-prefs__panel--sheet .md-prefs__toggle { min-height: 44px; font-size: 13.5px; }
   .md-prefs__panel--sheet .md-prefs__hint { margin: 6px 2px 0; font-size: 12px; }
   /* 滑杆的可点区域放大到 28px，轨道仍画 4px —— 视觉不变，手指不必瞄准一根线 */
   .md-prefs__panel--sheet .md-prefs__range input[type='range'] {
@@ -2230,4 +2258,30 @@ button { font-family: inherit; }
   }
   .md-doc { max-width: none; }
   body.md-page { background: #fff; }
+}
+
+/* ==================================================================
+ * 阅读设置：隐藏左侧目录 / 右侧大纲
+ *
+ * <p>只在桌面布局里折叠对应栅格列（左栏 ≥901、右栏 ≥1181），窄屏两栏是抽屉、不占版面，
+ * 关掉它们只会让导航入口消失，所以这一档不生效。列宽（含把两级宽度变量置 0）由
+ * ReadBody 的 frameStyle 写在内联样式里 —— 拖拽过的宽度也是内联值，样式表压不过它。</p>
+ *
+ * <p>摘掉栏元素后自动放置会错位：`.md-reading` 的子项里有靠自动放置的（分享页的正文、
+ * 右把手、大纲），aside 消失后它们会掉进 0 宽的首列。因此分享页把五个子项显式钉到各自的列上。</p>
+ */
+@media (min-width: 901px) {
+  .md-reading.is-hide-aside > .md-reading__aside,
+  .md-reading.is-hide-aside > .md-reading__resize--aside { display: none; }
+  /* 901–1180 的分享页是两列栅格，正文靠自动放置：左栏摘掉后必须钉回第 2 列 */
+  .md-reading[data-mode='share'].is-hide-aside > .md-reading__main { grid-column: 2; }
+}
+@media (min-width: 1181px) {
+  .md-reading.is-hide-outline > .md-reading__outline,
+  .md-reading.is-hide-outline > .md-reading__resize--outline { display: none; }
+  .md-reading[data-mode='share'] > .md-reading__aside { grid-column: 1; }
+  .md-reading[data-mode='share'] > .md-reading__resize--aside { grid-column: 2; }
+  .md-reading[data-mode='share'] > .md-reading__main { grid-column: 3; }
+  .md-reading[data-mode='share'] > .md-reading__resize--outline { grid-column: 4; }
+  .md-reading[data-mode='share'] > .md-reading__outline { grid-column: 5; }
 }

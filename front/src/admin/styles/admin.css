@@ -1987,22 +1987,29 @@ body.is-col-resizing .md-ws__bytemd-resizer::after { background: var(--md-primar
 /* 设置区：一行一项，项间用发丝线分隔，不再靠大留白拉开 */
 .md-share-panel {
   margin-top: 14px;
-  padding: 2px 14px;
+  padding: 2px 16px;
   border: 1px solid var(--md-border);
   border-radius: 12px;
 }
 .md-share-panel__title {
   display: flex; align-items: center; gap: 8px;
-  margin: 13px 0 2px;
+  margin: 14px 0 2px;
   font-size: 12.5px; font-weight: 600; color: var(--md-text-2);
 }
 .md-share-panel__title::before {
   content: ''; width: 3px; height: 13px; border-radius: 2px; background: var(--md-primary);
 }
-.md-share-field { display: flex; align-items: center; gap: 12px; padding: 11px 0; }
+.md-share-field { display: flex; align-items: center; gap: 12px; padding: 12px 0; }
 .md-share-field + .md-share-field { border-top: 1px solid var(--md-border); }
-.md-share-field--stack { display: block; }
-.md-share-field__text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+/*
+ * 竖排项（输入框 / 下拉独占一行）：文字与控件之间必须有确定间距。
+ * 只写 display:block 时它们会紧贴在一起，标签下的说明几乎压到控件边框上。
+ */
+.md-share-field--stack {
+  display: flex; flex-direction: column; align-items: stretch; gap: 9px;
+}
+.md-share-field--stack .md-share-field__text { flex: none; }
+.md-share-field__text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
 .md-share-field__label {
   display: inline-flex; align-items: center; gap: 6px;
   color: var(--md-text); font-size: 13px; font-weight: 500;

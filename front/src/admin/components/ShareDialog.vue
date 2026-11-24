@@ -322,30 +322,36 @@ const portalScopeHint = computed(() => {
       <!--
         开源仓库入口：分享页顶栏在「设置」按钮后多一个 GitHub 图标，点它跳到仓库。
 
-        <p>地址与开关分成两个控件：地址先配好、审阅期再把按钮藏起来，是真实会用到的
+        <p>地址与开关分成两行：地址先配好、审阅期再把按钮藏起来，是真实会用到的
         状态。若合成一个（「有地址就显示」），临时撤按钮只能删地址。</p>
 
         <p>开关在没填地址时禁用：后端也会兜（没地址不给开），但前端先灰掉更好 ——
         让作者在同一个界面里就能看出「这个开关现在还没法用」。</p>
       -->
-      <div v-if="kbScope" class="md-share-field md-share-field--stack">
-        <div class="md-share-field__text">
-          <span class="md-share-field__label"><MdIcon name="github" :size="14" />开源仓库</span>
-          <span class="md-share-field__hint">读者可从分享页顶栏一键跳到你的仓库；留空则不显示该按钮</span>
+      <section v-if="kbScope" class="md-share-panel">
+        <h4 class="md-share-panel__title">开源仓库</h4>
+
+        <div class="md-share-field md-share-field--stack">
+          <div class="md-share-field__text">
+            <span class="md-share-field__label"><MdIcon name="github" :size="14" />仓库地址</span>
+            <span class="md-share-field__hint">读者可从分享页顶栏一键跳到你的仓库；留空则不显示该按钮</span>
+          </div>
+          <el-input
+            v-model="form.repoUrl"
+            placeholder="https://github.com/cosolar/minidocs"
+            maxlength="512"
+            clearable
+          />
         </div>
-        <el-input
-          v-model="form.repoUrl"
-          placeholder="https://github.com/cosolar/minidocs"
-          maxlength="512"
-          clearable
-        />
-        <el-switch
-          v-model="form.showRepo"
-          :disabled="!form.repoUrl.trim()"
-          active-text="在分享页顶栏显示仓库按钮"
-          inline-prompt
-        />
-      </div>
+
+        <div class="md-share-field">
+          <div class="md-share-field__text">
+            <span class="md-share-field__label"><MdIcon name="eye" :size="14" />分享页顶栏按钮</span>
+            <span class="md-share-field__hint">关掉后入口隐藏，地址仍会保留，随时可以再打开</span>
+          </div>
+          <el-switch v-model="form.showRepo" :disabled="!form.repoUrl.trim()" />
+        </div>
+      </section>
       <!-- 导航菜单：只有整库分享才有「目录」可挑，单篇分享不显示这一块 -->
       <section v-if="kbScope" class="md-share-panel">
         <h4 class="md-share-panel__title">导航菜单<HelpTip :width="360">

@@ -25,6 +25,7 @@ import {
   applyReaderWidth,
   readReaderWidth
 } from '@/shared/readerWidth'
+import { readerSides, setReaderSide } from '@/shared/readerSides'
 
 /**
  * 「阅读设置」面板：主题 + 外观（明亮 / 暗黑 / 跟随系统）+ 整体字号 + 正文字体，
@@ -510,6 +511,36 @@ onBeforeUnmount(() => {
               @click="setWidth(MAX_READER_WIDTH)"
             >
               自适应
+            </button>
+          </div>
+        </div>
+
+        <!--
+          两侧栏：默认都显示。关掉后正文吃满整页（桌面布局），窄屏的抽屉不受影响 ——
+          那时两栏本来就不占版面，关掉只会让导航入口消失。
+        -->
+        <div class="md-prefs__row">
+          <span class="md-prefs__label">侧栏</span>
+          <div class="md-prefs__toggles">
+            <button
+              type="button"
+              class="md-prefs__toggle"
+              role="switch"
+              :aria-checked="readerSides.aside"
+              @click="setReaderSide('aside', !readerSides.aside)"
+            >
+              <span>左侧目录</span>
+              <span class="md-prefs__switch" :class="{ 'is-on': readerSides.aside }" aria-hidden="true"><i /></span>
+            </button>
+            <button
+              type="button"
+              class="md-prefs__toggle"
+              role="switch"
+              :aria-checked="readerSides.outline"
+              @click="setReaderSide('outline', !readerSides.outline)"
+            >
+              <span>右侧大纲</span>
+              <span class="md-prefs__switch" :class="{ 'is-on': readerSides.outline }" aria-hidden="true"><i /></span>
             </button>
           </div>
         </div>

@@ -17,6 +17,7 @@ import {
   retryRestore,
 } from '@/shared/scrollRegion'
 import { appHref, stripAppBase } from '@/shared/appBase'
+import { readerSides } from '@/shared/readerSides'
 import { flattenOutline, useScrollSpy } from '@/user/composables/useScrollSpy'
 import { isTreeAllExpanded, setTreeExpanded, setTreeScope } from '@/user/composables/useTreeExpand'
 import ImagePreview from '@/user/components/ImagePreview.vue'
@@ -307,9 +308,27 @@ function loadWidth(key: string) {
 
 const asideWidth = ref(loadWidth(ASIDE_KEY))
 const outlineWidth = ref(loadWidth(OUTLINE_KEY))
+
+/**
+ * 两侧栏宽度。
+ *
+ * <p>隐藏时把变量写成 0：宽度是内联变量（拖拽过的值优先于样式表的默认值），
+ * 只在样式表里按 class 置变量会被这里的旧值盖掉 —— 栏摘掉了，位置却还留着一条空白列。</p>
+ */
 const frameStyle = computed(() => ({
-  '--md-aside-w': asideWidth.value ? `${asideWidth.value}px` : undefined,
-  '--md-outline-w': outlineWidth.value ? `${outlineWidth.value}px` : undefined,
+  '--md-aside-w': readerSides.aside ? (asideWidth.value ? `${asideWidth.value}px` : undefined) : '0px',
+  '--md-aside-width': readerSides.aside ? undefined : '0px',
+  '--md-outline-w': readerSides.outline ? (outlineWidth.value ? `${outlineWidth.value}px` : undefined) : '0px',
+  '--md-outline-width': readerSides.outline ? undefined : '0px',
+}))
+
+/**
+ * 阅读设置里关掉的两侧栏：桌面布局由样式表按这两个类折叠对应栅格列，
+ * 窄屏不动 —— 那一档两栏是抽屉，本来就不占版面。
+ */
+const frameClass = computed(() => ({
+  'is-hide-aside': !readerSides.aside,
+  'is-hide-outline': !readerSides.outline,
 }))
 
 /** dir=1 拖左栏右边缘（越往右越宽），dir=-1 拖右栏左边缘 */
@@ -398,7 +417,13 @@ function routerTo(link?: string) {
 </script>
 
 <template>
-  <div class="md-reading" :data-mode="view.mode" :data-single="view.singleDoc" :style="frameStyle">
+  <div
+    class="md-reading"
+    :class="frameClass"
+    :data-mode="view.mode"
+    :data-single="view.singleDoc"
+    :style="frameStyle"
+  >
     <!-- 目录树 -->
     <aside class="md-reading__aside">
       <div class="md-aside__card">

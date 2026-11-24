@@ -694,14 +694,72 @@
 :is(.md-markdown, .md-ws__editor .markdown-body) .katex-display { overflow-x: auto; overflow-y: hidden; padding: 6px 0; }
 /* 图表给一层浅底，避免线条直接浮在白底/深底上显得单薄 */
 :is(.md-markdown, .md-ws__editor .markdown-body) .mermaid-block {
-  display: flex;
-  justify-content: center;
   margin: 1.3em 0;
   padding: 12px;
   border-radius: var(--md-radius-sm);
   background: color-mix(in srgb, var(--md-surface-2) 70%, transparent);
   overflow-x: auto;
 }
+
+/*
+ * Mermaid 的「预览 / 源码」切换：与阅读设置里的分段开关同一套口径 —— 浅槽里浮起一块选中态。
+ * 切换条只在左上角占一小块，不抢图的视觉重心。
+ */
+:is(.md-markdown, .md-ws__editor .markdown-body) .mermaid-block__bar {
+  display: flex;
+  gap: 2px;
+  width: max-content;
+  margin-bottom: 10px;
+  padding: 2px;
+  border: 1px solid var(--md-border);
+  border-radius: 8px;
+  background: var(--md-surface);
+}
+:is(.md-markdown, .md-ws__editor .markdown-body) .mermaid-block__tab {
+  height: 26px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--md-text-2);
+  font-family: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+  transition: background-color .15s ease, color .15s ease;
+}
+:is(.md-markdown, .md-ws__editor .markdown-body) .mermaid-block__tab:hover { color: var(--md-text); }
+:is(.md-markdown, .md-ws__editor .markdown-body) .mermaid-block__tab.is-on {
+  background: var(--md-surface-2);
+  color: var(--md-primary);
+  font-weight: 600;
+}
+:is(.md-markdown, .md-ws__editor .markdown-body) .mermaid-block__preview {
+  display: flex;
+  justify-content: center;
+}
+
+/*
+ * 源码态：外层 pre 的底色、边框、内外边距全部让掉 —— 这里已经是图表卡片的内部，
+ * 再套一层代码块会变成「卡片里长出一个代码块」，两层边框正好卡在留白中间。
+ */
+:is(.md-markdown, .md-ws__editor .markdown-body) .mermaid-block__source {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  overflow: visible;
+}
+:is(.md-markdown, .md-ws__editor .markdown-body) .mermaid-block__source > code {
+  padding: 0;
+  background: transparent;
+  color: var(--md-text-2);
+  font-size: 12.5px;
+  line-height: 1.65;
+  white-space: pre;
+}
+:is(.md-markdown, .md-ws__editor .markdown-body) .mermaid-block__preview.is-hidden,
+:is(.md-markdown, .md-ws__editor .markdown-body) .mermaid-block__source.is-hidden { display: none; }
 
 /* ------------------------------------------------------------------ 脚注与选中态 */
 :is(.md-markdown, .md-ws__editor .markdown-body) .footnotes {

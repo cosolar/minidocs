@@ -301,11 +301,50 @@ async function renderMermaid(root: ParentNode, dark: boolean) {
       const source = block.textContent || ''
       const holder = document.createElement('div')
       holder.className = 'mermaid-block'
+
+      /*
+       * 预览 / 源码切换：图能读不能改，源码能改不能读，各有各的用处。
+       * 切换条与源码框一次性搭好，渲染成功才把 SVG 填进预览区。
+       */
+      const bar = document.createElement('div')
+      bar.className = 'mermaid-block__bar'
+      bar.innerHTML =
+        '<button type="button" class="mermaid-block__tab is-on" data-view="preview" aria-pressed="true">预览</button>' +
+        '<button type="button" class="mermaid-block__tab" data-view="source" aria-pressed="false">源码</button>'
+      const preview = document.createElement('div')
+      preview.className = 'mermaid-block__preview'
+      const sourceView = document.createElement('pre')
+      sourceView.className = 'mermaid-block__source is-hidden'
+      const sourceCode = document.createElement('code')
+      // 源码来自正文（用户内容），走 textContent，不拼 HTML
+      sourceCode.textContent = source
+      sourceView.append(sourceCode)
+      holder.append(bar, preview, sourceView)
+
+      const show = (view: 'preview' | 'source') => {
+        const isSource = view === 'source'
+        preview.classList.toggle('is-hidden', isSource)
+        sourceView.classList.toggle('is-hidden', !isSource)
+        bar.querySelectorAll<HTMLButtonElement>('[data-view]').forEach((tab) => {
+          const on = tab.dataset.view === view
+          tab.classList.toggle('is-on', on)
+          tab.setAttribute('aria-pressed', String(on))
+        })
+      }
+      bar.addEventListener('click', (event) => {
+        const tab = (event.target as HTMLElement).closest<HTMLElement>('[data-view]')
+        if (!tab || !bar.contains(tab)) return
+        show(tab.dataset.view === 'source' ? 'source' : 'preview')
+      })
+
       try {
         const { svg } = await mermaid.render(`md-mermaid-${Date.now()}-${index++}`, source)
-        holder.innerHTML = svg
+        preview.innerHTML = svg
       } catch {
-        holder.textContent = source
+        // 渲染失败就没有可预览的图：收起切换条，直接把源码亮出来
+        bar.remove()
+        preview.remove()
+        sourceView.classList.remove('is-hidden')
       }
       const container = block.closest('.md-code-wrap') || block.parentElement
       container?.replaceWith(holder)
