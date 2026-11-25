@@ -303,14 +303,14 @@ async function renderMermaid(root: ParentNode, dark: boolean) {
       holder.className = 'mermaid-block'
 
       /*
-       * 预览 / 源码切换：图能读不能改，源码能改不能读，各有各的用处。
-       * 切换条与源码框一次性搭好，渲染成功才把 SVG 填进预览区。
+       * 图片 / 代码切换：图能读不能改，代码能改不能读，各有各的用处。
+       * 切换条与代码框一次性搭好，渲染成功才把 SVG 填进预览区。
        */
       const bar = document.createElement('div')
       bar.className = 'mermaid-block__bar'
       bar.innerHTML =
-        '<button type="button" class="mermaid-block__tab is-on" data-view="preview" aria-pressed="true">预览</button>' +
-        '<button type="button" class="mermaid-block__tab" data-view="source" aria-pressed="false">源码</button>'
+        '<button type="button" class="mermaid-block__tab is-on" data-view="preview" aria-pressed="true">图片</button>' +
+        '<button type="button" class="mermaid-block__tab" data-view="source" aria-pressed="false">代码</button>'
       const preview = document.createElement('div')
       preview.className = 'mermaid-block__preview'
       const sourceView = document.createElement('pre')
@@ -415,6 +415,12 @@ function openLightbox(media: LightboxMedia) {
   // src / alt 走 DOM 属性赋值，别拼进 innerHTML —— 图片地址来自正文，可能是用户内容
   image.src = media.src
   image.alt = media.alt
+  /*
+   * 关掉浏览器自带的图片拖拽：<img> 默认 draggable，按下并移动会触发原生拖放，
+   * 浏览器随即把指针事件 cancel 掉 —— 下面的平移只跟了一小段就断，表现为「灯箱里的图拖不动」。
+   */
+  image.draggable = false
+  image.addEventListener('dragstart', (event) => event.preventDefault())
   if (media.svg) image.classList.add('md-lightbox__media--svg')
 
   let scale = 1

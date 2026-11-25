@@ -27,6 +27,9 @@ import cn.minims.minidocs.share.support.ShareAccessSupport;
 import cn.minims.minidocs.share.support.SharePublicationSupport;
 import cn.minims.minidocs.tenant.entity.Tenant;
 import cn.minims.minidocs.tenant.service.TenantService;
+import cn.minims.minidocs.user.dto.UserDtos.UserVO;
+import cn.minims.minidocs.user.entity.User;
+import cn.minims.minidocs.user.service.UserService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
@@ -72,6 +75,7 @@ public class PortalApiController {
     private final ReaderService readerService;
     private final VaultFileService vaultFileService;
     private final AssetService assetService;
+    private final UserService userService;
     private final CurrentUserResolver currentUserResolver;
     private final SharePublicationSupport publicationSupport;
     private final ShareAccessSupport shareAccessSupport;
@@ -97,8 +101,12 @@ public class PortalApiController {
     /** 门户首页：已发布库的统计概览 + 当前用户。卡片列表走 {@code /api/portal/kbs} 按页取。 */
     @GetMapping("/api/portal/home")
     public ApiResponse<PortalHomeVO> home() {
-        LoginUser user = currentUserResolver.resolve();
-        return ApiResponse.ok(new PortalHomeVO(knowledgeBaseService.portalStats(user == null ? null : user.id()), user));
+        LoginUser login = currentUserResolver.resolve();
+        Long userId = login == null ? null : login.id();
+        // 顶栏头像要读 avatarSrc，而登录态里只有一个 id：这里补一次用户行，换成对外的 UserVO
+        User user = userId == null ? null : userService.getById(userId);
+        return ApiResponse.ok(new PortalHomeVO(knowledgeBaseService.portalStats(userId),
+                user == null ? null : UserVO.from(user)));
     }
 
     /**
@@ -281,7 +289,7 @@ public class PortalApiController {
     }
 
     /** 门户首页聚合响应。 */
-    public record PortalHomeVO(PortalStatsVO stats, LoginUser user) {
+    public record PortalHomeVO(PortalStatsVO stats, UserVO user) {
     }
 
     /** 门户阅读响应：{@code state=password} 时仅带库名，前端据此渲染口令弹层。 */

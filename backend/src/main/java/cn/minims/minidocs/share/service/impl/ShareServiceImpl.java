@@ -32,12 +32,12 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DuplicateKeyException;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.nio.file.Path;
+import java.sql.SQLException;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -54,12 +54,6 @@ public class ShareServiceImpl implements ShareService {
     private static final int MIN_PASSWORD_LENGTH = 4;
     private static final int MAX_PASSWORD_LENGTH = 64;
 
-    /**
-     * 访问计数的会话窗口（分钟）：同一访客在窗口内反复取正文只算一次访问。
-     *
-     * <p>见 {@link #recordView} 的口径说明。</p>
-     */
-    private static final int VIEW_SESSION_MINUTES = 30;
     /** 导航条放不下更多了：横向一条能滚动的菜单超过这个数就已经不好用 */
     private static final int MAX_MENU_ITEMS = 40;
 
@@ -252,40 +246,28 @@ public class ShareServiceImpl implements ShareService {
         String visitorHash = HashUtil.sha256Prefix(ip + "|" + (userAgent == null ? "" : userAgent), 16);
 
         /*
-         * 一次「访问」= 一个会话，不是每一次取正文。
+         * 浏览次数按「每位访客每天最多一次」计，切换文档、刷新页面都不再累加。
          *
-         * <p>原先每次读取正文都 views +1，读者在这个库里翻几篇文档、或者切回上一篇，数字就跟着跳 ——
-         * 产品上「访问一次知识库」就是一次，翻几篇不该算几次。可视图是分栏的：同一个读者可能一进来
-         * 就点开目录里的一篇，这一篇算不算本次访问？不该由他点到了哪篇决定，所以只问「距他上一次
-         * 被计数过了多久」。</p>
+         * <p>之前是按会话冷却（距上次计数超过 N 分钟再算一次）判的，可读者在库里翻几篇文档、
+         * 切回上一篇，数字就跟着往上跳 —— 这个数字表达的是「这个知识库被访问过多少次」，
+         * 不是「文档被翻开过多少次」，不该由读者点了多少篇文档决定。</p>
          *
-         * <p>冷却窗口取 {@value #VIEW_SESSION_MINUTES} 分钟：够读完一篇长文、顺手点开目录里相邻几篇，
-         * 又短到「下班前刷一眼、明天再看」这种间隔必然重新计一次。窗口只影响 PV；UV 由
-         * {@code uk_view_dedup(share_id, visitor_hash, view_date)} 按天去重，是另一条轴。</p>
+         * <p>现在直接交给 {@code uk_view_dedup(share_id, visitor_hash, view_date)}：
+         * 当天第一次写入成功就 views +1，之后同一天同一访客再访问只会撞唯一键、被判为不计。
+         * 判断不依赖任何时间字段的回读与比较，所以换库（SQLite / MySQL）也不会因为时区或
+         * 类型映射而误判成「上次访问很久以前」。同一访客隔天再来，是新的一行、新的一次。</p>
          */
-        ShareViewLog last = viewLogMapper.selectOne(Wrappers.<ShareViewLog>lambdaQuery()
-                .eq(ShareViewLog::getShareId, share.getId())
-                .eq(ShareViewLog::getVisitorHash, visitorHash)
-                .orderByDesc(ShareViewLog::getId)
-                .last("LIMIT 1"));
-        if (last != null && last.getCreatedAt() != null
-                && last.getCreatedAt().isAfter(TimeUtil.now().minusMinutes(VIEW_SESSION_MINUTES))) {
-            return false;
-        }
-
         ShareViewLog viewLog = new ShareViewLog();
         viewLog.setShareId(share.getId());
         viewLog.setVisitorHash(visitorHash);
         viewLog.setViewDate(TimeUtil.today());
         try {
             viewLogMapper.insert(viewLog);
-        } catch (DataIntegrityViolationException e) {
-            // 今天已为这个访客记过：UV 不重复加，但这一天里的首次会话仍算一次 PV
-            shareMapper.update(null, Wrappers.<Share>lambdaUpdate()
-                    .eq(Share::getId, share.getId())
-                    .setSql("views = views + 1"));
-            return true;
         } catch (Exception e) {
+            if (isDuplicateView(e)) {
+                // 今天已经为这个访客记过：不加，页面上的数字自然稳住，读者也不会被日志刷屏
+                return false;
+            }
             // 去重日志写不进去时不能继续加：视图侧紧接着要按「本次是否计数」拼累计值，
             // 两边不一致会让页面上「浏览量」比后台列表多 1，比少记一次更难解释。
             log.warn("访问记录跳过：{}", e.getMessage());
@@ -296,6 +278,31 @@ public class ShareServiceImpl implements ShareService {
                 .eq(Share::getId, share.getId())
                 .setSql("views = views + 1"));
         return true;
+    }
+
+    /**
+     * 判断异常是不是 {@code uk_view_dedup} 的唯一键冲突。
+     *
+     * <p>两种数据库给出的异常类型不一样：MySQL 的错误码 1062 会被 Spring 译成
+     * {@link DuplicateKeyException}；SQLite 的约束错误 SQLState 为空，常被归成
+     * {@code UncategorizedSQLException}。只看类型会在本地（SQLite）漏判，把「今天已经计过」
+     * 当成写库失败刷警告，所以连错误码与统一的那句文案一起看。</p>
+     */
+    private boolean isDuplicateView(Throwable error) {
+        for (Throwable current = error; current != null; current = current.getCause()) {
+            if (current instanceof DuplicateKeyException) {
+                return true;
+            }
+            if (current instanceof SQLException sql && sql.getErrorCode() == 1062) {
+                return true;
+            }
+            String message = current.getMessage();
+            if (message != null
+                    && (message.contains("UNIQUE constraint failed") || message.contains("Duplicate entry"))) {
+                return true;
+            }
+        }
+        return false;
     }
 
     @Override

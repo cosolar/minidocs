@@ -137,7 +137,7 @@ public class ShareApiController {
         }
 
         /*
-         * 先记一次访问再组装视图，但浏览量只在「新会话」那次才 +1（见 ShareService#recordView），
+         * 先记一次访问再组装视图，但浏览量只在「今天第一次访问」那次才 +1（见 ShareService#recordView），
          * 所以这里要按返回值补：读者切文档时这个值是 0，页面上看到的数字才不会跟着跳。
          */
         boolean counted = shareService.recordView(share, AccessLogFilter.clientIp(request),

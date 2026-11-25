@@ -823,6 +823,9 @@ body.md-lightbox-open { overflow: hidden; }
   will-change: transform;
   border-radius: 4px;
   box-shadow: 0 18px 60px rgba(0, 0, 0, 0.5);
+  /* 原生图片拖放会打断指针平移（见 enhanceMarkdown 的灯箱），这里一并禁掉 */
+  -webkit-user-drag: none;
+  user-select: none;
 }
 /* 拖拽/捏合期间关掉过渡，否则图会「追」着指针走，手感发飘 */
 .md-lightbox.is-grabbing .md-lightbox__media { transition: none; cursor: grabbing; }

@@ -46,8 +46,8 @@ public interface ShareService {
     /**
      * 记一次访问；返回<b>本次是否真的计入了浏览量</b>。
      *
-     * <p>口径：一个访客对同一个知识库，在 {@code ShareServiceImpl.VIEW_SESSION_MINUTES} 的冷却窗口内
-     * 只计一次 —— 读者翻文档、切上一篇都不再计数。调用方要用返回值拼「含本次」的累计值。</p>
+     * <p>口径：一个访客对同一个知识库，<b>每天只计一次</b> —— 读者翻文档、切上一篇、刷新页面
+     * 都不再计数；隔天再来才是新的一次。调用方要用返回值拼「含本次」的累计值。</p>
      */
     boolean recordView(Share share, String ip, String userAgent);
 

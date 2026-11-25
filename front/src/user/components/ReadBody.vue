@@ -17,7 +17,7 @@ import {
   retryRestore,
 } from '@/shared/scrollRegion'
 import { appHref, stripAppBase } from '@/shared/appBase'
-import { readerSides } from '@/shared/readerSides'
+import { readerSides, setReaderSide } from '@/shared/readerSides'
 import { flattenOutline, useScrollSpy } from '@/user/composables/useScrollSpy'
 import { isTreeAllExpanded, setTreeExpanded, setTreeScope } from '@/user/composables/useTreeExpand'
 import ImagePreview from '@/user/components/ImagePreview.vue'
@@ -478,6 +478,15 @@ function routerTo(link?: string) {
           >
             <Icon :name="allExpanded ? 'collapseAll' : 'expandAll'" :size="16" />
           </button>
+          <button
+            type="button"
+            class="md-aside__treebar-btn"
+            title="收起目录"
+            aria-label="收起目录"
+            @click="setReaderSide('aside', false)"
+          >
+            <Icon name="chevronLeft" :size="16" />
+          </button>
         </div>
 
         <template v-else>
@@ -502,6 +511,15 @@ function routerTo(link?: string) {
                 <h2>{{ view.kbName }}</h2>
                 <p v-if="view.kbDescription" class="md-aside__desc">{{ view.kbDescription }}</p>
               </div>
+              <button
+                type="button"
+                class="md-aside__collapse"
+                title="收起目录"
+                aria-label="收起目录"
+                @click="setReaderSide('aside', false)"
+              >
+                <Icon name="chevronLeft" :size="15" />
+              </button>
             </div>
             <!-- 篇数 / 标签数 / 可见性收成一排小胶囊：比「7 篇文章 · 0 个标签 · 公开」一行灰字好扫 -->
             <div class="md-aside__meta">
@@ -539,6 +557,22 @@ function routerTo(link?: string) {
         </nav>
       </div>
     </aside>
+
+    <!--
+      左栏收起后的回收入口：贴着视口左沿的竖条（fixed 不占栅格）。
+      桌面才显示；窄屏的目录入口在阅读条与底栏的「目录」按钮上。
+    -->
+    <button
+      v-if="!readerSides.aside"
+      type="button"
+      class="md-aside-restore"
+      title="展开目录"
+      aria-label="展开目录"
+      @click="setReaderSide('aside', true)"
+    >
+      <Icon name="chevronRight" :size="13" />
+      <span>目录</span>
+    </button>
 
     <!-- 左栏拖宽手柄：桌面布局出现，窄屏由样式表隐藏 -->
     <div

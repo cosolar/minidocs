@@ -1107,7 +1107,9 @@ button { font-family: inherit; }
 
 .md-prefs { position: relative; }
 .md-prefs__panel {
-  min-width: 286px; padding: 6px;
+  /* 固定宽度：面板内容是网格（主题卡按两列均分），宽度交给内容撑会被主题名长度左右，
+     换个主题弹窗就宽窄跳一下。这里钉死，窄屏抽屉另有 width:auto 覆盖。 */
+  width: 336px; min-width: 0; padding: 6px;
   /* 头部固定、内容自己滚：手机上抽屉里的标题与关闭按钮不该跟着列表滚走 */
   display: flex; flex-direction: column;
   /* 主题卡片把面板撑高了一截：给个上限，避免在小屏上顶到视口外 */
@@ -1235,8 +1237,10 @@ button { font-family: inherit; }
  * 侧栏开关（左侧目录 / 右侧大纲）：自己画的拨杆，不引 Element Plus。
  * 一行一颗按钮，整行可点 —— 手机上比只点那颗 34×20 的拨杆好按得多。
  */
-.md-prefs__toggles { display: flex; flex-direction: column; gap: 6px; }
+/* 两个开关并排一行：各自占一半，高度与下面那排主题卡对齐，省下一整行高度 */
+.md-prefs__toggles { display: flex; flex-direction: row; gap: 6px; }
 .md-prefs__toggle {
+  flex: 1; min-width: 0;
   display: flex; align-items: center; justify-content: space-between; gap: 10px;
   min-height: 32px; padding: 0 10px;
   border: 1px solid var(--md-border); border-radius: 9px; background: var(--md-surface);
@@ -1637,6 +1641,43 @@ button { font-family: inherit; }
 }
 .md-aside__treebar-btn:hover { color: var(--md-primary); background: var(--md-primary-soft); }
 .md-aside__treebar-btn .md-icon { flex-shrink: 0; }
+
+/*
+ * 收起左栏：门户阅读页挂在知识库卡片标题右侧，分享页挂在「目录」那一行。
+ * 与设置面板里的「左侧目录」开关是同一份状态（readerSides），两处任意一处都能开合。
+ */
+.md-aside__collapse {
+  flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center;
+  width: 24px; height: 24px; margin-left: auto; padding: 0;
+  border: 0; border-radius: 7px;
+  background: none; color: var(--md-text-3); cursor: pointer;
+  transition: color .15s ease, background-color .15s ease;
+}
+.md-aside__collapse:hover { color: var(--md-primary); background: var(--md-primary-soft); }
+
+/*
+ * 左栏收起后的回收入口：贴着视口左沿的竖条，竖排「目录」两个字。
+ *
+ * <p>不做成浮在正文上的圆形按钮：正文左内边距只有几十像素，一颗圆形按钮会压到首字；
+ * 竖条只有 26px 宽，正好落在内边距里。只在桌面（≥901）出现 —— 窄屏的左右栏本来就是抽屉，
+ * 入口在阅读条与底栏那两颗「目录」按钮上。</p>
+ */
+.md-aside-restore {
+  position: fixed; left: 0; top: 50%; transform: translateY(-50%); z-index: 40;
+  display: none; flex-direction: column; align-items: center; gap: 6px;
+  width: 26px; padding: 10px 0;
+  border: 1px solid var(--md-border); border-left: 0;
+  border-radius: 0 999px 999px 0;
+  background: var(--md-surface); color: var(--md-text-3);
+  box-shadow: var(--md-shadow-sm); font-family: inherit; font-size: 11px; line-height: 1;
+  cursor: pointer;
+  transition: color .15s ease, background-color .15s ease, border-color .15s ease;
+}
+.md-aside-restore span { writing-mode: vertical-rl; letter-spacing: .16em; }
+.md-aside-restore:hover { color: var(--md-primary); border-color: var(--md-primary); background: var(--md-primary-soft); }
+@media (min-width: 901px) {
+  .md-aside-restore { display: flex; }
+}
 
 .md-reading[data-mode='share'] .md-aside__search {
   display: flex; align-items: center; gap: 8px;
@@ -2273,6 +2314,12 @@ button { font-family: inherit; }
 @media (min-width: 901px) {
   .md-reading.is-hide-aside > .md-reading__aside,
   .md-reading.is-hide-aside > .md-reading__resize--aside { display: none; }
+  /*
+   * 收起左栏后给正文左侧让出一条通道：回收入口是贴着视口左沿、26px 宽的竖条，
+   * 而正文左内边距原本只有 28–30px，两者只差几像素，首字看起来像被竖条顶住。
+   * 加宽到 44px 之后竖条落在空白里，门户与分享页（卡片内边距）各让一步，观感一致。
+   */
+  .md-reading.is-hide-aside > .md-reading__main { padding-left: 44px; }
   /* 901–1180 的分享页是两列栅格，正文靠自动放置：左栏摘掉后必须钉回第 2 列 */
   .md-reading[data-mode='share'].is-hide-aside > .md-reading__main { grid-column: 2; }
 }
@@ -2284,4 +2331,9 @@ button { font-family: inherit; }
   .md-reading[data-mode='share'] > .md-reading__main { grid-column: 3; }
   .md-reading[data-mode='share'] > .md-reading__resize--outline { grid-column: 4; }
   .md-reading[data-mode='share'] > .md-reading__outline { grid-column: 5; }
+  /*
+   * 收起左栏时正文仍钉在第 3 列。上面 901–1180 那条「钉回第 2 列」的选择器权重多一个类，
+   * 不加这一条的话，宽屏收起左栏会被它抢走，正文掉进 0 宽的把手列、整页挤成一条。
+   */
+  .md-reading[data-mode='share'].is-hide-aside > .md-reading__main { grid-column: 3; }
 }
