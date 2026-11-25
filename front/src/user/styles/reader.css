@@ -250,7 +250,7 @@ button { font-family: inherit; }
 /* ------------------------------------------------------------------ 门户（样式见 user/styles/portal.css） */
 
 /* ------------------------------------------------------------------ 阅读页 */
-/* 侧栏拖宽手柄只在桌面布局（≥1181px）出现，其余断点隐藏（见文件末尾的媒体查询） */
+/* 侧栏拖宽手柄只在桌面布局（≥1280px）出现，其余断点隐藏（见文件末尾的媒体查询） */
 .md-reading__resize { display: none; }
 
 .md-reading {
@@ -671,7 +671,7 @@ button { font-family: inherit; }
 .md-reading[data-mode='portal'] .md-reading__main { padding-top: 18px; }
 
 /* 宽屏：两行栅格，阅读条横跨正文栏 + 右把手 + 右栏 */
-@media (min-width: 1181px) {
+@media (min-width: 1280px) {
   .md-reading[data-mode='portal'] { grid-template-rows: auto minmax(0, 1fr); }
   .md-reading[data-mode='portal'] .md-reading__aside,
   /*
@@ -693,10 +693,10 @@ button { font-family: inherit; }
   .md-reading[data-mode='portal'] .md-reading__outline { grid-column: 5; grid-row: 2; }
 }
 /*
- * 中档（901–1180）：只有两列，右栏已收进抽屉。阅读条单独占第 1 行、正文第 2 行，
+ * 中档（901–1279）：只有两列，右栏已收进抽屉。阅读条单独占第 1 行、正文第 2 行，
  * 左栏跨两行拉满（这一档它还是 sticky 定高，不吃栅格行高）。
  */
-@media (min-width: 901px) and (max-width: 1180px) {
+@media (min-width: 901px) and (max-width: 1279px) {
   .md-reading[data-mode='portal'] { grid-template-rows: auto minmax(0, 1fr); }
   .md-reading[data-mode='portal'] .md-reading__aside { grid-row: 1 / -1; }
   .md-reading[data-mode='portal'] .md-reading__bar { grid-column: 2; grid-row: 1; }
@@ -966,13 +966,13 @@ button { font-family: inherit; }
 .md-drawer-mask { position: fixed; inset: 0; background: rgba(15, 17, 23, .5); z-index: 45; }
 .md-only-mobile { display: none; }
 /*
- * 「大纲」按钮的可见区间比「目录」宽一档：901–1180 之间左栏目录还在栅格里（col1），
+ * 「大纲」按钮的可见区间比「目录」宽一档：901–1279 之间左栏目录还在栅格里（col1），
  * 被收进抽屉的只有右侧大纲。它要是跟着 .md-only-mobile 一起在 901 就藏掉，
  * 这一档宽度上大纲就既不在栏里、也没有入口，彻底打不开。
  */
 .md-only-outline-mobile { display: none; }
 
-@media (max-width: 1180px) {
+@media (max-width: 1279px) {
   .md-only-outline-mobile { display: grid; }
   .md-reading { grid-template-columns: var(--md-aside-width) minmax(0, 1fr); }
   .md-reading__outline { display: none; }
@@ -1554,8 +1554,8 @@ button { font-family: inherit; }
 /* 三栏各自成卡；与宽度无关的部分先落，栅格列数交给下面按屏宽分档 */
 .md-reading[data-mode='share'] {
   /*
-   * 窄屏（≤1180）三栏折成多行：卡片之间靠 row-gap 撑开，列间只留 1px。
-   * 宽屏（≥1181）三栏并排，改成整块面板贴死、栏间仅一条发丝线——见下面的媒体查询。
+   * 窄屏（≤1279）三栏折成多行：卡片之间靠 row-gap 撑开，列间只留 1px。
+   * 宽屏（≥1280）三栏并排，改成整块面板贴死、栏间仅一条发丝线——见下面的媒体查询。
    */
   column-gap: 1px;
   row-gap: var(--md-share-gap);
@@ -1722,6 +1722,46 @@ button { font-family: inherit; }
   font-size: 14px; font-weight: 600;
 }
 .md-outline__head .md-icon { color: var(--md-primary); }
+
+/*
+ * 收起右栏：门户阅读页挂在「文章目录」标题右侧，分享页挂在「目录」那一行。
+ * 与设置面板里的「右侧大纲」开关共用 readerSides，一处开合、另一边同步。
+ * 窄屏的右栏本来就在抽屉里（抽屉头带关闭按钮），这颗按钮只在宽屏出现。
+ */
+.md-outline__titlebar { display: flex; align-items: center; gap: 8px; margin: 0 4px 10px; }
+.md-outline__titlebar .md-outline__title { margin: 0; }
+.md-outline__collapse {
+  flex-shrink: 0; display: none; align-items: center; justify-content: center;
+  width: 24px; height: 24px; margin-left: auto; padding: 0;
+  border: 0; border-radius: 7px;
+  background: none; color: var(--md-text-3); cursor: pointer;
+  transition: color .15s ease, background-color .15s ease;
+}
+.md-outline__collapse:hover { color: var(--md-primary); background: var(--md-primary-soft); }
+@media (min-width: 1280px) {
+  .md-outline__collapse { display: inline-flex; }
+}
+
+/*
+ * 右栏收起后的回收入口：贴着视口右沿的竖条，与左栏那条「目录」对称。
+ * 同样只在宽屏出现 —— 窄屏右栏是抽屉，入口在阅读条与底栏的「大纲」按钮上。
+ */
+.md-outline-restore {
+  position: fixed; right: 0; top: 50%; transform: translateY(-50%); z-index: 40;
+  display: none; flex-direction: column; align-items: center; gap: 6px;
+  width: 26px; padding: 10px 0;
+  border: 1px solid var(--md-border); border-right: 0;
+  border-radius: 999px 0 0 999px;
+  background: var(--md-surface); color: var(--md-text-3);
+  box-shadow: var(--md-shadow-sm); font-family: inherit; font-size: 11px; line-height: 1;
+  cursor: pointer;
+  transition: color .15s ease, background-color .15s ease, border-color .15s ease;
+}
+.md-outline-restore span { writing-mode: vertical-rl; letter-spacing: .16em; }
+.md-outline-restore:hover { color: var(--md-primary); border-color: var(--md-primary); background: var(--md-primary-soft); }
+@media (min-width: 1280px) {
+  .md-outline-restore { display: flex; }
+}
 .md-reading[data-mode='share'] .md-outline__body {
   flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain;
   padding: 10px 10px 14px;
@@ -1735,9 +1775,9 @@ button { font-family: inherit; }
  *
  * <p>顺带把两条脆弱的算式拿掉了：侧栏不再 sticky，也就不必把「视口 - 顶栏 - 状态栏 - 间隙」
  * 在样式表里抄第二遍——那一抄一旦和 --md-share-* 不同步，要么从顶栏底下穿过去，要么被状态栏压掉一截，
- * 而 flex 的等高天然对齐。窄屏（≤1180）三栏落回文档流排成多行，没有「一栏独滚」的形状，照旧整页滚。</p>
+ * 而 flex 的等高天然对齐。窄屏（≤1279）三栏落回文档流排成多行，没有「一栏独滚」的形状，照旧整页滚。</p>
  */
-@media (min-width: 1181px) {
+@media (min-width: 1280px) {
   /* 拖宽手柄：贴在两栏边缘的一条窄热区，hover 时高亮 */
   .md-reading__resize {
     display: block;
@@ -1850,7 +1890,7 @@ button { font-family: inherit; }
  * 窄屏没有工具条，抽屉也就没有入口（那条工具条在分享页是隐藏的）。与其补一个只有窄屏才出现的
  * 汉堡按钮，不如让两栏直接落回文档流：目录排到正文之后，库信息排在最前，都还能滚到。
  */
-@media (max-width: 1180px) {
+@media (max-width: 1279px) {
   .md-reading[data-mode='share'] .md-reading__outline {
     display: block; position: static; grid-column: 1 / -1;
     height: auto; max-height: 340px;
@@ -1883,7 +1923,7 @@ button { font-family: inherit; }
  *
  * <p>这一档改成「一条正文柱 + 按需唤出的两个抽屉」：目录与大纲退出栅格变成 fixed 抽屉，
  * 顶栏只留目录入口 / 库名 / 设置 / 大纲 / 分享，状态栏回到文档流末尾，回到顶部改成
- * 滚过一屏才出现的悬浮按钮，视口底沿补一条阅读进度线。宽屏（≥1181）三栏独滚那套一行不动。</p>
+ * 滚过一屏才出现的悬浮按钮，视口底沿补一条阅读进度线。宽屏（≥1280）三栏独滚那套一行不动。</p>
  *
  * <p>放在文件最末、print 之前：同特异度下源序靠后才盖得过前面的桌面规则，
  * 以及那些散在中段的 ≤620 / ≤480 分享顶栏规则。</p>
@@ -1921,12 +1961,12 @@ button { font-family: inherit; }
 }
 
 /*
- * 901–1180（平板竖屏）：左栏还在栅格里，大纲不该堆到正文下面再占一屏。
+ * 901–1279（平板竖屏）：左栏还在栅格里，大纲不该堆到正文下面再占一屏。
  * 先把它收进右侧抽屉；同时修一件旧账 —— .md-page--read .md-view 的 overflow:hidden
  * 本是为「宽屏正文栏独滚」写的，却也命中了分享页，这一档的正文栏是 visible，
  * 于是页面既不能滚、又被裁掉一截。窄屏一律把滚动权还给 #md-view。
  */
-@media (min-width: 901px) and (max-width: 1180px) {
+@media (min-width: 901px) and (max-width: 1279px) {
   body.md-page--share .md-view { overflow-y: auto; overflow-x: hidden; }
   .md-reading[data-mode='share'] .md-reading__main { overflow: visible; }
   .md-share__nav-toggle--outline { display: grid; }
@@ -2304,7 +2344,7 @@ button { font-family: inherit; }
 /* ==================================================================
  * 阅读设置：隐藏左侧目录 / 右侧大纲
  *
- * <p>只在桌面布局里折叠对应栅格列（左栏 ≥901、右栏 ≥1181），窄屏两栏是抽屉、不占版面，
+ * <p>只在桌面布局里折叠对应栅格列（左栏 ≥901、右栏 ≥1280），窄屏两栏是抽屉、不占版面，
  * 关掉它们只会让导航入口消失，所以这一档不生效。列宽（含把两级宽度变量置 0）由
  * ReadBody 的 frameStyle 写在内联样式里 —— 拖拽过的宽度也是内联值，样式表压不过它。</p>
  *
@@ -2320,10 +2360,10 @@ button { font-family: inherit; }
    * 加宽到 44px 之后竖条落在空白里，门户与分享页（卡片内边距）各让一步，观感一致。
    */
   .md-reading.is-hide-aside > .md-reading__main { padding-left: 44px; }
-  /* 901–1180 的分享页是两列栅格，正文靠自动放置：左栏摘掉后必须钉回第 2 列 */
+  /* 901–1279 的分享页是两列栅格，正文靠自动放置：左栏摘掉后必须钉回第 2 列 */
   .md-reading[data-mode='share'].is-hide-aside > .md-reading__main { grid-column: 2; }
 }
-@media (min-width: 1181px) {
+@media (min-width: 1280px) {
   .md-reading.is-hide-outline > .md-reading__outline,
   .md-reading.is-hide-outline > .md-reading__resize--outline { display: none; }
   .md-reading[data-mode='share'] > .md-reading__aside { grid-column: 1; }
@@ -2332,8 +2372,10 @@ button { font-family: inherit; }
   .md-reading[data-mode='share'] > .md-reading__resize--outline { grid-column: 4; }
   .md-reading[data-mode='share'] > .md-reading__outline { grid-column: 5; }
   /*
-   * 收起左栏时正文仍钉在第 3 列。上面 901–1180 那条「钉回第 2 列」的选择器权重多一个类，
+   * 收起左栏时正文仍钉在第 3 列。上面 901–1279 那条「钉回第 2 列」的选择器权重多一个类，
    * 不加这一条的话，宽屏收起左栏会被它抢走，正文掉进 0 宽的把手列、整页挤成一条。
    */
   .md-reading[data-mode='share'].is-hide-aside > .md-reading__main { grid-column: 3; }
+  /* 右栏收起后同样给正文右侧让出通道，回收竖条才不压到末字 */
+  .md-reading.is-hide-outline > .md-reading__main { padding-right: 44px; }
 }

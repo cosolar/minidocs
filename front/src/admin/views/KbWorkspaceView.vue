@@ -4,7 +4,6 @@ import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Editor } from '@bytemd/vue-next'
 import gfm from '@bytemd/plugin-gfm'
-import highlight from '@bytemd/plugin-highlight'
 import zhHans from 'bytemd/locales/zh_Hans.json'
 import gfmZhHans from '@bytemd/plugin-gfm/locales/zh_Hans.json'
 import 'bytemd/dist/index.css'
@@ -43,12 +42,18 @@ interface OutlineItem {
 
 /**
  * 插件与后端渲染管线保持同一口径：flexmark 只注册了表格 / 删除线 / 任务列表 / 自动链接，
- * 因此这里也只挂 gfm + 代码高亮，避免编辑态预览出现阅读页渲染不出来的内容。
- * frontmatterStrip 只影响预览：frontmatter 是文档属性，不该出现在正文里。
+ * 因此这里只挂 gfm，代码高亮交给与阅读页同一条 {@code enhanceMarkdown} 流水线。
+ *
+ * <p>不再挂 {@code @bytemd/plugin-highlight}：它在每轮 viewerEffect 里对**已经高亮过**的
+ * {@code pre > code} 反复调 {@code hljs.highlightElement}，对带子节点的代码块刷
+ * 「unescaped HTML」安全告警，对 mermaid 围栏刷「找不到语言」。高亮本身由下面
+ * {@code enhanceMarkdown → enhanceCodeBlocks} 负责（阅读页与预览区同一份实现），
+ * 这里再挂一遍只是噪音。</p>
+ *
+ * <p>frontmatterStrip 只影响预览：frontmatter 是文档属性，不该出现在正文里。</p>
  */
 const plugins = [
   gfm({ locale: gfmZhHans }),
-  highlight(),
   frontmatterStrip(),
   /*
    * CJK 紧邻加粗：`把**加粗**弄好` 这种写法，CommonMark 的左右侧规则判定不出来

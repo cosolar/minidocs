@@ -93,6 +93,23 @@ const triggerRef = ref<HTMLElement | null>(null)
 const narrowQuery = window.matchMedia('(max-width: 620px)')
 const narrow = ref(narrowQuery.matches)
 
+/**
+ * 侧栏开关只在那一侧真的以「常驻列」出现时才给。
+ *
+ * <p>左栏（目录）≥901 就进栅格，右栏（大纲）要 ≥1280（与 reader.css 的三栏断点一致）。
+ * 低于这个宽度时那一栏是抽屉、不占版面，开关按下去既看不到栏，还会让抽屉入口跟着消失 ——
+ * 与其摆一个按了没反应的开关，不如按宽度把那一项收起来。</p>
+ */
+const asideQuery = window.matchMedia('(min-width: 901px)')
+const outlineQuery = window.matchMedia('(min-width: 1280px)')
+const asideAvailable = ref(asideQuery.matches)
+const outlineAvailable = ref(outlineQuery.matches)
+
+function onSideQueryChange() {
+  asideAvailable.value = asideQuery.matches
+  outlineAvailable.value = outlineQuery.matches
+}
+
 /** 抽屉打开时锁页面滚动：否则手指在遮罩上划，正文会跟着滚，读者会以为面板也在动 */
 let bodyScrollLocked = false
 let previousBodyOverflow = ''
@@ -334,11 +351,15 @@ function onSystemThemeChange() {
 onMounted(() => {
   darkQuery.addEventListener('change', onSystemThemeChange)
   narrowQuery.addEventListener('change', onNarrowChange)
+  asideQuery.addEventListener('change', onSideQueryChange)
+  outlineQuery.addEventListener('change', onSideQueryChange)
 })
 
 onBeforeUnmount(() => {
   darkQuery.removeEventListener('change', onSystemThemeChange)
   narrowQuery.removeEventListener('change', onNarrowChange)
+  asideQuery.removeEventListener('change', onSideQueryChange)
+  outlineQuery.removeEventListener('change', onSideQueryChange)
   open.value = false
   syncBodyScroll()
   document.removeEventListener('pointerdown', onDocPointerDown, true)
@@ -516,13 +537,15 @@ onBeforeUnmount(() => {
         </div>
 
         <!--
-          两侧栏：默认都显示。关掉后正文吃满整页（桌面布局），窄屏的抽屉不受影响 ——
-          那时两栏本来就不占版面，关掉只会让导航入口消失。
+          两侧栏：默认都显示。关掉后正文吃满整页（桌面布局）。
+          只给「当前宽度下真的以常驻列存在」的那一侧：右边 <1280 是抽屉、左边 <901 是抽屉，
+          那种时候开关按了既看不到栏，还会把抽屉入口一起抹掉，见上面 asideQuery / outlineQuery。
         -->
-        <div class="md-prefs__row">
+        <div v-if="asideAvailable || outlineAvailable" class="md-prefs__row">
           <span class="md-prefs__label">侧栏</span>
           <div class="md-prefs__toggles">
             <button
+              v-if="asideAvailable"
               type="button"
               class="md-prefs__toggle"
               role="switch"
@@ -533,6 +556,7 @@ onBeforeUnmount(() => {
               <span class="md-prefs__switch" :class="{ 'is-on': readerSides.aside }" aria-hidden="true"><i /></span>
             </button>
             <button
+              v-if="outlineAvailable"
               type="button"
               class="md-prefs__toggle"
               role="switch"

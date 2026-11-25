@@ -765,8 +765,28 @@ function routerTo(link?: string) {
         <div v-if="isShare" class="md-outline__head">
           <Icon name="list" :size="15" />
           <span>目录</span>
+          <button
+            type="button"
+            class="md-outline__collapse"
+            aria-label="收起大纲"
+            title="收起大纲"
+            @click="setReaderSide('outline', false)"
+          >
+            <Icon name="chevronRight" :size="15" />
+          </button>
         </div>
-        <h2 v-else class="md-outline__title">文章目录</h2>
+        <div v-else class="md-outline__titlebar">
+          <h2 class="md-outline__title">文章目录</h2>
+          <button
+            type="button"
+            class="md-outline__collapse"
+            aria-label="收起大纲"
+            title="收起大纲"
+            @click="setReaderSide('outline', false)"
+          >
+            <Icon name="chevronRight" :size="15" />
+          </button>
+        </div>
         <div v-if="view.outline.length" class="md-outline__body" data-md-scroll-outline>
           <OutlineTree
             :nodes="view.outline"
@@ -778,6 +798,18 @@ function routerTo(link?: string) {
         <p v-else class="md-outline__empty">本文没有标题结构</p>
       </div>
     </aside>
+
+    <!-- 右栏收起后的回收入口：贴着视口右沿的竖条，与左栏那条对称 -->
+    <button
+      v-if="!readerSides.outline"
+      type="button"
+      class="md-outline-restore"
+      title="展开大纲"
+      aria-label="展开大纲"
+      @click="setReaderSide('outline', true)"
+    >
+      <Icon name="chevronLeft" :size="13" /><span>大纲</span>
+    </button>
 
     <!--
       手机底栏（≤620 才出现）：顶栏只留面包屑，动作全部下沉到拇指够得到的位置。
